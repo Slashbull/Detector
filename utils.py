@@ -17,8 +17,10 @@ from config import CONFIG
 logger = logging.getLogger(__name__)
 
 class RobustSessionState:
-    """Bulletproof session state management - prevents all KeyErrors"""
+    """Bulletproof session state management - prevents all KeyErrors."""
     
+    # Complete list of ALL session state keys with their default values
+    # This ensures no KeyErrors and provides predictable behavior.
     STATE_DEFAULTS = {
         # Core states
         'search_query': "",
@@ -39,6 +41,8 @@ class RobustSessionState:
         'performance_metrics': {},
         'data_quality': {},
         'trigger_clear': False,
+        
+        # All filter states with proper defaults
         'category_filter': [],
         'sector_filter': [],
         'industry_filter': [],
@@ -60,24 +64,31 @@ class RobustSessionState:
         'wave_sensitivity': "Balanced",
         'export_template_radio': "Full Analysis (All Data)",
         'display_mode_toggle': 0,
+        
+        # Data states
         'ranked_df': None,
         'data_timestamp': None,
         'last_good_data': None,
+        
+        # UI states
         'search_input': ""
     }
     
     @staticmethod
     def safe_get(key: str, default: Any = None) -> Any:
+        """Safely get a session state value with a fallback to a default value."""
         if key not in st.session_state:
             st.session_state[key] = RobustSessionState.STATE_DEFAULTS.get(key, default)
         return st.session_state[key]
     
     @staticmethod
     def safe_set(key: str, value: Any) -> None:
+        """Safely set a session state value."""
         st.session_state[key] = value
     
     @staticmethod
     def initialize():
+        """Initialize all session state variables with their defaults if they don't exist."""
         for key, default_value in RobustSessionState.STATE_DEFAULTS.items():
             if key not in st.session_state:
                 if key == 'last_refresh' and default_value is None:
@@ -87,6 +98,7 @@ class RobustSessionState:
     
     @staticmethod
     def clear_filters():
+        """Clear all filter states back to their default values safely."""
         filter_keys = [
             'category_filter', 'sector_filter', 'industry_filter', 'eps_tier_filter',
             'pe_tier_filter', 'price_tier_filter', 'patterns',
@@ -107,10 +119,11 @@ class RobustSessionState:
         RobustSessionState.safe_set('trigger_clear', False)
 
 class PerformanceMonitor:
-    """Track and report performance metrics"""
+    """Track and report performance metrics using a decorator."""
     
     @staticmethod
     def timer(target_time: Optional[float] = None):
+        """A decorator to measure function execution time."""
         def decorator(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
@@ -137,10 +150,11 @@ class PerformanceMonitor:
         return decorator
 
 class DataValidator:
-    """Comprehensive data validation and sanitization"""
+    """Comprehensive data validation and sanitization, essential for real-world data."""
     
     @staticmethod
     def validate_dataframe(df: pd.DataFrame, required_cols: List[str], context: str) -> Tuple[bool, str]:
+        """Validate dataframe structure and data quality upon load."""
         if df is None:
             return False, f"{context}: DataFrame is None"
         
@@ -178,6 +192,7 @@ class DataValidator:
     
     @staticmethod
     def clean_numeric_value(value: Any, is_percentage: bool = False, bounds: Optional[Tuple[float, float]] = None) -> Optional[float]:
+        """Clean and convert numeric values from strings, with robust error handling and bounds checking."""
         if pd.isna(value) or value == '' or value is None:
             return np.nan
         
@@ -207,6 +222,7 @@ class DataValidator:
     
     @staticmethod
     def sanitize_string(value: Any, default: str = "Unknown") -> str:
+        """Sanitize string values, replacing common empty/error representations with a default."""
         if pd.isna(value) or value is None:
             return default
         
