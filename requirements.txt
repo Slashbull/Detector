@@ -1,0 +1,17 @@
+streamlit>=1.25.0
+pandas>=1.5.3
+numpy>=1.24.2
+plotly>=5.15.0
+xlsxwriter==3.1.9
+requests>=2.31.0
+urllib3>=2.2.0
+# Statistical functions
+scipy==1.14.1
+
+# Optional but recommended for better performance
+# pyarrow==17.0.0  # For faster parquet operations if needed
+
+# Note: These are the latest stable versions as of deployment
+# Streamlit Cloud will automatically install these dependencies
+
+seaborn>=0.12.2
