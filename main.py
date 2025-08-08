@@ -3173,7 +3173,7 @@ def main():
                     for error in metadata['errors']:
                         st.error(error)
                 
-           except Exception as e:
+            except Exception as e:
                 logger.error(f"Failed to load data: {str(e)}")
                 
                 last_good_data = st.session_state.get('last_good_data')
