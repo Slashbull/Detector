@@ -2015,7 +2015,7 @@ class FilterEngine:
         masks.append(create_mask_from_isin('sector', filters.get('sectors', [])))
         masks.append(create_mask_from_isin('industry', filters.get('industries', [])))
         
-        # 2. Score filter - FIX: Ensure numeric
+        # 2. Score filter - WITH TYPE CONVERSION
         min_score = filters.get('min_score', 0)
         if min_score > 0 and 'master_score' in df.columns:
             try:
@@ -2024,7 +2024,7 @@ class FilterEngine:
             except (ValueError, TypeError):
                 pass
         
-        # 3. EPS change filter - FIX: Ensure numeric
+        # 3. EPS change filter - WITH TYPE CONVERSION
         min_eps_change = filters.get('min_eps_change')
         if min_eps_change is not None and 'eps_change_pct' in df.columns:
             try:
@@ -2045,7 +2045,7 @@ class FilterEngine:
             min_trend, max_trend = trend_range
             masks.append(df['trend_quality'].notna() & (df['trend_quality'] >= min_trend) & (df['trend_quality'] <= max_trend))
         
-        # 6. PE filters - FIX: Ensure numeric
+        # 6. PE filters - WITH TYPE CONVERSION
         if 'pe' in df.columns:
             pe_mask = pd.Series(True, index=df.index)
             
@@ -2144,10 +2144,10 @@ class FilterEngine:
         # Get unique values
         values = filtered_df[column].dropna().unique()
         
-        # FIX: Complete the string filtering properly
+        # Complete the string filtering properly
         values = [v for v in values if str(v).strip() not in ['Unknown', 'unknown', '', 'nan', 'NaN', 'None', 'N/A', '-']]
         
-        # FIX: Sort with proper handling of mixed types
+        # Sort with proper handling of mixed types
         try:
             # Try numeric sort first
             values = sorted(values, key=lambda x: float(str(x).replace(',', '')))
@@ -3221,7 +3221,6 @@ def main():
                     ranked_df, data_timestamp, metadata = last_good_data
                     st.warning("Failed to load fresh data, using cached version")
                 else:
-                    # FIX: Add proper error handling
                     st.error(f"❌ Error: {str(e)}")
                     st.info("Common issues:\n- Invalid Google Sheets ID\n- Sheet not publicly accessible\n- Network connectivity\n- Invalid CSV format")
                     st.stop()
@@ -3286,7 +3285,8 @@ def main():
         ranked_df_display = ranked_df
     
     with st.sidebar:
-        filters = SessionStateManager.build_filter_dict()
+        # Don't build filters at the start - build as we go
+        filters = {}
         
         st.markdown("### 📊 Display Mode")
         display_mode = st.radio(
@@ -3302,6 +3302,7 @@ def main():
         
         st.markdown("---")
         
+        # Category filter
         categories = FilterEngine.get_filter_options(ranked_df_display, 'category', filters)
         
         selected_categories = st.multiselect(
@@ -3312,8 +3313,10 @@ def main():
             key="category_filter"
         )
         
-        filters['categories'] = selected_categories
+        if selected_categories:
+            filters['categories'] = selected_categories
         
+        # Sector filter
         sectors = FilterEngine.get_filter_options(ranked_df_display, 'sector', filters)
         
         selected_sectors = st.multiselect(
@@ -3324,8 +3327,10 @@ def main():
             key="sector_filter"
         )
         
-        filters['sectors'] = selected_sectors
+        if selected_sectors:
+            filters['sectors'] = selected_sectors
         
+        # Industry filter
         industries = FilterEngine.get_filter_options(ranked_df_display, 'industry', filters)
         
         selected_industries = st.multiselect(
@@ -3335,9 +3340,12 @@ def main():
             placeholder="Select industries (empty = All)",
             key="industry_filter"
         )
-        filters['industries'] = selected_industries
         
-        filters['min_score'] = st.slider(
+        if selected_industries:
+            filters['industries'] = selected_industries
+        
+        # Score filter
+        min_score = st.slider(
             "Minimum Master Score",
             min_value=0,
             max_value=100,
@@ -3347,13 +3355,17 @@ def main():
             key="min_score"
         )
         
+        if min_score > 0:
+            filters['min_score'] = min_score
+        
+        # Pattern filter
         all_patterns = set()
         for patterns in ranked_df_display['patterns'].dropna():
             if patterns:
                 all_patterns.update(patterns.split(' | '))
         
         if all_patterns:
-            filters['patterns'] = st.multiselect(
+            selected_patterns = st.multiselect(
                 "Patterns",
                 options=sorted(all_patterns),
                 default=st.session_state.get('patterns', []),
@@ -3361,7 +3373,11 @@ def main():
                 help="Filter by specific patterns",
                 key="patterns"
             )
+            
+            if selected_patterns:
+                filters['patterns'] = selected_patterns
         
+        # Trend filter
         st.markdown("#### 📈 Trend Strength")
         trend_options = {
             "All Trends": (0, 100),
@@ -3377,18 +3393,24 @@ def main():
         except ValueError:
             logger.warning(f"Invalid trend_filter state '{default_trend_key}' found, defaulting to 'All Trends'.")
             current_trend_index = 0
-        filters['trend_filter'] = st.selectbox(
+        
+        selected_trend = st.selectbox(
             "Trend Quality",
             options=list(trend_options.keys()),
             index=current_trend_index,
             key="trend_filter",
             help="Filter stocks by trend strength based on SMA alignment"
         )
-        filters['trend_range'] = trend_options[filters['trend_filter']]
+        
+        if selected_trend != "All Trends":
+            filters['trend_filter'] = selected_trend
+            filters['trend_range'] = trend_options[selected_trend]
 
+        # Wave filters
         st.markdown("#### 🌊 Wave Filters")
         wave_states_options = FilterEngine.get_filter_options(ranked_df_display, 'wave_state', filters)
-        filters['wave_states'] = st.multiselect(
+        
+        selected_wave_states = st.multiselect(
             "Wave State",
             options=wave_states_options,
             default=st.session_state.get('wave_states_filter', []),
@@ -3396,6 +3418,9 @@ def main():
             help="Filter by the detected 'Wave State'",
             key="wave_states_filter"
         )
+        
+        if selected_wave_states:
+            filters['wave_states'] = selected_wave_states
 
         if 'overall_wave_strength' in ranked_df_display.columns:
             min_strength = float(ranked_df_display['overall_wave_strength'].min())
@@ -3413,7 +3438,7 @@ def main():
             current_slider_value = (max(slider_min_val, min(slider_max_val, current_slider_value[0])),
                                     max(slider_min_val, min(slider_max_val, current_slider_value[1])))
 
-            filters['wave_strength_range'] = st.slider(
+            wave_strength_range = st.slider(
                 "Overall Wave Strength",
                 min_value=slider_min_val,
                 max_value=slider_max_val,
@@ -3422,11 +3447,13 @@ def main():
                 help="Filter by the calculated 'Overall Wave Strength' score",
                 key="wave_strength_range_slider"
             )
-        else:
-            filters['wave_strength_range'] = (0, 100)
-            st.info("Overall Wave Strength data not available.")
-
+            
+            if wave_strength_range != (0, 100):
+                filters['wave_strength_range'] = wave_strength_range
+        
+        # Advanced filters
         with st.expander("🔧 Advanced Filters"):
+            # Tier filters
             for tier_type, col_name in [
                 ('eps_tiers', 'eps_tier'),
                 ('pe_tiers', 'pe_tier'),
@@ -3442,8 +3469,27 @@ def main():
                         placeholder=f"Select {col_name.replace('_', ' ')}s (empty = All)",
                         key=f"{col_name}_filter"
                     )
-                    filters[tier_type] = selected_tiers
+                    
+                    if selected_tiers:
+                        filters[tier_type] = selected_tiers
             
+            # EPS change filter
+            if 'eps_change_pct' in ranked_df_display.columns:
+                eps_change_input = st.text_input(
+                    "Min EPS Change %",
+                    value=st.session_state.get('min_eps_change', ""),
+                    placeholder="e.g. -50 or leave empty",
+                    help="Enter minimum EPS growth percentage",
+                    key="min_eps_change"
+                )
+                
+                if eps_change_input.strip():
+                    try:
+                        filters['min_eps_change'] = float(eps_change_input)
+                    except ValueError:
+                        st.error("Please enter a valid number for EPS change")
+            
+            # PE filters (only in hybrid mode)
             if show_fundamentals and 'pe' in ranked_df_display.columns:
                 st.markdown("**🔍 Fundamental Filters**")
                 
@@ -3461,9 +3507,6 @@ def main():
                             filters['min_pe'] = float(min_pe_input)
                         except ValueError:
                             st.error("Invalid Min PE")
-                            filters['min_pe'] = None
-                    else:
-                        filters['min_pe'] = None
                 
                 with col2:
                     max_pe_input = st.text_input(
@@ -3478,15 +3521,16 @@ def main():
                             filters['max_pe'] = float(max_pe_input)
                         except ValueError:
                             st.error("Invalid Max PE")
-                            filters['max_pe'] = None
-                    else:
-                        filters['max_pe'] = None
                 
-                filters['require_fundamental_data'] = st.checkbox(
+                # Data completeness filter
+                require_fundamental = st.checkbox(
                     "Only show stocks with PE and EPS data",
                     value=st.session_state.get('require_fundamental_data', False),
                     key="require_fundamental_data"
                 )
+                
+                if require_fundamental:
+                    filters['require_fundamental_data'] = True
     
     if quick_filter_applied:
         filtered_df = FilterEngine.apply_filters(ranked_df_display, filters)
