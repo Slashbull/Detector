@@ -2757,14 +2757,14 @@ class SessionStateManager:
             if st.session_state.get(key) and st.session_state[key]:
                 filters[filter_name] = st.session_state[key]
         
-        # Numeric filters - FIX: Better type conversion
+        # Numeric filters - Better type conversion
         if st.session_state.get('min_score', 0) > 0:
             try:
                 filters['min_score'] = float(st.session_state['min_score'])
             except (ValueError, TypeError):
                 filters['min_score'] = st.session_state['min_score']
         
-        # EPS change filter - FIX: Handle string inputs
+        # EPS change filter - Handle string inputs
         if st.session_state.get('min_eps_change'):
             value = st.session_state['min_eps_change']
             if isinstance(value, str) and value.strip():
@@ -2775,7 +2775,7 @@ class SessionStateManager:
             elif isinstance(value, (int, float)):
                 filters['min_eps_change'] = float(value)
         
-        # PE filters - FIX: Handle string inputs
+        # PE filters - Handle string inputs
         if st.session_state.get('min_pe'):
             value = st.session_state['min_pe']
             if isinstance(value, str) and value.strip():
@@ -2800,14 +2800,14 @@ class SessionStateManager:
         if st.session_state.get('patterns') and st.session_state['patterns']:
             filters['patterns'] = st.session_state['patterns']
         
-        # Tier filters
+        # Tier filters - FIX: Complete the line
         for key, filter_name in [
             ('eps_tier_filter', 'eps_tiers'),
             ('pe_tier_filter', 'pe_tiers'),
             ('price_tier_filter', 'price_tiers')
         ]:
             if st.session_state.get(key) and st.session_state[key]:
-                filters[filter_name] = st.session_state[key]
+                filters[filter_name] = st.session_state[key]  # FIXED: Complete line
         
         # Range and selection filters
         if st.session_state.get('trend_filter') != "All Trends":
