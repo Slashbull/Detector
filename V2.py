@@ -3909,7 +3909,8 @@ def main():
                     st.info(f"**Viewing:** {filter_display} | **{len(filtered_df):,} stocks** shown")
         
         with filter_status_col2:
-            if st.button("Clear Filters", type="secondary"):
+            if st.button("Clear Filters", type="secondary", key="clear_filters_main_btn"):
+                FilterEngine.clear_all_filters()
                 SessionStateManager.clear_filters()
                 st.rerun()
     
