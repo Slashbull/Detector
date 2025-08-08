@@ -2055,145 +2055,115 @@ class Visualizer:
             return go.Figure()
 
 # ============================================
-# FILTER ENGINE - ENHANCED WITH INTERCONNECTION
+# FILTER ENGINE - OPTIMIZED
 # ============================================
 
 class FilterEngine:
-    """
-    Handles all filtering operations efficiently with perfect interconnection.
-    This class is optimized to apply filters robustly, preventing errors
-    due to missing data or invalid user input.
-    """
+    """Handle all filtering operations efficiently"""
     
     @staticmethod
     @PerformanceMonitor.timer(target_time=0.2)
     def apply_filters(df: pd.DataFrame, filters: Dict[str, Any]) -> pd.DataFrame:
-        """
-        Applies all filters to a DataFrame using a single, efficient operation.
-
-        Args:
-            df (pd.DataFrame): The DataFrame to filter.
-            filters (Dict[str, Any]): A dictionary of active filters and their values.
-
-        Returns:
-            pd.DataFrame: A new DataFrame containing only the rows that match all filters.
-        """
+        """Apply all filters with optimized performance and type safety"""
+        
         if df.empty:
             return df
         
-        masks = []
+        # Start with boolean index for all rows
+        mask = pd.Series(True, index=df.index)
         
-        def create_mask_from_isin(column, values):
-            if column in df.columns and values:
-                return df[column].isin(values)
-            return None
-
-        # 1. Categorical filters
-        masks.append(create_mask_from_isin('category', filters.get('categories', [])))
-        masks.append(create_mask_from_isin('sector', filters.get('sectors', [])))
-        masks.append(create_mask_from_isin('industry', filters.get('industries', [])))
+        # Category filter - FIX: Ensure string comparison
+        categories = filters.get('categories', [])
+        if categories and 'All' not in categories and 'category' in df.columns:
+            # Convert category column to string for comparison
+            mask &= df['category'].astype(str).isin([str(c) for c in categories])
         
-        # 2. Score filter
+        # Sector filter - FIX: Ensure string comparison
+        sectors = filters.get('sectors', [])
+        if sectors and 'All' not in sectors and 'sector' in df.columns:
+            # Convert sector column to string for comparison
+            mask &= df['sector'].astype(str).isin([str(s) for s in sectors])
+        
+        # Industry filter - FIX: Ensure string comparison
+        industries = filters.get('industries', [])
+        if industries and 'All' not in industries and 'industry' in df.columns:
+            # Convert industry column to string for comparison
+            mask &= df['industry'].astype(str).isin([str(i) for i in industries])
+        
+        # Score filter - FIX: Ensure numeric comparison
         min_score = filters.get('min_score', 0)
         if min_score > 0 and 'master_score' in df.columns:
-            masks.append(df['master_score'].fillna(0) >= min_score)
+            # Convert to numeric, non-numeric becomes NaN
+            master_score_numeric = pd.to_numeric(df['master_score'], errors='coerce')
+            mask &= master_score_numeric >= min_score
         
-        # 3. EPS change filter
+        # EPS change filter - FIX: Handle numeric comparison
         min_eps_change = filters.get('min_eps_change')
         if min_eps_change is not None and 'eps_change_pct' in df.columns:
-            masks.append(df['eps_change_pct'].notna() & (df['eps_change_pct'] >= min_eps_change))
+            eps_numeric = pd.to_numeric(df['eps_change_pct'], errors='coerce')
+            mask &= (eps_numeric >= min_eps_change) | eps_numeric.isna()
         
-        # 4. Pattern filter
+        # Pattern filter
         patterns = filters.get('patterns', [])
         if patterns and 'patterns' in df.columns:
-            pattern_regex = '|'.join([re.escape(p) for p in patterns])
-            masks.append(df['patterns'].str.contains(pattern_regex, case=False, na=False, regex=True))
+            pattern_regex = '|'.join(patterns)
+            # Ensure patterns column is string
+            patterns_str = df['patterns'].astype(str)
+            mask &= patterns_str.str.contains(pattern_regex, case=False, na=False, regex=True)
         
-        # 5. Trend filter
-        trend_range = filters.get('trend_range')
-        if filters.get('trend_filter') != 'All Trends' and trend_range and 'trend_quality' in df.columns:
-            min_trend, max_trend = trend_range
-            masks.append(df['trend_quality'].notna() & (df['trend_quality'] >= min_trend) & (df['trend_quality'] <= max_trend))
+        # Trend filter - FIX: Ensure numeric comparison
+        if filters.get('trend_range') and filters.get('trend_filter') != 'All Trends':
+            min_trend, max_trend = filters['trend_range']
+            if 'trend_quality' in df.columns:
+                trend_numeric = pd.to_numeric(df['trend_quality'], errors='coerce').fillna(50)
+                mask &= (trend_numeric >= min_trend) & (trend_numeric <= max_trend)
         
-        # 6. PE filters
-        if 'pe' in df.columns:
-            pe_mask = pd.Series(True, index=df.index)
-            if filters.get('min_pe') is not None:
-                pe_mask &= df['pe'].notna() & (df['pe'] > 0) & (df['pe'] >= filters['min_pe'])
-            if filters.get('max_pe') is not None:
-                pe_mask &= df['pe'].notna() & (df['pe'] > 0) & (df['pe'] <= filters['max_pe'])
-            if filters.get('min_pe') is not None or filters.get('max_pe') is not None:
-                masks.append(pe_mask)
-
-        # 7. Tier filters
-        masks.append(create_mask_from_isin('eps_tier', filters.get('eps_tiers', [])))
-        masks.append(create_mask_from_isin('pe_tier', filters.get('pe_tiers', [])))
-        masks.append(create_mask_from_isin('price_tier', filters.get('price_tiers', [])))
-
-        # 8. Data completeness filter
+        # PE filters - FIX: Ensure numeric comparison
+        min_pe = filters.get('min_pe')
+        if min_pe is not None and 'pe' in df.columns:
+            pe_numeric = pd.to_numeric(df['pe'], errors='coerce')
+            mask &= pe_numeric.isna() | ((pe_numeric > 0) & (pe_numeric >= min_pe))
+        
+        max_pe = filters.get('max_pe')
+        if max_pe is not None and 'pe' in df.columns:
+            pe_numeric = pd.to_numeric(df['pe'], errors='coerce')
+            mask &= pe_numeric.isna() | ((pe_numeric > 0) & (pe_numeric <= max_pe))
+        
+        # Apply tier filters - FIX: Ensure string comparison
+        for tier_type in ['eps_tiers', 'pe_tiers', 'price_tiers']:
+            tier_values = filters.get(tier_type, [])
+            if tier_values and 'All' not in tier_values:
+                col_name = tier_type.replace('_tiers', '_tier')
+                if col_name in df.columns:
+                    # Convert to string for comparison
+                    mask &= df[col_name].astype(str).isin([str(t) for t in tier_values])
+        
+        # Data completeness filter
         if filters.get('require_fundamental_data', False):
-            if all(col in df.columns for col in ['pe', 'eps_change_pct']):
-                masks.append(df['pe'].notna() & (df['pe'] > 0) & df['eps_change_pct'].notna())
+            if 'pe' in df.columns and 'eps_change_pct' in df.columns:
+                pe_numeric = pd.to_numeric(df['pe'], errors='coerce')
+                eps_numeric = pd.to_numeric(df['eps_change_pct'], errors='coerce')
+                mask &= pe_numeric.notna() & (pe_numeric > 0) & eps_numeric.notna()
         
-        # 9. Wave filters
-        masks.append(create_mask_from_isin('wave_state', filters.get('wave_states', [])))
+        # Wave State filter - FIX: Ensure string comparison
+        wave_states = filters.get('wave_states', [])
+        if wave_states and 'All' not in wave_states and 'wave_state' in df.columns:
+            # Convert to string for comparison
+            mask &= df['wave_state'].astype(str).isin([str(w) for w in wave_states])
         
+        # Wave Strength filter - FIX: Ensure numeric comparison
         wave_strength_range = filters.get('wave_strength_range')
-        if wave_strength_range and wave_strength_range != (0, 100) and 'overall_wave_strength' in df.columns:
+        if wave_strength_range and 'overall_wave_strength' in df.columns:
             min_ws, max_ws = wave_strength_range
-            masks.append(df['overall_wave_strength'].notna() & (df['overall_wave_strength'] >= min_ws) & (df['overall_wave_strength'] <= max_ws))
-
-        masks = [mask for mask in masks if mask is not None]
+            wave_numeric = pd.to_numeric(df['overall_wave_strength'], errors='coerce').fillna(50)
+            mask &= (wave_numeric >= min_ws) & (wave_numeric <= max_ws)
         
-        if masks:
-            combined_mask = np.logical_and.reduce(masks)
-            filtered_df = df[combined_mask].copy()
-        else:
-            filtered_df = df.copy()
+        # Apply mask efficiently
+        filtered_df = df[mask].copy()
         
         logger.info(f"Filters reduced {len(df)} to {len(filtered_df)} stocks")
         
         return filtered_df
-    
-    @staticmethod
-    def get_filter_options(df: pd.DataFrame, column: str, current_filters: Dict[str, Any]) -> List[str]:
-        """
-        Retrieves filter options for a given column based on other active filters.
-        This ensures that the filter UI only presents valid, interconnected choices.
-
-        Args:
-            df (pd.DataFrame): The full DataFrame.
-            column (str): The column for which to retrieve options.
-            current_filters (Dict[str, Any]): A dictionary of all currently active filters.
-
-        Returns:
-            List[str]: A sorted list of unique, valid options for the specified column.
-        """
-        if df.empty or column not in df.columns:
-            return []
-        
-        temp_filters = current_filters.copy()
-        
-        filter_key_map = {
-            'category': 'categories', 'sector': 'sectors', 'industry': 'industries',
-            'eps_tier': 'eps_tiers', 'pe_tier': 'pe_tiers', 'price_tier': 'price_tiers',
-            'wave_state': 'wave_states'
-        }
-        
-        if column in filter_key_map:
-            temp_filters.pop(filter_key_map[column], None)
-        
-        filtered_df = FilterEngine.apply_filters(df, temp_filters)
-        
-        values = filtered_df[column].dropna().unique()
-        values = [v for v in values if str(v).strip().lower() not in ['unknown', '', 'nan', 'n/a', 'none', '-']]
-        
-        try:
-            values = sorted(values, key=lambda x: float(str(x).replace(',', '')) if str(x).replace(',', '').replace('.', '').isdigit() else x)
-        except:
-            values = sorted(values, key=str)
-        
-        return values
         
 # ============================================
 # SEARCH ENGINE
