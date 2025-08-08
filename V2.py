@@ -4384,6 +4384,7 @@ def main():
             st.warning("No stocks match the selected filters.")
         
     # Tab 2: Wave Radar
+    # Tab 2: Wave Radar
     with tabs[2]:
         st.markdown("### 🌊 Wave Radar - Early Momentum Detection System")
         st.markdown("*Catch waves as they form, not after they've peaked!*")
@@ -4611,7 +4612,73 @@ def main():
                 if 'signal_count' in shift_display.columns:
                     shift_display = shift_display.drop('signal_count', axis=1)
                 
-                st.dataframe(shift_display, use_container_width=True, hide_index=True)
+                # OPTIMIZED DATAFRAME WITH COLUMN_CONFIG
+                st.dataframe(
+                    shift_display, 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={
+                        'Ticker': st.column_config.TextColumn(
+                            'Ticker',
+                            help="Stock symbol",
+                            width="small"
+                        ),
+                        'Company': st.column_config.TextColumn(
+                            'Company',
+                            help="Company name",
+                            width="medium"
+                        ),
+                        'Score': st.column_config.ProgressColumn(
+                            'Score',
+                            help="Master Score",
+                            format="%.1f",
+                            min_value=0,
+                            max_value=100,
+                            width="small"
+                        ),
+                        'Momentum': st.column_config.ProgressColumn(
+                            'Momentum',
+                            help="Momentum Score",
+                            format="%.0f",
+                            min_value=0,
+                            max_value=100,
+                            width="small"
+                        ),
+                        'Acceleration': st.column_config.ProgressColumn(
+                            'Acceleration',
+                            help="Acceleration Score",
+                            format="%.0f",
+                            min_value=0,
+                            max_value=100,
+                            width="small"
+                        ),
+                        'RVOL': st.column_config.TextColumn(
+                            'RVOL',
+                            help="Relative Volume",
+                            width="small"
+                        ),
+                        'Signals': st.column_config.TextColumn(
+                            'Signals',
+                            help="Signal strength indicator",
+                            width="small"
+                        ),
+                        '7D Return': st.column_config.TextColumn(
+                            '7D Return',
+                            help="7-day return percentage",
+                            width="small"
+                        ),
+                        'Wave': st.column_config.TextColumn(
+                            'Wave',
+                            help="Current wave state",
+                            width="medium"
+                        ),
+                        'Category': st.column_config.TextColumn(
+                            'Category',
+                            help="Market cap category",
+                            width="medium"
+                        )
+                    }
+                )
                 
                 multi_signal = len(top_shifts[top_shifts['signal_count'] >= 3])
                 if multi_signal > 0:
@@ -4638,7 +4705,7 @@ def main():
             
             if len(accelerating_stocks) > 0:
                 fig_accel = Visualizer.create_acceleration_profiles(accelerating_stocks, n=10)
-                st.plotly_chart(fig_accel, use_container_width=True)
+                st.plotly_chart(fig_accel, use_container_width=True, theme="streamlit")
                 
                 col1, col2, col3 = st.columns(3)
                 with col1:
@@ -4737,7 +4804,7 @@ def main():
                                         showlegend=False
                                     )
                                     
-                                    st.plotly_chart(fig_flow, use_container_width=True)
+                                    st.plotly_chart(fig_flow, use_container_width=True, theme="streamlit")
                                 else:
                                     st.info("Insufficient data for category flow analysis after sampling.")
                             else:
@@ -4812,7 +4879,47 @@ def main():
                 
                 col1, col2 = st.columns([3, 1])
                 with col1:
-                    st.dataframe(emergence_df, use_container_width=True, hide_index=True)
+                    # OPTIMIZED DATAFRAME WITH COLUMN_CONFIG
+                    st.dataframe(
+                        emergence_df, 
+                        use_container_width=True, 
+                        hide_index=True,
+                        column_config={
+                            'Ticker': st.column_config.TextColumn(
+                                'Ticker',
+                                help="Stock symbol",
+                                width="small"
+                            ),
+                            'Company': st.column_config.TextColumn(
+                                'Company',
+                                help="Company name",
+                                width="medium"
+                            ),
+                            'Pattern': st.column_config.TextColumn(
+                                'Pattern',
+                                help="Pattern about to emerge",
+                                width="medium"
+                            ),
+                            'Distance': st.column_config.TextColumn(
+                                'Distance',
+                                help="Distance from pattern qualification",
+                                width="small"
+                            ),
+                            'Current': st.column_config.TextColumn(
+                                'Current',
+                                help="Current value",
+                                width="small"
+                            ),
+                            'Score': st.column_config.ProgressColumn(
+                                'Score',
+                                help="Master Score",
+                                format="%.1f",
+                                min_value=0,
+                                max_value=100,
+                                width="small"
+                            )
+                        }
+                    )
                 with col2:
                     UIComponents.render_metric_card("Emerging Patterns", len(emergence_df))
             else:
@@ -4868,7 +4975,59 @@ def main():
                     }
                     surge_display = surge_display.rename(columns=rename_dict)
                     
-                    st.dataframe(surge_display, use_container_width=True, hide_index=True)
+                    # OPTIMIZED DATAFRAME WITH COLUMN_CONFIG
+                    st.dataframe(
+                        surge_display, 
+                        use_container_width=True, 
+                        hide_index=True,
+                        column_config={
+                            'Type': st.column_config.TextColumn(
+                                'Type',
+                                help="Volume surge intensity",
+                                width="small"
+                            ),
+                            'Ticker': st.column_config.TextColumn(
+                                'Ticker',
+                                help="Stock symbol",
+                                width="small"
+                            ),
+                            'Company': st.column_config.TextColumn(
+                                'Company',
+                                help="Company name",
+                                width="medium"
+                            ),
+                            'RVOL': st.column_config.TextColumn(
+                                'RVOL',
+                                help="Relative Volume",
+                                width="small"
+                            ),
+                            'Price': st.column_config.TextColumn(
+                                'Price',
+                                help="Current price",
+                                width="small"
+                            ),
+                            '1D Ret': st.column_config.TextColumn(
+                                '1D Ret',
+                                help="1-day return",
+                                width="small"
+                            ),
+                            'Money Flow': st.column_config.TextColumn(
+                                'Money Flow',
+                                help="Money flow in millions",
+                                width="small"
+                            ),
+                            'Wave': st.column_config.TextColumn(
+                                'Wave',
+                                help="Current wave state",
+                                width="medium"
+                            ),
+                            'Category': st.column_config.TextColumn(
+                                'Category',
+                                help="Market cap category",
+                                width="medium"
+                            )
+                        }
+                    )
                 
                 with col2:
                     UIComponents.render_metric_card("Active Surges", len(volume_surges))
@@ -4895,7 +5054,7 @@ def main():
             
             with col1:
                 fig_dist = Visualizer.create_score_distribution(filtered_df)
-                st.plotly_chart(fig_dist, use_container_width=True)
+                st.plotly_chart(fig_dist, use_container_width=True, theme="streamlit")
             
             with col2:
                 pattern_counts = {}
@@ -4930,7 +5089,7 @@ def main():
                         margin=dict(l=150)
                     )
                     
-                    st.plotly_chart(fig_patterns, use_container_width=True)
+                    st.plotly_chart(fig_patterns, use_container_width=True, theme="streamlit")
                 else:
                     st.info("No patterns detected in current selection")
             
