@@ -2874,6 +2874,99 @@ class SessionStateManager:
         logger.info("Session state initialized successfully")
     
     @staticmethod
+    def build_filter_dict() -> Dict[str, Any]:
+        """
+        Builds a comprehensive filter dictionary from session state.
+        This method collects all active filters and returns them in a format
+        that can be used by FilterEngine.apply_filters().
+        
+        Returns:
+            Dict[str, Any]: Dictionary containing all active filters.
+        """
+        filters = {}
+        
+        # Category filters
+        if st.session_state.get('category_filter'):
+            filters['categories'] = st.session_state.category_filter
+        
+        # Sector filters
+        if st.session_state.get('sector_filter'):
+            filters['sectors'] = st.session_state.sector_filter
+        
+        # Industry filters
+        if st.session_state.get('industry_filter'):
+            filters['industries'] = st.session_state.industry_filter
+        
+        # Pattern filters
+        if st.session_state.get('patterns'):
+            filters['patterns'] = st.session_state.patterns
+        
+        # Score filter
+        min_score = st.session_state.get('min_score', 0)
+        if min_score > 0:
+            filters['min_score'] = min_score
+        
+        # Trend filter
+        trend_filter = st.session_state.get('trend_filter', 'All Trends')
+        if trend_filter != 'All Trends':
+            filters['trend_filter'] = trend_filter
+            # Map trend filter to range
+            trend_ranges = {
+                'Strong Uptrend (80+)': (80, 100),
+                'Uptrend (60-80)': (60, 80),
+                'Neutral (40-60)': (40, 60),
+                'Downtrend (20-40)': (20, 40),
+                'Strong Downtrend (<20)': (0, 20)
+            }
+            filters['trend_range'] = trend_ranges.get(trend_filter, (0, 100))
+        
+        # EPS change filter
+        min_eps_change = st.session_state.get('min_eps_change')
+        if min_eps_change is not None:
+            filters['min_eps_change'] = min_eps_change
+        
+        # PE filters
+        min_pe = st.session_state.get('min_pe')
+        if min_pe is not None:
+            filters['min_pe'] = min_pe
+        
+        max_pe = st.session_state.get('max_pe')
+        if max_pe is not None:
+            filters['max_pe'] = max_pe
+        
+        # Tier filters
+        eps_tiers = st.session_state.get('eps_tier_filter')
+        if eps_tiers:
+            filters['eps_tiers'] = eps_tiers
+        
+        pe_tiers = st.session_state.get('pe_tier_filter')
+        if pe_tiers:
+            filters['pe_tiers'] = pe_tiers
+        
+        price_tiers = st.session_state.get('price_tier_filter')
+        if price_tiers:
+            filters['price_tiers'] = price_tiers
+        
+        # Fundamental data requirement
+        if st.session_state.get('require_fundamental_data', False):
+            filters['require_fundamental_data'] = True
+        
+        # Wave filters
+        wave_states = st.session_state.get('wave_states_filter')
+        if wave_states:
+            filters['wave_states'] = wave_states
+        
+        wave_range = st.session_state.get('wave_strength_range_slider', (0, 100))
+        if wave_range != (0, 100):
+            filters['wave_strength_range'] = wave_range
+        
+        # Update active filter count
+        st.session_state.active_filter_count = len(filters)
+        st.session_state.filters = filters
+        
+        return filters
+    
+    @staticmethod
     def clear_all_filters():
         """
         Clears all filter-related session state variables to their defaults.
