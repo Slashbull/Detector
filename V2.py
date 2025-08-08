@@ -3608,7 +3608,8 @@ def main():
             options=categories,
             default=st.session_state.filter_state.get('categories', []),
             placeholder="Select categories (empty = All)",
-            help="Filter by market capitalization category"
+            help="Filter by market capitalization category",
+            key="category_multiselect"  # ADD UNIQUE KEY
         )
         st.session_state.filter_state['categories'] = selected_categories
         if selected_categories:
@@ -3622,7 +3623,8 @@ def main():
             options=sectors,
             default=st.session_state.filter_state.get('sectors', []),
             placeholder="Select sectors (empty = All)",
-            help="Filter by business sector"
+            help="Filter by business sector",
+            key="sector_multiselect"  # ADD UNIQUE KEY
         )
         st.session_state.filter_state['sectors'] = selected_sectors
         if selected_sectors:
@@ -3636,7 +3638,8 @@ def main():
             options=industries,
             default=st.session_state.filter_state.get('industries', []),
             placeholder="Select industries (empty = All)",
-            help="Filter by specific industry"
+            help="Filter by specific industry",
+            key="industry_multiselect"  # ADD UNIQUE KEY
         )
         st.session_state.filter_state['industries'] = selected_industries
         if selected_industries:
@@ -3649,7 +3652,8 @@ def main():
             max_value=100,
             value=st.session_state.filter_state.get('min_score', 0),
             step=5,
-            help="Filter stocks by minimum score"
+            help="Filter stocks by minimum score",
+            key="min_score_slider"  # ADD UNIQUE KEY
         )
         st.session_state.filter_state['min_score'] = min_score
         if min_score > 0:
@@ -3667,7 +3671,8 @@ def main():
                 options=sorted(all_patterns),
                 default=st.session_state.filter_state.get('patterns', []),
                 placeholder="Select patterns (empty = All)",
-                help="Filter by specific patterns"
+                help="Filter by specific patterns",
+                key="patterns_multiselect"  # ADD UNIQUE KEY
             )
             st.session_state.filter_state['patterns'] = selected_patterns
             if selected_patterns:
@@ -3691,7 +3696,8 @@ def main():
             "Trend Quality",
             options=list(trend_options.keys()),
             index=list(trend_options.keys()).index(current_trend),
-            help="Filter stocks by trend strength based on SMA alignment"
+            help="Filter stocks by trend strength based on SMA alignment",
+            key="trend_selectbox"  # ADD UNIQUE KEY
         )
         
         st.session_state.filter_state['trend_filter'] = selected_trend
@@ -3710,7 +3716,8 @@ def main():
             options=wave_states_options,
             default=st.session_state.filter_state.get('wave_states', []),
             placeholder="Select wave states (empty = All)",
-            help="Filter by the detected 'Wave State'"
+            help="Filter by the detected 'Wave State'",
+            key="wave_states_multiselect"  # ADD UNIQUE KEY
         )
         st.session_state.filter_state['wave_states'] = selected_wave_states
         if selected_wave_states:
@@ -3740,7 +3747,8 @@ def main():
                 max_value=slider_max_val,
                 value=current_wave_range,
                 step=1,
-                help="Filter by the calculated 'Overall Wave Strength' score"
+                help="Filter by the calculated 'Overall Wave Strength' score",
+                key="wave_strength_slider"  # ADD UNIQUE KEY
             )
             
             st.session_state.filter_state['wave_strength_range'] = wave_strength_range
@@ -3762,7 +3770,8 @@ def main():
                         f"{col_name.replace('_', ' ').title()}",
                         options=tier_options,
                         default=st.session_state.filter_state.get(filter_key, []),
-                        placeholder=f"Select {col_name.replace('_', ' ')}s (empty = All)"
+                        placeholder=f"Select {col_name.replace('_', ' ')}s (empty = All)",
+                        key=f"{col_name}_tier_multiselect"  # ADD UNIQUE KEY
                     )
                     st.session_state.filter_state[filter_key] = selected_tiers
                     if selected_tiers:
@@ -3777,7 +3786,8 @@ def main():
                     "Min EPS Change %",
                     value=eps_change_str,
                     placeholder="e.g. -50 or leave empty",
-                    help="Enter minimum EPS growth percentage"
+                    help="Enter minimum EPS growth percentage",
+                    key="eps_change_input"  # ADD UNIQUE KEY
                 )
                 
                 if eps_change_input.strip():
@@ -3803,7 +3813,8 @@ def main():
                     min_pe_input = st.text_input(
                         "Min PE Ratio",
                         value=min_pe_str,
-                        placeholder="e.g. 10"
+                        placeholder="e.g. 10",
+                        key="min_pe_input"  # ADD UNIQUE KEY
                     )
                     
                     if min_pe_input.strip():
@@ -3824,7 +3835,8 @@ def main():
                     max_pe_input = st.text_input(
                         "Max PE Ratio",
                         value=max_pe_str,
-                        placeholder="e.g. 30"
+                        placeholder="e.g. 30",
+                        key="max_pe_input"  # ADD UNIQUE KEY
                     )
                     
                     if max_pe_input.strip():
@@ -3841,7 +3853,8 @@ def main():
                 # Data completeness filter
                 require_fundamental = st.checkbox(
                     "Only show stocks with PE and EPS data",
-                    value=st.session_state.filter_state.get('require_fundamental_data', False)
+                    value=st.session_state.filter_state.get('require_fundamental_data', False),
+                    key="require_fundamental_checkbox"  # ADD UNIQUE KEY
                 )
                 st.session_state.filter_state['require_fundamental_data'] = require_fundamental
                 if require_fundamental:
@@ -3856,7 +3869,8 @@ def main():
         
         if st.button("🗑️ Clear All Filters", 
                     use_container_width=True, 
-                    type="primary" if active_filter_count > 0 else "secondary"):
+                    type="primary" if active_filter_count > 0 else "secondary",
+                    key="clear_filters_sidebar_btn"):  # ADD UNIQUE KEY
             SessionStateManager.clear_filters()
             st.success("✅ All filters cleared!")
             time.sleep(0.5)
