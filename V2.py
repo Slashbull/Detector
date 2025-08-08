@@ -5544,9 +5544,9 @@ def main():
             @st.cache_data(ttl=60)
             def get_cached_rotations(df_hash, row_count):
             # Reconstruct calculations inside
-            sector_rotation = MarketIntelligence.detect_sector_rotation(filtered_df)
-            industry_rotation = MarketIntelligence.detect_industry_rotation(filtered_df)
-            return sector_rotation, industry_rotation
+            sector = MarketIntelligence.detect_sector_rotation(filtered_df)
+            industry = MarketIntelligence.detect_industry_rotation(filtered_df)
+            return sector, industry
             
             col1, col2 = st.columns(2)
             
