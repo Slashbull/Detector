@@ -207,173 +207,6 @@ class Config:
 CONFIG = Config()
 
 # ============================================
-# ROBUST SESSION STATE MANAGER
-# ============================================
-
-class RobustSessionState:
-    """
-    A robust manager for Streamlit's session state.
-    This class ensures all state variables are properly initialized,
-    preventing runtime errors and managing filter states consistently.
-    """
-    
-    @staticmethod
-    def safe_get(key: str, default: Any = None) -> Any:
-        """Safely get a session state value with fallback"""
-        if key not in st.session_state:
-            st.session_state[key] = default
-        return st.session_state[key]
-    
-    @staticmethod
-    def safe_set(key: str, value: Any) -> None:
-        """Safely set a session state value"""
-        st.session_state[key] = value
-
-    @staticmethod
-    def initialize():
-        """
-        Initializes all necessary session state variables with explicit defaults.
-        This prevents KeyErrors when accessing variables for the first time.
-        """
-        defaults = {
-            # Core Application State
-            'search_query': "",
-            'last_refresh': datetime.now(timezone.utc),
-            'data_source': "sheet",
-            'user_preferences': {
-                'default_top_n': CONFIG.DEFAULT_TOP_N,
-                'display_mode': 'Technical',
-                'last_filters': {}
-            },
-            'active_filter_count': 0,
-            'quick_filter': None,
-            'quick_filter_applied': False,
-            'show_debug': False,
-            'performance_metrics': {},
-            'data_quality': {},
-            
-            # Filter-related State
-            'display_count': CONFIG.DEFAULT_TOP_N,
-            'sort_by': 'Rank',
-            'export_template': 'Full Analysis (All Data)',
-            'category_filter': [],
-            'sector_filter': [],
-            'industry_filter': [],
-            'min_score': 0,
-            'patterns': [],
-            'trend_filter': "All Trends",
-            'eps_tier_filter': [],
-            'pe_tier_filter': [],
-            'price_tier_filter': [],
-            'min_eps_change': "",
-            'min_pe': "",
-            'max_pe': "",
-            'require_fundamental_data': False,
-            
-            # Wave Radar specific filters
-            'wave_states_filter': [],
-            'wave_strength_range_slider': (0, 100),
-            'show_sensitivity_details': False,
-            'show_market_regime': True,
-            'wave_timeframe_select': "All Waves",
-            'wave_sensitivity': "Balanced",
-        }
-        
-        for key, default_value in defaults.items():
-            if key not in st.session_state:
-                st.session_state[key] = default_value
-
-    @staticmethod
-    def build_filter_dict() -> Dict[str, Any]:
-        """
-        Builds a comprehensive filter dictionary from the current session state.
-        This centralizes filter data for easy consumption by the FilterEngine.
-        
-        Returns:
-            Dict[str, Any]: A dictionary of all active filter settings.
-        """
-        filters = {}
-        
-        # Categorical filters
-        for key, filter_name in [('category_filter', 'categories'), ('sector_filter', 'sectors'), ('industry_filter', 'industries')]:
-            if st.session_state.get(key) and st.session_state[key]:
-                filters[filter_name] = st.session_state[key]
-        
-        # Numeric filters
-        if st.session_state.get('min_score', 0) > 0:
-            filters['min_score'] = st.session_state['min_score']
-        if st.session_state.get('min_eps_change'):
-            try: filters['min_eps_change'] = float(st.session_state['min_eps_change'])
-            except ValueError: pass
-        if st.session_state.get('min_pe'):
-            try: filters['min_pe'] = float(st.session_state['min_pe'])
-            except ValueError: pass
-        if st.session_state.get('max_pe'):
-            try: filters['max_pe'] = float(st.session_state['max_pe'])
-            except ValueError: pass
-
-        # Multi-select filters
-        if st.session_state.get('patterns') and st.session_state['patterns']:
-            filters['patterns'] = st.session_state['patterns']
-        
-        # Range and selection filters
-        if st.session_state.get('trend_filter') != "All Trends":
-            trend_options = {
-                "🔥 Strong Uptrend (80+)": (80, 100), "✅ Good Uptrend (60-79)": (60, 79),
-                "➡️ Neutral Trend (40-59)": (40, 59), "⚠️ Weak/Downtrend (<40)": (0, 39)
-            }
-            filters['trend_range'] = trend_options.get(st.session_state['trend_filter'], (0, 100))
-        
-        if st.session_state.get('wave_strength_range_slider') != (0, 100):
-            filters['wave_strength_range'] = st.session_state['wave_strength_range_slider']
-        if st.session_state.get('wave_states_filter') and st.session_state['wave_states_filter']:
-            filters['wave_states'] = st.session_state['wave_states_filter']
-        
-        # Checkbox filters
-        if st.session_state.get('require_fundamental_data', False):
-            filters['require_fundamental_data'] = True
-            
-        return filters
-
-    @staticmethod
-    def clear_filters():
-        """
-        Resets all filter-related session state keys to their default values.
-        This provides a clean slate for the user.
-        """
-        filter_keys = [
-            'category_filter', 'sector_filter', 'industry_filter', 'eps_tier_filter',
-            'pe_tier_filter', 'price_tier_filter', 'patterns', 'min_score', 'trend_filter',
-            'min_eps_change', 'min_pe', 'max_pe', 'require_fundamental_data',
-            'quick_filter', 'quick_filter_applied', 'wave_states_filter',
-            'wave_strength_range_slider', 'show_sensitivity_details', 'show_market_regime',
-            'wave_timeframe_select', 'wave_sensitivity'
-        ]
-        
-        for key in filter_keys:
-            if key in st.session_state:
-                if isinstance(st.session_state[key], list):
-                    st.session_state[key] = []
-                elif isinstance(st.session_state[key], bool):
-                    st.session_state[key] = False
-                elif isinstance(st.session_state[key], str):
-                    if key in ['trend_filter', 'wave_timeframe_select']:
-                        st.session_state[key] = "All Trends" if key == 'trend_filter' else "All Waves"
-                    elif key == 'wave_sensitivity':
-                        st.session_state[key] = "Balanced"
-                    else:
-                        st.session_state[key] = ""
-                elif isinstance(st.session_state[key], tuple):
-                    st.session_state[key] = (0, 100)
-                elif isinstance(st.session_state[key], (int, float)):
-                    st.session_state[key] = 0
-                else:
-                    st.session_state[key] = None
-        
-        st.session_state.active_filter_count = 0
-        logger.info("All filters cleared successfully.")
-
-# ============================================
 # PERFORMANCE MONITORING
 # ============================================
 
@@ -421,19 +254,6 @@ class DataValidator:
     and reports on all correction actions taken.
     """
     
-    # Static attribute to store clipping statistics across function calls within a session.
-    _clipping_counts = {}
-
-    @staticmethod
-    def get_clipping_counts() -> Dict[str, int]:
-        """
-        Returns the clipping counts collected during data processing.
-        Counts are reset after each retrieval.
-        """
-        counts = DataValidator._clipping_counts.copy()
-        DataValidator._clipping_counts.clear()
-        return counts
-
     @staticmethod
     def validate_dataframe(df: pd.DataFrame, required_cols: List[str], context: str) -> Tuple[bool, str]:
         """
@@ -472,8 +292,11 @@ class DataValidator:
             logger.warning(f"{context}: Low data completeness ({completeness:.1f}%)")
         
         # Update session state with data quality metrics for the UI
-        data_quality = RobustSessionState.safe_get('data_quality', {})
-        data_quality.update({
+        # FIX: Use consistent session state management (not RobustSessionState)
+        if 'data_quality' not in st.session_state:
+            st.session_state.data_quality = {}
+        
+        st.session_state.data_quality.update({
             'completeness': completeness,
             'total_rows': len(df),
             'total_columns': len(df.columns),
@@ -481,29 +304,29 @@ class DataValidator:
             'context': context,
             'timestamp': datetime.now(timezone.utc)
         })
-        RobustSessionState.safe_set('data_quality', data_quality)
         
         logger.info(f"{context}: Validated {len(df)} rows, {len(df.columns)} columns, {completeness:.1f}% complete")
         return True, "Valid"
 
     @staticmethod
-    def clean_numeric_value(value: Any, col_name: str, is_percentage: bool = False, bounds: Optional[Tuple[float, float]] = None) -> Optional[float]:
+    def clean_numeric_value(value: Any, is_percentage: bool = False, bounds: Optional[Tuple[float, float]] = None) -> Optional[float]:
         """
         Cleans, converts, and validates a single numeric value.
         
         Args:
             value (Any): The value to clean.
-            col_name (str): The name of the column for logging purposes.
             is_percentage (bool): Flag to handle percentage symbols.
             bounds (Optional[Tuple[float, float]]): A tuple (min, max) to clip the value.
             
         Returns:
             Optional[float]: The cleaned float value, or np.nan if invalid.
         """
+        # FIX: Simplified signature - removed col_name parameter that wasn't used consistently
         if pd.isna(value) or value == '' or value is None:
             return np.nan
         
         try:
+            # Convert to string for cleaning
             cleaned = str(value).strip()
             
             # Identify and handle invalid string representations
@@ -513,22 +336,17 @@ class DataValidator:
             # Remove symbols and spaces
             cleaned = cleaned.replace('₹', '').replace('$', '').replace(',', '').replace(' ', '').replace('%', '')
             
+            # Convert to float
             result = float(cleaned)
             
-            # Apply bounds and log any clipping events
+            # Apply bounds if specified
             if bounds:
                 min_val, max_val = bounds
-                original_result = result
-                
-                if result < min_val:
-                    result = min_val
-                    logger.warning(f"Value clipped for column '{col_name}': Original {original_result:.2f} clipped to min {min_val:.2f}.")
-                    DataValidator._clipping_counts[col_name] = DataValidator._clipping_counts.get(col_name, 0) + 1
-                elif result > max_val:
-                    result = max_val
-                    logger.warning(f"Value clipped for column '{col_name}': Original {original_result:.2f} clipped to max {max_val:.2f}.")
-                    DataValidator._clipping_counts[col_name] = DataValidator._clipping_counts.get(col_name, 0) + 1
+                if result < min_val or result > max_val:
+                    logger.debug(f"Value {result} outside bounds [{min_val}, {max_val}]")
+                    result = np.clip(result, min_val, max_val)
             
+            # Check for unreasonable values
             if np.isnan(result) or np.isinf(result):
                 return np.nan
             
@@ -541,6 +359,13 @@ class DataValidator:
     def sanitize_string(value: Any, default: str = "Unknown") -> str:
         """
         Cleans and sanitizes a string value, returning a default if invalid.
+        
+        Args:
+            value (Any): The value to sanitize.
+            default (str): The default value to return if invalid.
+            
+        Returns:
+            str: The sanitized string.
         """
         if pd.isna(value) or value is None:
             return default
@@ -549,9 +374,105 @@ class DataValidator:
         if cleaned.upper() in ['', 'N/A', 'NA', 'NAN', 'NONE', 'NULL', '-']:
             return default
         
+        # Remove excessive whitespace
         cleaned = ' '.join(cleaned.split())
         
         return cleaned
+    
+    @staticmethod
+    def validate_numeric_columns(df: pd.DataFrame, columns: List[str]) -> Dict[str, int]:
+        """
+        Validates numeric columns and returns a count of invalid values per column.
+        
+        Args:
+            df (pd.DataFrame): The DataFrame to validate.
+            columns (List[str]): List of columns to validate.
+            
+        Returns:
+            Dict[str, int]: Dictionary mapping column names to invalid value counts.
+        """
+        invalid_counts = {}
+        
+        for col in columns:
+            if col in df.columns:
+                # Count non-numeric values
+                try:
+                    pd.to_numeric(df[col], errors='coerce')
+                    invalid_count = df[col].apply(
+                        lambda x: not isinstance(x, (int, float, np.number)) and pd.notna(x)
+                    ).sum()
+                    
+                    if invalid_count > 0:
+                        invalid_counts[col] = invalid_count
+                        logger.warning(f"Column '{col}' has {invalid_count} non-numeric values")
+                except Exception as e:
+                    logger.error(f"Error validating column '{col}': {str(e)}")
+        
+        return invalid_counts
+    
+    @staticmethod
+    def validate_required_columns(df: pd.DataFrame, required_cols: Dict[str, type]) -> Tuple[bool, List[str]]:
+        """
+        Validates that required columns exist and have the correct data type.
+        
+        Args:
+            df (pd.DataFrame): The DataFrame to validate.
+            required_cols (Dict[str, type]): Dictionary mapping column names to expected types.
+            
+        Returns:
+            Tuple[bool, List[str]]: (is_valid, list_of_issues)
+        """
+        issues = []
+        
+        for col_name, expected_type in required_cols.items():
+            if col_name not in df.columns:
+                issues.append(f"Missing required column: {col_name}")
+            elif expected_type == float or expected_type == int:
+                # Check if numeric
+                if not pd.api.types.is_numeric_dtype(df[col_name]):
+                    issues.append(f"Column '{col_name}' should be numeric but is {df[col_name].dtype}")
+            elif expected_type == str:
+                # Check if string/object
+                if not pd.api.types.is_object_dtype(df[col_name]):
+                    issues.append(f"Column '{col_name}' should be string but is {df[col_name].dtype}")
+        
+        return len(issues) == 0, issues
+    
+    @staticmethod
+    def get_data_quality_report(df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Generates a comprehensive data quality report.
+        
+        Args:
+            df (pd.DataFrame): The DataFrame to analyze.
+            
+        Returns:
+            Dict[str, Any]: Dictionary containing various quality metrics.
+        """
+        report = {
+            'total_rows': len(df),
+            'total_columns': len(df.columns),
+            'memory_usage_mb': df.memory_usage(deep=True).sum() / 1024 / 1024,
+            'duplicate_rows': df.duplicated().sum(),
+            'columns_with_nulls': {},
+            'data_types': dict(df.dtypes),
+            'numeric_columns': list(df.select_dtypes(include=[np.number]).columns),
+            'string_columns': list(df.select_dtypes(include=['object']).columns),
+            'completeness': 0
+        }
+        
+        # Calculate null percentages per column
+        for col in df.columns:
+            null_pct = (df[col].isna().sum() / len(df)) * 100
+            if null_pct > 0:
+                report['columns_with_nulls'][col] = f"{null_pct:.1f}%"
+        
+        # Overall completeness
+        total_cells = len(df) * len(df.columns)
+        filled_cells = df.notna().sum().sum()
+        report['completeness'] = (filled_cells / total_cells * 100) if total_cells > 0 else 0
+        
+        return report
 
 # ============================================
 # SMART CACHING WITH VERSIONING
@@ -2795,129 +2716,177 @@ class UIComponents:
 
 class SessionStateManager:
     """
-    A robust manager for Streamlit's session state.
+    Unified session state manager for Streamlit.
     This class ensures all state variables are properly initialized,
     preventing runtime errors and managing filter states consistently.
     """
-
+    
+    @staticmethod
+    def safe_get(key: str, default: Any = None) -> Any:
+        """Safely get a session state value with fallback"""
+        if key not in st.session_state:
+            st.session_state[key] = default
+        return st.session_state[key]
+    
+    @staticmethod
+    def safe_set(key: str, value: Any) -> None:
+        """Safely set a session state value"""
+        st.session_state[key] = value
+    
     @staticmethod
     def initialize():
         """
         Initializes all necessary session state variables with explicit defaults.
         This prevents KeyErrors when accessing variables for the first time.
         """
-        defaults = {
-            # Core Application State
-            'search_query': "",
-            'last_refresh': datetime.now(timezone.utc),
-            'data_source': "sheet",
-            'user_preferences': {
-                'default_top_n': CONFIG.DEFAULT_TOP_N,
-                'display_mode': 'Technical',
-                'last_filters': {}
-            },
-            'active_filter_count': 0,
-            'quick_filter': None,
-            'quick_filter_applied': False,
-            'show_debug': False,
-            'performance_metrics': {},
-            'data_quality': {},
-            
-            # Filter-related State
-            'display_count': CONFIG.DEFAULT_TOP_N,
-            'sort_by': 'Rank',
-            'export_template': 'Full Analysis (All Data)',
-            'category_filter': [],
-            'sector_filter': [],
-            'industry_filter': [],
-            'min_score': 0,
-            'patterns': [],
-            'trend_filter': "All Trends",
-            'eps_tier_filter': [],
-            'pe_tier_filter': [],
-            'price_tier_filter': [],
-            'min_eps_change': "",
-            'min_pe': "",
-            'max_pe': "",
-            'require_fundamental_data': False,
-            
-            # Wave Radar specific filters
-            'wave_states_filter': [],
-            'wave_strength_range_slider': (0, 100),
-            'show_sensitivity_details': False,
-            'show_market_regime': True,
-            'wave_timeframe_select': "All Waves",
-            'wave_sensitivity': "Balanced",
-        }
+        # Core data state
+        if 'ranked_df' not in st.session_state:
+            st.session_state.ranked_df = pd.DataFrame()
         
-        for key, default_value in defaults.items():
-            if key not in st.session_state:
-                st.session_state[key] = default_value
-
-    @staticmethod
-    def build_filter_dict() -> Dict[str, Any]:
-        """
-        Builds a comprehensive filter dictionary from the current session state.
-        This centralizes filter data for easy consumption by the FilterEngine.
+        if 'filtered_df' not in st.session_state:
+            st.session_state.filtered_df = pd.DataFrame()
         
-        Returns:
-            Dict[str, Any]: A dictionary of all active filter settings.
-        """
-        filters = {}
+        if 'last_good_data' not in st.session_state:
+            st.session_state.last_good_data = None
         
-        # Categorical filters
-        for key, filter_name in [('category_filter', 'categories'), ('sector_filter', 'sectors'), ('industry_filter', 'industries')]:
-            if st.session_state.get(key) and st.session_state[key]:
-                filters[filter_name] = st.session_state[key]
+        # Data source settings
+        if 'data_source' not in st.session_state:
+            st.session_state.data_source = "sheet"
         
-        # Numeric filters
-        if st.session_state.get('min_score', 0) > 0:
-            filters['min_score'] = st.session_state['min_score']
-        if st.session_state.get('min_eps_change'):
-            try: filters['min_eps_change'] = float(st.session_state['min_eps_change'])
-            except ValueError: pass
-        if st.session_state.get('min_pe'):
-            try: filters['min_pe'] = float(st.session_state['min_pe'])
-            except ValueError: pass
-        if st.session_state.get('max_pe'):
-            try: filters['max_pe'] = float(st.session_state['max_pe'])
-            except ValueError: pass
-
-        # Multi-select filters
-        if st.session_state.get('patterns') and st.session_state['patterns']:
-            filters['patterns'] = st.session_state['patterns']
+        if 'sheet_id' not in st.session_state:
+            st.session_state.sheet_id = ""
         
-        # Range and selection filters
-        if st.session_state.get('trend_filter') != "All Trends":
-            trend_options = {
-                "🔥 Strong Uptrend (80+)": (80, 100), "✅ Good Uptrend (60-79)": (60, 79),
-                "➡️ Neutral Trend (40-59)": (40, 59), "⚠️ Weak/Downtrend (<40)": (0, 39)
+        if 'gid' not in st.session_state:
+            st.session_state.gid = CONFIG.DEFAULT_GID
+        
+        # Timestamps and metadata
+        if 'data_timestamp' not in st.session_state:
+            st.session_state.data_timestamp = datetime.now(timezone.utc)
+        
+        if 'last_refresh' not in st.session_state:
+            st.session_state.last_refresh = datetime.now(timezone.utc)
+        
+        if 'last_cleanup' not in st.session_state:
+            st.session_state.last_cleanup = datetime.now(timezone.utc)
+        
+        # Data quality metrics
+        if 'data_quality' not in st.session_state:
+            st.session_state.data_quality = {
+                'completeness': 0,
+                'total_rows': 0,
+                'total_columns': 0,
+                'duplicate_tickers': 0
             }
-            filters['trend_range'] = trend_options.get(st.session_state['trend_filter'], (0, 100))
         
-        if st.session_state.get('wave_strength_range_slider') != (0, 100):
-            filters['wave_strength_range'] = st.session_state['wave_strength_range_slider']
-        if st.session_state.get('wave_states_filter') and st.session_state['wave_states_filter']:
-            filters['wave_states'] = st.session_state['wave_states_filter']
+        # Performance metrics
+        if 'performance_metrics' not in st.session_state:
+            st.session_state.performance_metrics = {}
         
-        # Checkbox filters
-        if st.session_state.get('require_fundamental_data', False):
-            filters['require_fundamental_data'] = True
-            
-        return filters
-
+        # Filter states
+        if 'filters' not in st.session_state:
+            st.session_state.filters = {}
+        
+        if 'active_filter_count' not in st.session_state:
+            st.session_state.active_filter_count = 0
+        
+        # Display settings
+        if 'display_mode' not in st.session_state:
+            st.session_state.display_mode = "Technical"
+        
+        if 'top_n' not in st.session_state:
+            st.session_state.top_n = CONFIG.DEFAULT_TOP_N
+        
+        # Quick filter states
+        if 'quick_filter' not in st.session_state:
+            st.session_state.quick_filter = None
+        
+        if 'quick_filter_applied' not in st.session_state:
+            st.session_state.quick_filter_applied = False
+        
+        # Wave Radar states
+        if 'wave_timeframe_select' not in st.session_state:
+            st.session_state.wave_timeframe_select = "All Waves"
+        
+        if 'wave_sensitivity' not in st.session_state:
+            st.session_state.wave_sensitivity = "Balanced"
+        
+        if 'show_sensitivity_details' not in st.session_state:
+            st.session_state.show_sensitivity_details = False
+        
+        if 'show_market_regime' not in st.session_state:
+            st.session_state.show_market_regime = True
+        
+        # Filter widget states
+        if 'category_filter' not in st.session_state:
+            st.session_state.category_filter = []
+        
+        if 'sector_filter' not in st.session_state:
+            st.session_state.sector_filter = []
+        
+        if 'industry_filter' not in st.session_state:
+            st.session_state.industry_filter = []
+        
+        if 'eps_tier_filter' not in st.session_state:
+            st.session_state.eps_tier_filter = []
+        
+        if 'pe_tier_filter' not in st.session_state:
+            st.session_state.pe_tier_filter = []
+        
+        if 'price_tier_filter' not in st.session_state:
+            st.session_state.price_tier_filter = []
+        
+        if 'patterns' not in st.session_state:
+            st.session_state.patterns = []
+        
+        if 'min_score' not in st.session_state:
+            st.session_state.min_score = 0
+        
+        if 'trend_filter' not in st.session_state:
+            st.session_state.trend_filter = "All Trends"
+        
+        if 'min_eps_change' not in st.session_state:
+            st.session_state.min_eps_change = None
+        
+        if 'min_pe' not in st.session_state:
+            st.session_state.min_pe = None
+        
+        if 'max_pe' not in st.session_state:
+            st.session_state.max_pe = None
+        
+        if 'require_fundamental_data' not in st.session_state:
+            st.session_state.require_fundamental_data = False
+        
+        # Wave filter states
+        if 'wave_states_filter' not in st.session_state:
+            st.session_state.wave_states_filter = []
+        
+        if 'wave_strength_range_slider' not in st.session_state:
+            st.session_state.wave_strength_range_slider = (0, 100)
+        
+        # Debug mode
+        if 'show_debug' not in st.session_state:
+            st.session_state.show_debug = False
+        
+        # Clear filters trigger
+        if 'trigger_clear' not in st.session_state:
+            st.session_state.trigger_clear = False
+        
+        logger.info("Session state initialized successfully")
+    
     @staticmethod
-    def clear_filters():
+    def clear_all_filters():
         """
-        Resets all filter-related session state keys to their default values.
+        Clears all filter-related session state variables to their defaults.
         This provides a clean slate for the user.
         """
         filter_keys = [
-            'category_filter', 'sector_filter', 'industry_filter', 'eps_tier_filter',
-            'pe_tier_filter', 'price_tier_filter', 'patterns', 'min_score', 'trend_filter',
+            'category_filter', 'sector_filter', 'industry_filter', 
+            'eps_tier_filter', 'pe_tier_filter', 'price_tier_filter',
+            'patterns', 'min_score', 'trend_filter',
             'min_eps_change', 'min_pe', 'max_pe', 'require_fundamental_data',
-            'quick_filter', 'quick_filter_applied', 'wave_states_filter',
-            'wave_strength_range_slider', 'show_sensitivity_details', 'show_market_regime',
+            'quick_filter', 'quick_filter_applied',
+            'wave_states_filter', 'wave_strength_range_slider',
+            'show_sensitivity_details', 'show_market_regime',
             'wave_timeframe_select', 'wave_sensitivity'
         ]
         
@@ -2928,21 +2897,83 @@ class SessionStateManager:
                 elif isinstance(st.session_state[key], bool):
                     st.session_state[key] = False
                 elif isinstance(st.session_state[key], str):
-                    if key in ['trend_filter', 'wave_timeframe_select']:
-                        st.session_state[key] = "All Trends" if key == 'trend_filter' else "All Waves"
+                    if key == 'trend_filter':
+                        st.session_state[key] = "All Trends"
+                    elif key == 'wave_timeframe_select':
+                        st.session_state[key] = "All Waves"
                     elif key == 'wave_sensitivity':
                         st.session_state[key] = "Balanced"
                     else:
                         st.session_state[key] = ""
                 elif isinstance(st.session_state[key], tuple):
-                    st.session_state[key] = (0, 100)
+                    if key == 'wave_strength_range_slider':
+                        st.session_state[key] = (0, 100)
                 elif isinstance(st.session_state[key], (int, float)):
-                    st.session_state[key] = 0
+                    st.session_state[key] = 0 if key == 'min_score' else None
                 else:
                     st.session_state[key] = None
         
         st.session_state.active_filter_count = 0
-        logger.info("All filters cleared successfully.")
+        st.session_state.filters = {}
+        logger.info("All filters cleared successfully")
+    
+    @staticmethod
+    def get_filter_summary() -> Dict[str, Any]:
+        """
+        Returns a summary of all active filters.
+        
+        Returns:
+            Dict[str, Any]: Dictionary containing active filter information.
+        """
+        active_filters = {}
+        
+        # Check each filter type
+        if st.session_state.get('category_filter'):
+            active_filters['Categories'] = st.session_state.category_filter
+        
+        if st.session_state.get('sector_filter'):
+            active_filters['Sectors'] = st.session_state.sector_filter
+        
+        if st.session_state.get('industry_filter'):
+            active_filters['Industries'] = st.session_state.industry_filter
+        
+        if st.session_state.get('patterns'):
+            active_filters['Patterns'] = st.session_state.patterns
+        
+        if st.session_state.get('min_score', 0) > 0:
+            active_filters['Min Score'] = st.session_state.min_score
+        
+        if st.session_state.get('trend_filter') != "All Trends":
+            active_filters['Trend'] = st.session_state.trend_filter
+        
+        if st.session_state.get('wave_states_filter'):
+            active_filters['Wave States'] = st.session_state.wave_states_filter
+        
+        wave_range = st.session_state.get('wave_strength_range_slider', (0, 100))
+        if wave_range != (0, 100):
+            active_filters['Wave Strength'] = f"{wave_range[0]}-{wave_range[1]}"
+        
+        return active_filters
+    
+    @staticmethod
+    def update_performance_metric(metric_name: str, value: float):
+        """
+        Updates a performance metric in session state.
+        
+        Args:
+            metric_name (str): Name of the metric.
+            value (float): Value of the metric.
+        """
+        if 'performance_metrics' not in st.session_state:
+            st.session_state.performance_metrics = {}
+        
+        st.session_state.performance_metrics[metric_name] = value
+        
+        # Keep only last 100 metrics to prevent memory bloat
+        if len(st.session_state.performance_metrics) > 100:
+            # Keep only the 50 most recent
+            items = list(st.session_state.performance_metrics.items())
+            st.session_state.performance_metrics = dict(items[-50:])
 
 # ============================================
 # MAIN APPLICATION
