@@ -2164,6 +2164,167 @@ class FilterEngine:
         logger.info(f"Filters reduced {len(df)} to {len(filtered_df)} stocks")
         
         return filtered_df
+    
+    @staticmethod
+    def get_filter_options(df: pd.DataFrame, column: str, current_filters: Dict[str, Any]) -> List[str]:
+        """
+        Get available filter options with smart interconnection.
+        This applies other filters first to see what options are available.
+        
+        Args:
+            df (pd.DataFrame): The DataFrame to filter.
+            column (str): The column to get options for.
+            current_filters (Dict[str, Any]): Current active filters.
+            
+        Returns:
+            List[str]: Available options for the specified column.
+        """
+        
+        if df.empty or column not in df.columns:
+            return []
+        
+        # Apply other filters first for interconnected filtering
+        temp_filters = current_filters.copy()
+        
+        # Remove the current column's filter to see all its options
+        filter_key_map = {
+            'category': 'categories',
+            'sector': 'sectors',
+            'industry': 'industries',
+            'eps_tier': 'eps_tiers',
+            'pe_tier': 'pe_tiers',
+            'price_tier': 'price_tiers',
+            'wave_state': 'wave_states'
+        }
+        
+        if column in filter_key_map:
+            temp_filters.pop(filter_key_map[column], None)
+        
+        # Apply remaining filters
+        filtered_df = FilterEngine.apply_filters(df, temp_filters)
+        
+        # Get unique values from the filtered data
+        values = filtered_df[column].dropna().unique()
+        
+        # Convert to string and exclude invalid values
+        values = [str(v) for v in values if str(v).strip() not in ['Unknown', 'unknown', '', 'nan', 'NaN', 'None']]
+        
+        # Sort and return
+        return sorted(values)
+    
+    @staticmethod
+    def get_pattern_options(df: pd.DataFrame) -> List[str]:
+        """
+        Extract all unique patterns from the patterns column.
+        
+        Args:
+            df (pd.DataFrame): The DataFrame containing patterns.
+            
+        Returns:
+            List[str]: List of unique pattern names.
+        """
+        if 'patterns' not in df.columns:
+            return []
+        
+        all_patterns = set()
+        
+        for patterns_str in df['patterns'].dropna():
+            if patterns_str and patterns_str != '':
+                # Split by delimiter and add to set
+                patterns_list = patterns_str.split(' | ')
+                all_patterns.update(patterns_list)
+        
+        # Remove empty strings
+        all_patterns.discard('')
+        
+        return sorted(list(all_patterns))
+    
+    @staticmethod
+    def count_active_filters(filters: Dict[str, Any]) -> int:
+        """
+        Count the number of active filters.
+        
+        Args:
+            filters (Dict[str, Any]): The filters dictionary.
+            
+        Returns:
+            int: Number of active filters.
+        """
+        count = 0
+        
+        # List filters
+        for key in ['categories', 'sectors', 'industries', 'patterns', 
+                   'eps_tiers', 'pe_tiers', 'price_tiers', 'wave_states']:
+            if filters.get(key):
+                count += 1
+        
+        # Value filters
+        if filters.get('min_score', 0) > 0:
+            count += 1
+        
+        if filters.get('trend_filter') and filters.get('trend_filter') != 'All Trends':
+            count += 1
+        
+        if filters.get('min_eps_change') is not None:
+            count += 1
+        
+        if filters.get('min_pe') is not None:
+            count += 1
+        
+        if filters.get('max_pe') is not None:
+            count += 1
+        
+        if filters.get('require_fundamental_data'):
+            count += 1
+        
+        wave_range = filters.get('wave_strength_range', (0, 100))
+        if wave_range != (0, 100):
+            count += 1
+        
+        return count
+    
+    @staticmethod
+    def get_filter_summary_text(filters: Dict[str, Any]) -> str:
+        """
+        Generate a human-readable summary of active filters.
+        
+        Args:
+            filters (Dict[str, Any]): The filters dictionary.
+            
+        Returns:
+            str: Summary text of active filters.
+        """
+        if not filters:
+            return "No filters applied"
+        
+        summary_parts = []
+        
+        # Categories
+        if filters.get('categories'):
+            summary_parts.append(f"Categories: {', '.join(filters['categories'])}")
+        
+        # Sectors
+        if filters.get('sectors'):
+            summary_parts.append(f"Sectors: {', '.join(filters['sectors'])}")
+        
+        # Score
+        if filters.get('min_score', 0) > 0:
+            summary_parts.append(f"Min Score: {filters['min_score']}")
+        
+        # Patterns
+        if filters.get('patterns'):
+            summary_parts.append(f"Patterns: {len(filters['patterns'])} selected")
+        
+        # Wave states
+        if filters.get('wave_states'):
+            summary_parts.append(f"Wave States: {', '.join(filters['wave_states'])}")
+        
+        # Wave strength
+        wave_range = filters.get('wave_strength_range', (0, 100))
+        if wave_range != (0, 100):
+            summary_parts.append(f"Wave Strength: {wave_range[0]}-{wave_range[1]}")
+        
+        return " | ".join(summary_parts) if summary_parts else "No filters applied"
         
 # ============================================
 # SEARCH ENGINE
