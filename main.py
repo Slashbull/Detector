@@ -89,12 +89,15 @@ class Config:
     # Critical columns (app fails without these)
     CRITICAL_COLUMNS: List[str] = field(default_factory=lambda: ['ticker', 'price', 'volume_1d'])
     
-    # Important columns (degraded experience without)
+    # Important columns (degraded experience without) - FIX: REMOVED DUPLICATES
     IMPORTANT_COLUMNS: List[str] = field(default_factory=lambda: [
-        'ret_30d', 'from_low_pct', 'from_high_pct',
+        'category', 'sector', 'industry',
+        'rvol', 'pe', 'eps_current', 'eps_change_pct',
+        'sma_20d', 'sma_50d', 'sma_200d',
+        'ret_1d', 'ret_7d', 'ret_30d', 'from_low_pct', 'from_high_pct',
         'vol_ratio_1d_90d', 'vol_ratio_7d_90d', 'vol_ratio_30d_90d',
         'vol_ratio_1d_180d', 'vol_ratio_7d_180d', 'vol_ratio_30d_180d',
-        'vol_ratio_90d_180d', 'sector', 'industry'
+        'vol_ratio_90d_180d'
     ])
     
     # All percentage columns for consistent handling
@@ -138,8 +141,8 @@ class Config:
     # Value bounds for data validation
     VALUE_BOUNDS: Dict[str, Tuple[float, float]] = field(default_factory=lambda: {
         'price': (0.01, 1_000_000),
-        'rvol': (0.01, 1000.0),
-        'pe': (-1000, 1000),
+        'rvol': (0.01, 1_000_000.0),
+        'pe': (-10000, 10000),
         'returns': (-99.99, 9999.99),
         'volume': (0, 1e12)
     })
@@ -155,7 +158,7 @@ class Config:
     
     # Market categories (Indian market specific)
     MARKET_CATEGORIES: List[str] = field(default_factory=lambda: [
-        'Mega Cap', 'Large Cap', 'Mid Cap', 'Small Cap', 'Micro Cap', 'Nano Cap'
+        'Mega Cap', 'Large Cap', 'Mid Cap', 'Small Cap', 'Micro Cap'
     ])
     
     # Tier definitions with proper boundaries
@@ -249,7 +252,7 @@ class PerformanceMonitor:
 
 class DataValidator:
     """
-    Comprehensive data validation and sanitization with intelligent tracking.
+    Comprehensive data validation and sanitization.
     This class ensures data integrity, handles missing or invalid values gracefully,
     and reports on all correction actions taken.
     """
@@ -291,8 +294,7 @@ class DataValidator:
         if completeness < 50:
             logger.warning(f"{context}: Low data completeness ({completeness:.1f}%)")
         
-        # Update session state with data quality metrics for the UI
-        # FIX: Use consistent session state management (not RobustSessionState)
+        # Update session state with data quality metrics
         if 'data_quality' not in st.session_state:
             st.session_state.data_quality = {}
         
@@ -321,7 +323,7 @@ class DataValidator:
         Returns:
             Optional[float]: The cleaned float value, or np.nan if invalid.
         """
-        # FIX: Simplified signature - removed col_name parameter that wasn't used consistently
+        # FIX: Removed col_name parameter that was not used
         if pd.isna(value) or value == '' or value is None:
             return np.nan
         
@@ -409,71 +411,7 @@ class DataValidator:
                     logger.error(f"Error validating column '{col}': {str(e)}")
         
         return invalid_counts
-    
-    @staticmethod
-    def validate_required_columns(df: pd.DataFrame, required_cols: Dict[str, type]) -> Tuple[bool, List[str]]:
-        """
-        Validates that required columns exist and have the correct data type.
         
-        Args:
-            df (pd.DataFrame): The DataFrame to validate.
-            required_cols (Dict[str, type]): Dictionary mapping column names to expected types.
-            
-        Returns:
-            Tuple[bool, List[str]]: (is_valid, list_of_issues)
-        """
-        issues = []
-        
-        for col_name, expected_type in required_cols.items():
-            if col_name not in df.columns:
-                issues.append(f"Missing required column: {col_name}")
-            elif expected_type == float or expected_type == int:
-                # Check if numeric
-                if not pd.api.types.is_numeric_dtype(df[col_name]):
-                    issues.append(f"Column '{col_name}' should be numeric but is {df[col_name].dtype}")
-            elif expected_type == str:
-                # Check if string/object
-                if not pd.api.types.is_object_dtype(df[col_name]):
-                    issues.append(f"Column '{col_name}' should be string but is {df[col_name].dtype}")
-        
-        return len(issues) == 0, issues
-    
-    @staticmethod
-    def get_data_quality_report(df: pd.DataFrame) -> Dict[str, Any]:
-        """
-        Generates a comprehensive data quality report.
-        
-        Args:
-            df (pd.DataFrame): The DataFrame to analyze.
-            
-        Returns:
-            Dict[str, Any]: Dictionary containing various quality metrics.
-        """
-        report = {
-            'total_rows': len(df),
-            'total_columns': len(df.columns),
-            'memory_usage_mb': df.memory_usage(deep=True).sum() / 1024 / 1024,
-            'duplicate_rows': df.duplicated().sum(),
-            'columns_with_nulls': {},
-            'data_types': dict(df.dtypes),
-            'numeric_columns': list(df.select_dtypes(include=[np.number]).columns),
-            'string_columns': list(df.select_dtypes(include=['object']).columns),
-            'completeness': 0
-        }
-        
-        # Calculate null percentages per column
-        for col in df.columns:
-            null_pct = (df[col].isna().sum() / len(df)) * 100
-            if null_pct > 0:
-                report['columns_with_nulls'][col] = f"{null_pct:.1f}%"
-        
-        # Overall completeness
-        total_cells = len(df) * len(df.columns)
-        filled_cells = df.notna().sum().sum()
-        report['completeness'] = (filled_cells / total_cells * 100) if total_cells > 0 else 0
-        
-        return report
-
 # ============================================
 # SMART CACHING WITH VERSIONING
 # ============================================
@@ -481,7 +419,7 @@ class DataValidator:
 def extract_spreadsheet_id(url_or_id: str) -> str:
     """
     Extracts the spreadsheet ID from a Google Sheets URL or returns the ID if it's already in the correct format.
-    
+
     Args:
         url_or_id (str): A Google Sheets URL or just the spreadsheet ID.
 
@@ -501,7 +439,7 @@ def extract_spreadsheet_id(url_or_id: str) -> str:
     if match:
         return match.group(1)
     
-    # If no match, return as is
+    # If no match, return as is.
     return url_or_id.strip()
 
 @st.cache_data(ttl=CONFIG.CACHE_TTL, persist="disk", show_spinner=False)
@@ -544,7 +482,6 @@ def load_and_process_data(source_type: str = "sheet", file_data=None,
                 df = pd.read_csv(file_data, low_memory=False)
                 metadata['source'] = "User Upload"
             except UnicodeDecodeError:
-                # Try multiple encodings
                 for encoding in ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']:
                     try:
                         file_data.seek(0)
@@ -554,9 +491,9 @@ def load_and_process_data(source_type: str = "sheet", file_data=None,
                     except:
                         continue
                 else:
-                    raise ValueError("Unable to decode CSV file with any standard encoding")
+                    raise ValueError("Unable to decode CSV file")
         else:
-            # Google Sheets loading
+            # Use defaults if not provided
             if not sheet_id:
                 raise ValueError("Please enter a Google Sheets ID")
             if not gid:
@@ -594,12 +531,8 @@ def load_and_process_data(source_type: str = "sheet", file_data=None,
         # Calculate all scores and rankings
         df = RankingEngine.calculate_all_scores(df)
         
-        # FIX: Use correct method name that matches PatternDetector class
-        # Check if method exists and use appropriate one
-        if hasattr(PatternDetector, 'detect_all_patterns_optimized'):
-            df = PatternDetector.detect_all_patterns_optimized(df)
-        else:
-            df = PatternDetector.detect_all_patterns(df)  # Fallback to V1 method name
+        # Corrected method call here
+        df = PatternDetector.detect_all_patterns_optimized(df)
         
         # Add advanced metrics
         df = AdvancedMetrics.calculate_all_metrics(df)
@@ -633,19 +566,8 @@ def load_and_process_data(source_type: str = "sheet", file_data=None,
     except Exception as e:
         logger.error(f"Failed to load and process data: {str(e)}")
         metadata['errors'].append(str(e))
+        raise
         
-        # FIX: Better error handling when no cached data exists
-        if 'last_good_data' in st.session_state:
-            logger.warning("Using last known good data due to processing error")
-            df, timestamp, old_metadata = st.session_state.last_good_data
-            metadata['warnings'].append(f"Using cached data due to error: {str(e)}")
-            metadata['cache_used'] = True
-            return df, timestamp, metadata
-        else:
-            # No cached data available, must raise the error
-            logger.error("No cached data available, unable to recover")
-            raise
-            
 # ============================================
 # DATA PROCESSING ENGINE
 # ============================================
@@ -960,7 +882,7 @@ class RankingEngine:
         df['liquidity_score'] = RankingEngine._calculate_liquidity_score(df)
         
         # Calculate master score using numpy (DO NOT MODIFY FORMULA)
-        # FIX: Use safer np.column_stack approach from V1
+        # FIX: Use safer np.column_stack approach
         scores_matrix = np.column_stack([
             df['position_score'].fillna(50),
             df['volume_score'].fillna(50),
@@ -1096,7 +1018,7 @@ class RankingEngine:
             logger.warning("No volume ratio data available, using neutral scores")
         
         # FIX: Don't set to NaN, keep default 50
-        # Remove the V2 NaN masking logic
+        # Removed the aggressive NaN masking logic from V2
         
         return volume_score.clip(0, 100)
 
@@ -1137,7 +1059,7 @@ class RankingEngine:
             accelerating = all_positive & (daily_ret_7d > daily_ret_30d)
             consistency_bonus[accelerating] = 10
             
-            # FIX: Use simpler V1 approach, no complex masking
+            # FIX: Use simpler approach, no complex masking
             momentum_score = (momentum_score + consistency_bonus).clip(0, 100)
         
         return momentum_score
@@ -2055,111 +1977,101 @@ class Visualizer:
             return go.Figure()
 
 # ============================================
-# FILTER ENGINE - OPTIMIZED
+# FILTER ENGINE - ENHANCED WITH INTERCONNECTION
 # ============================================
 
 class FilterEngine:
-    """Handle all filtering operations efficiently"""
+    """
+    Handles all filtering operations efficiently with perfect interconnection.
+    This class is optimized to apply filters robustly, preventing errors
+    due to missing data or invalid user input.
+    """
     
     @staticmethod
     @PerformanceMonitor.timer(target_time=0.2)
     def apply_filters(df: pd.DataFrame, filters: Dict[str, Any]) -> pd.DataFrame:
-        """Apply all filters with optimized performance and type safety"""
-        
+        """
+        Applies all filters to a DataFrame using a single, efficient operation.
+
+        Args:
+            df (pd.DataFrame): The DataFrame to filter.
+            filters (Dict[str, Any]): A dictionary of active filters and their values.
+
+        Returns:
+            pd.DataFrame: A new DataFrame containing only the rows that match all filters.
+        """
         if df.empty:
             return df
         
-        # Start with boolean index for all rows
-        mask = pd.Series(True, index=df.index)
+        masks = []
         
-        # Category filter - FIX: Ensure string comparison
-        categories = filters.get('categories', [])
-        if categories and 'All' not in categories and 'category' in df.columns:
-            # Convert category column to string for comparison
-            mask &= df['category'].astype(str).isin([str(c) for c in categories])
+        def create_mask_from_isin(column, values):
+            if column in df.columns and values:
+                return df[column].isin(values)
+            return None
+
+        # 1. Categorical filters
+        masks.append(create_mask_from_isin('category', filters.get('categories', [])))
+        masks.append(create_mask_from_isin('sector', filters.get('sectors', [])))
+        masks.append(create_mask_from_isin('industry', filters.get('industries', [])))
         
-        # Sector filter - FIX: Ensure string comparison
-        sectors = filters.get('sectors', [])
-        if sectors and 'All' not in sectors and 'sector' in df.columns:
-            # Convert sector column to string for comparison
-            mask &= df['sector'].astype(str).isin([str(s) for s in sectors])
-        
-        # Industry filter - FIX: Ensure string comparison
-        industries = filters.get('industries', [])
-        if industries and 'All' not in industries and 'industry' in df.columns:
-            # Convert industry column to string for comparison
-            mask &= df['industry'].astype(str).isin([str(i) for i in industries])
-        
-        # Score filter - FIX: Ensure numeric comparison
+        # 2. Score filter
         min_score = filters.get('min_score', 0)
         if min_score > 0 and 'master_score' in df.columns:
-            # Convert to numeric, non-numeric becomes NaN
-            master_score_numeric = pd.to_numeric(df['master_score'], errors='coerce')
-            mask &= master_score_numeric >= min_score
+            masks.append(df['master_score'].fillna(0) >= min_score)
         
-        # EPS change filter - FIX: Handle numeric comparison
+        # 3. EPS change filter
         min_eps_change = filters.get('min_eps_change')
         if min_eps_change is not None and 'eps_change_pct' in df.columns:
-            eps_numeric = pd.to_numeric(df['eps_change_pct'], errors='coerce')
-            mask &= (eps_numeric >= min_eps_change) | eps_numeric.isna()
+            masks.append(df['eps_change_pct'].notna() & (df['eps_change_pct'] >= min_eps_change))
         
-        # Pattern filter
+        # 4. Pattern filter
         patterns = filters.get('patterns', [])
         if patterns and 'patterns' in df.columns:
-            pattern_regex = '|'.join(patterns)
-            # Ensure patterns column is string
-            patterns_str = df['patterns'].astype(str)
-            mask &= patterns_str.str.contains(pattern_regex, case=False, na=False, regex=True)
+            pattern_regex = '|'.join([re.escape(p) for p in patterns])
+            masks.append(df['patterns'].str.contains(pattern_regex, case=False, na=False, regex=True))
         
-        # Trend filter - FIX: Ensure numeric comparison
-        if filters.get('trend_range') and filters.get('trend_filter') != 'All Trends':
-            min_trend, max_trend = filters['trend_range']
-            if 'trend_quality' in df.columns:
-                trend_numeric = pd.to_numeric(df['trend_quality'], errors='coerce').fillna(50)
-                mask &= (trend_numeric >= min_trend) & (trend_numeric <= max_trend)
+        # 5. Trend filter
+        trend_range = filters.get('trend_range')
+        if filters.get('trend_filter') != 'All Trends' and trend_range and 'trend_quality' in df.columns:
+            min_trend, max_trend = trend_range
+            masks.append(df['trend_quality'].notna() & (df['trend_quality'] >= min_trend) & (df['trend_quality'] <= max_trend))
         
-        # PE filters - FIX: Ensure numeric comparison
-        min_pe = filters.get('min_pe')
-        if min_pe is not None and 'pe' in df.columns:
-            pe_numeric = pd.to_numeric(df['pe'], errors='coerce')
-            mask &= pe_numeric.isna() | ((pe_numeric > 0) & (pe_numeric >= min_pe))
-        
-        max_pe = filters.get('max_pe')
-        if max_pe is not None and 'pe' in df.columns:
-            pe_numeric = pd.to_numeric(df['pe'], errors='coerce')
-            mask &= pe_numeric.isna() | ((pe_numeric > 0) & (pe_numeric <= max_pe))
-        
-        # Apply tier filters - FIX: Ensure string comparison
-        for tier_type in ['eps_tiers', 'pe_tiers', 'price_tiers']:
-            tier_values = filters.get(tier_type, [])
-            if tier_values and 'All' not in tier_values:
-                col_name = tier_type.replace('_tiers', '_tier')
-                if col_name in df.columns:
-                    # Convert to string for comparison
-                    mask &= df[col_name].astype(str).isin([str(t) for t in tier_values])
-        
-        # Data completeness filter
+        # 6. PE filters
+        if 'pe' in df.columns:
+            pe_mask = pd.Series(True, index=df.index)
+            if filters.get('min_pe') is not None:
+                pe_mask &= df['pe'].notna() & (df['pe'] > 0) & (df['pe'] >= filters['min_pe'])
+            if filters.get('max_pe') is not None:
+                pe_mask &= df['pe'].notna() & (df['pe'] > 0) & (df['pe'] <= filters['max_pe'])
+            if filters.get('min_pe') is not None or filters.get('max_pe') is not None:
+                masks.append(pe_mask)
+
+        # 7. Tier filters
+        masks.append(create_mask_from_isin('eps_tier', filters.get('eps_tiers', [])))
+        masks.append(create_mask_from_isin('pe_tier', filters.get('pe_tiers', [])))
+        masks.append(create_mask_from_isin('price_tier', filters.get('price_tiers', [])))
+
+        # 8. Data completeness filter
         if filters.get('require_fundamental_data', False):
-            if 'pe' in df.columns and 'eps_change_pct' in df.columns:
-                pe_numeric = pd.to_numeric(df['pe'], errors='coerce')
-                eps_numeric = pd.to_numeric(df['eps_change_pct'], errors='coerce')
-                mask &= pe_numeric.notna() & (pe_numeric > 0) & eps_numeric.notna()
+            if all(col in df.columns for col in ['pe', 'eps_change_pct']):
+                masks.append(df['pe'].notna() & (df['pe'] > 0) & df['eps_change_pct'].notna())
         
-        # Wave State filter - FIX: Ensure string comparison
-        wave_states = filters.get('wave_states', [])
-        if wave_states and 'All' not in wave_states and 'wave_state' in df.columns:
-            # Convert to string for comparison
-            mask &= df['wave_state'].astype(str).isin([str(w) for w in wave_states])
+        # 9. Wave filters
+        masks.append(create_mask_from_isin('wave_state', filters.get('wave_states', [])))
         
-        # Wave Strength filter - FIX: Ensure numeric comparison
         wave_strength_range = filters.get('wave_strength_range')
-        if wave_strength_range and 'overall_wave_strength' in df.columns:
+        if wave_strength_range and wave_strength_range != (0, 100) and 'overall_wave_strength' in df.columns:
             min_ws, max_ws = wave_strength_range
-            wave_numeric = pd.to_numeric(df['overall_wave_strength'], errors='coerce').fillna(50)
-            mask &= (wave_numeric >= min_ws) & (wave_numeric <= max_ws)
+            masks.append(df['overall_wave_strength'].notna() & (df['overall_wave_strength'] >= min_ws) & (df['overall_wave_strength'] <= max_ws))
+
+        masks = [mask for mask in masks if mask is not None]
         
-        # Apply mask efficiently
-        filtered_df = df[mask].copy()
+        if masks:
+            combined_mask = np.logical_and.reduce(masks)
+            filtered_df = df[combined_mask].copy()
+        else:
+            filtered_df = df.copy()
         
         logger.info(f"Filters reduced {len(df)} to {len(filtered_df)} stocks")
         
@@ -2168,163 +2080,42 @@ class FilterEngine:
     @staticmethod
     def get_filter_options(df: pd.DataFrame, column: str, current_filters: Dict[str, Any]) -> List[str]:
         """
-        Get available filter options with smart interconnection.
-        This applies other filters first to see what options are available.
-        
+        Retrieves filter options for a given column based on other active filters.
+        This ensures that the filter UI only presents valid, interconnected choices.
+
         Args:
-            df (pd.DataFrame): The DataFrame to filter.
-            column (str): The column to get options for.
-            current_filters (Dict[str, Any]): Current active filters.
-            
+            df (pd.DataFrame): The full DataFrame.
+            column (str): The column for which to retrieve options.
+            current_filters (Dict[str, Any]): A dictionary of all currently active filters.
+
         Returns:
-            List[str]: Available options for the specified column.
+            List[str]: A sorted list of unique, valid options for the specified column.
         """
-        
         if df.empty or column not in df.columns:
             return []
         
-        # Apply other filters first for interconnected filtering
         temp_filters = current_filters.copy()
         
-        # Remove the current column's filter to see all its options
         filter_key_map = {
-            'category': 'categories',
-            'sector': 'sectors',
-            'industry': 'industries',
-            'eps_tier': 'eps_tiers',
-            'pe_tier': 'pe_tiers',
-            'price_tier': 'price_tiers',
+            'category': 'categories', 'sector': 'sectors', 'industry': 'industries',
+            'eps_tier': 'eps_tiers', 'pe_tier': 'pe_tiers', 'price_tier': 'price_tiers',
             'wave_state': 'wave_states'
         }
         
         if column in filter_key_map:
             temp_filters.pop(filter_key_map[column], None)
         
-        # Apply remaining filters
         filtered_df = FilterEngine.apply_filters(df, temp_filters)
         
-        # Get unique values from the filtered data
         values = filtered_df[column].dropna().unique()
+        values = [v for v in values if str(v).strip().lower() not in ['unknown', '', 'nan', 'n/a', 'none', '-']]
         
-        # Convert to string and exclude invalid values
-        values = [str(v) for v in values if str(v).strip() not in ['Unknown', 'unknown', '', 'nan', 'NaN', 'None']]
+        try:
+            values = sorted(values, key=lambda x: float(str(x).replace(',', '')) if str(x).replace(',', '').replace('.', '').isdigit() else x)
+        except:
+            values = sorted(values, key=str)
         
-        # Sort and return
-        return sorted(values)
-    
-    @staticmethod
-    def get_pattern_options(df: pd.DataFrame) -> List[str]:
-        """
-        Extract all unique patterns from the patterns column.
-        
-        Args:
-            df (pd.DataFrame): The DataFrame containing patterns.
-            
-        Returns:
-            List[str]: List of unique pattern names.
-        """
-        if 'patterns' not in df.columns:
-            return []
-        
-        all_patterns = set()
-        
-        for patterns_str in df['patterns'].dropna():
-            if patterns_str and patterns_str != '':
-                # Split by delimiter and add to set
-                patterns_list = patterns_str.split(' | ')
-                all_patterns.update(patterns_list)
-        
-        # Remove empty strings
-        all_patterns.discard('')
-        
-        return sorted(list(all_patterns))
-    
-    @staticmethod
-    def count_active_filters(filters: Dict[str, Any]) -> int:
-        """
-        Count the number of active filters.
-        
-        Args:
-            filters (Dict[str, Any]): The filters dictionary.
-            
-        Returns:
-            int: Number of active filters.
-        """
-        count = 0
-        
-        # List filters
-        for key in ['categories', 'sectors', 'industries', 'patterns', 
-                   'eps_tiers', 'pe_tiers', 'price_tiers', 'wave_states']:
-            if filters.get(key):
-                count += 1
-        
-        # Value filters
-        if filters.get('min_score', 0) > 0:
-            count += 1
-        
-        if filters.get('trend_filter') and filters.get('trend_filter') != 'All Trends':
-            count += 1
-        
-        if filters.get('min_eps_change') is not None:
-            count += 1
-        
-        if filters.get('min_pe') is not None:
-            count += 1
-        
-        if filters.get('max_pe') is not None:
-            count += 1
-        
-        if filters.get('require_fundamental_data'):
-            count += 1
-        
-        wave_range = filters.get('wave_strength_range', (0, 100))
-        if wave_range != (0, 100):
-            count += 1
-        
-        return count
-    
-    @staticmethod
-    def get_filter_summary_text(filters: Dict[str, Any]) -> str:
-        """
-        Generate a human-readable summary of active filters.
-        
-        Args:
-            filters (Dict[str, Any]): The filters dictionary.
-            
-        Returns:
-            str: Summary text of active filters.
-        """
-        if not filters:
-            return "No filters applied"
-        
-        summary_parts = []
-        
-        # Categories
-        if filters.get('categories'):
-            summary_parts.append(f"Categories: {', '.join(filters['categories'])}")
-        
-        # Sectors
-        if filters.get('sectors'):
-            summary_parts.append(f"Sectors: {', '.join(filters['sectors'])}")
-        
-        # Score
-        if filters.get('min_score', 0) > 0:
-            summary_parts.append(f"Min Score: {filters['min_score']}")
-        
-        # Patterns
-        if filters.get('patterns'):
-            summary_parts.append(f"Patterns: {len(filters['patterns'])} selected")
-        
-        # Wave states
-        if filters.get('wave_states'):
-            summary_parts.append(f"Wave States: {', '.join(filters['wave_states'])}")
-        
-        # Wave strength
-        wave_range = filters.get('wave_strength_range', (0, 100))
-        if wave_range != (0, 100):
-            summary_parts.append(f"Wave Strength: {wave_range[0]}-{wave_range[1]}")
-        
-        return " | ".join(summary_parts) if summary_parts else "No filters applied"
+        return values
         
 # ============================================
 # SEARCH ENGINE
@@ -2851,266 +2642,169 @@ class SessionStateManager:
     This class ensures all state variables are properly initialized,
     preventing runtime errors and managing filter states consistently.
     """
-    
-    @staticmethod
-    def safe_get(key: str, default: Any = None) -> Any:
-        """Safely get a session state value with fallback"""
-        if key not in st.session_state:
-            st.session_state[key] = default
-        return st.session_state[key]
-    
-    @staticmethod
-    def safe_set(key: str, value: Any) -> None:
-        """Safely set a session state value"""
-        st.session_state[key] = value
-    
+
     @staticmethod
     def initialize():
         """
         Initializes all necessary session state variables with explicit defaults.
         This prevents KeyErrors when accessing variables for the first time.
         """
-        # Core data state
-        if 'ranked_df' not in st.session_state:
-            st.session_state.ranked_df = pd.DataFrame()
+        defaults = {
+            # Core Application State
+            'search_query': "",
+            'last_refresh': datetime.now(timezone.utc),
+            'data_source': "sheet",
+            'user_preferences': {
+                'default_top_n': CONFIG.DEFAULT_TOP_N,
+                'display_mode': 'Technical',
+                'last_filters': {}
+            },
+            'active_filter_count': 0,
+            'quick_filter': None,
+            'quick_filter_applied': False,
+            'show_debug': False,
+            'performance_metrics': {},
+            'data_quality': {},
+            
+            # Filter-related State
+            'display_count': CONFIG.DEFAULT_TOP_N,
+            'sort_by': 'Rank',
+            'export_template': 'Full Analysis (All Data)',
+            'category_filter': [],
+            'sector_filter': [],
+            'industry_filter': [],
+            'min_score': 0,
+            'patterns': [],
+            'trend_filter': "All Trends",
+            'eps_tier_filter': [],
+            'pe_tier_filter': [],
+            'price_tier_filter': [],
+            'min_eps_change': "",
+            'min_pe': "",
+            'max_pe': "",
+            'require_fundamental_data': False,
+            
+            # Wave Radar specific filters
+            'wave_states_filter': [],
+            'wave_strength_range_slider': (0, 100),
+            'show_sensitivity_details': False,
+            'show_market_regime': True,
+            'wave_timeframe_select': "All Waves",
+            'wave_sensitivity': "Balanced",
+        }
         
-        if 'filtered_df' not in st.session_state:
-            st.session_state.filtered_df = pd.DataFrame()
-        
-        if 'last_good_data' not in st.session_state:
-            st.session_state.last_good_data = None
-        
-        # Data source settings
-        if 'data_source' not in st.session_state:
-            st.session_state.data_source = "sheet"
-        
-        if 'sheet_id' not in st.session_state:
-            st.session_state.sheet_id = ""
-        
-        if 'gid' not in st.session_state:
-            st.session_state.gid = CONFIG.DEFAULT_GID
-        
-        # Timestamps and metadata
-        if 'data_timestamp' not in st.session_state:
-            st.session_state.data_timestamp = datetime.now(timezone.utc)
-        
-        if 'last_refresh' not in st.session_state:
-            st.session_state.last_refresh = datetime.now(timezone.utc)
-        
-        if 'last_cleanup' not in st.session_state:
-            st.session_state.last_cleanup = datetime.now(timezone.utc)
-        
-        # Data quality metrics
-        if 'data_quality' not in st.session_state:
-            st.session_state.data_quality = {
-                'completeness': 0,
-                'total_rows': 0,
-                'total_columns': 0,
-                'duplicate_tickers': 0
-            }
-        
-        # Performance metrics
-        if 'performance_metrics' not in st.session_state:
-            st.session_state.performance_metrics = {}
-        
-        # Filter states
-        if 'filters' not in st.session_state:
-            st.session_state.filters = {}
-        
-        if 'active_filter_count' not in st.session_state:
-            st.session_state.active_filter_count = 0
-        
-        # Display settings
-        if 'display_mode' not in st.session_state:
-            st.session_state.display_mode = "Technical"
-        
-        if 'top_n' not in st.session_state:
-            st.session_state.top_n = CONFIG.DEFAULT_TOP_N
-        
-        # Quick filter states
-        if 'quick_filter' not in st.session_state:
-            st.session_state.quick_filter = None
-        
-        if 'quick_filter_applied' not in st.session_state:
-            st.session_state.quick_filter_applied = False
-        
-        # Wave Radar states
-        if 'wave_timeframe_select' not in st.session_state:
-            st.session_state.wave_timeframe_select = "All Waves"
-        
-        if 'wave_sensitivity' not in st.session_state:
-            st.session_state.wave_sensitivity = "Balanced"
-        
-        if 'show_sensitivity_details' not in st.session_state:
-            st.session_state.show_sensitivity_details = False
-        
-        if 'show_market_regime' not in st.session_state:
-            st.session_state.show_market_regime = True
-        
-        # Filter widget states
-        if 'category_filter' not in st.session_state:
-            st.session_state.category_filter = []
-        
-        if 'sector_filter' not in st.session_state:
-            st.session_state.sector_filter = []
-        
-        if 'industry_filter' not in st.session_state:
-            st.session_state.industry_filter = []
-        
-        if 'eps_tier_filter' not in st.session_state:
-            st.session_state.eps_tier_filter = []
-        
-        if 'pe_tier_filter' not in st.session_state:
-            st.session_state.pe_tier_filter = []
-        
-        if 'price_tier_filter' not in st.session_state:
-            st.session_state.price_tier_filter = []
-        
-        if 'patterns' not in st.session_state:
-            st.session_state.patterns = []
-        
-        if 'min_score' not in st.session_state:
-            st.session_state.min_score = 0
-        
-        if 'trend_filter' not in st.session_state:
-            st.session_state.trend_filter = "All Trends"
-        
-        if 'min_eps_change' not in st.session_state:
-            st.session_state.min_eps_change = None
-        
-        if 'min_pe' not in st.session_state:
-            st.session_state.min_pe = None
-        
-        if 'max_pe' not in st.session_state:
-            st.session_state.max_pe = None
-        
-        if 'require_fundamental_data' not in st.session_state:
-            st.session_state.require_fundamental_data = False
-        
-        # Wave filter states
-        if 'wave_states_filter' not in st.session_state:
-            st.session_state.wave_states_filter = []
-        
-        if 'wave_strength_range_slider' not in st.session_state:
-            st.session_state.wave_strength_range_slider = (0, 100)
-        
-        # Debug mode
-        if 'show_debug' not in st.session_state:
-            st.session_state.show_debug = False
-        
-        # Clear filters trigger
-        if 'trigger_clear' not in st.session_state:
-            st.session_state.trigger_clear = False
-        
-        logger.info("Session state initialized successfully")
-    
+        for key, default_value in defaults.items():
+            if key not in st.session_state:
+                st.session_state[key] = default_value
+
     @staticmethod
     def build_filter_dict() -> Dict[str, Any]:
         """
-        Builds a comprehensive filter dictionary from session state.
-        This method collects all active filters and returns them in a format
-        that can be used by FilterEngine.apply_filters().
+        Builds a comprehensive filter dictionary from the current session state.
+        This centralizes filter data for easy consumption by the FilterEngine.
         
         Returns:
-            Dict[str, Any]: Dictionary containing all active filters.
+            Dict[str, Any]: A dictionary of all active filter settings.
         """
         filters = {}
         
-        # Category filters
-        if st.session_state.get('category_filter'):
-            filters['categories'] = st.session_state.category_filter
+        # Categorical filters
+        for key, filter_name in [
+            ('category_filter', 'categories'), 
+            ('sector_filter', 'sectors'), 
+            ('industry_filter', 'industries')
+        ]:
+            if st.session_state.get(key) and st.session_state[key]:
+                filters[filter_name] = st.session_state[key]
         
-        # Sector filters
-        if st.session_state.get('sector_filter'):
-            filters['sectors'] = st.session_state.sector_filter
+        # Numeric filters - FIX: Better type conversion
+        if st.session_state.get('min_score', 0) > 0:
+            try:
+                filters['min_score'] = float(st.session_state['min_score'])
+            except (ValueError, TypeError):
+                filters['min_score'] = st.session_state['min_score']
         
-        # Industry filters
-        if st.session_state.get('industry_filter'):
-            filters['industries'] = st.session_state.industry_filter
+        # EPS change filter - FIX: Handle string inputs
+        if st.session_state.get('min_eps_change'):
+            value = st.session_state['min_eps_change']
+            if isinstance(value, str) and value.strip():
+                try:
+                    filters['min_eps_change'] = float(value)
+                except ValueError:
+                    pass
+            elif isinstance(value, (int, float)):
+                filters['min_eps_change'] = float(value)
         
-        # Pattern filters
-        if st.session_state.get('patterns'):
-            filters['patterns'] = st.session_state.patterns
+        # PE filters - FIX: Handle string inputs
+        if st.session_state.get('min_pe'):
+            value = st.session_state['min_pe']
+            if isinstance(value, str) and value.strip():
+                try:
+                    filters['min_pe'] = float(value)
+                except ValueError:
+                    pass
+            elif isinstance(value, (int, float)):
+                filters['min_pe'] = float(value)
         
-        # Score filter
-        min_score = st.session_state.get('min_score', 0)
-        if min_score > 0:
-            filters['min_score'] = min_score
-        
-        # Trend filter
-        trend_filter = st.session_state.get('trend_filter', 'All Trends')
-        if trend_filter != 'All Trends':
-            filters['trend_filter'] = trend_filter
-            # Map trend filter to range
-            trend_ranges = {
-                'Strong Uptrend (80+)': (80, 100),
-                'Uptrend (60-80)': (60, 80),
-                'Neutral (40-60)': (40, 60),
-                'Downtrend (20-40)': (20, 40),
-                'Strong Downtrend (<20)': (0, 20)
-            }
-            filters['trend_range'] = trend_ranges.get(trend_filter, (0, 100))
-        
-        # EPS change filter
-        min_eps_change = st.session_state.get('min_eps_change')
-        if min_eps_change is not None:
-            filters['min_eps_change'] = min_eps_change
-        
-        # PE filters
-        min_pe = st.session_state.get('min_pe')
-        if min_pe is not None:
-            filters['min_pe'] = min_pe
-        
-        max_pe = st.session_state.get('max_pe')
-        if max_pe is not None:
-            filters['max_pe'] = max_pe
+        if st.session_state.get('max_pe'):
+            value = st.session_state['max_pe']
+            if isinstance(value, str) and value.strip():
+                try:
+                    filters['max_pe'] = float(value)
+                except ValueError:
+                    pass
+            elif isinstance(value, (int, float)):
+                filters['max_pe'] = float(value)
+
+        # Multi-select filters
+        if st.session_state.get('patterns') and st.session_state['patterns']:
+            filters['patterns'] = st.session_state['patterns']
         
         # Tier filters
-        eps_tiers = st.session_state.get('eps_tier_filter')
-        if eps_tiers:
-            filters['eps_tiers'] = eps_tiers
+        for key, filter_name in [
+            ('eps_tier_filter', 'eps_tiers'),
+            ('pe_tier_filter', 'pe_tiers'),
+            ('price_tier_filter', 'price_tiers')
+        ]:
+            if st.session_state.get(key) and st.session_state[key]:
+                filters[filter_name] = st.session_state[key]
         
-        pe_tiers = st.session_state.get('pe_tier_filter')
-        if pe_tiers:
-            filters['pe_tiers'] = pe_tiers
-        
-        price_tiers = st.session_state.get('price_tier_filter')
-        if price_tiers:
-            filters['price_tiers'] = price_tiers
-        
-        # Fundamental data requirement
-        if st.session_state.get('require_fundamental_data', False):
-            filters['require_fundamental_data'] = True
+        # Range and selection filters
+        if st.session_state.get('trend_filter') != "All Trends":
+            trend_options = {
+                "🔥 Strong Uptrend (80+)": (80, 100), 
+                "✅ Good Uptrend (60-79)": (60, 79),
+                "➡️ Neutral Trend (40-59)": (40, 59), 
+                "⚠️ Weak/Downtrend (<40)": (0, 39)
+            }
+            filters['trend_filter'] = st.session_state['trend_filter']
+            filters['trend_range'] = trend_options.get(st.session_state['trend_filter'], (0, 100))
         
         # Wave filters
-        wave_states = st.session_state.get('wave_states_filter')
-        if wave_states:
-            filters['wave_states'] = wave_states
+        if st.session_state.get('wave_strength_range_slider') != (0, 100):
+            filters['wave_strength_range'] = st.session_state['wave_strength_range_slider']
         
-        wave_range = st.session_state.get('wave_strength_range_slider', (0, 100))
-        if wave_range != (0, 100):
-            filters['wave_strength_range'] = wave_range
+        if st.session_state.get('wave_states_filter') and st.session_state['wave_states_filter']:
+            filters['wave_states'] = st.session_state['wave_states_filter']
         
-        # Update active filter count
-        st.session_state.active_filter_count = len(filters)
-        st.session_state.filters = filters
-        
+        # Checkbox filters
+        if st.session_state.get('require_fundamental_data', False):
+            filters['require_fundamental_data'] = True
+            
         return filters
-    
+
     @staticmethod
-    def clear_all_filters():
+    def clear_filters():
         """
-        Clears all filter-related session state variables to their defaults.
+        Resets all filter-related session state keys to their default values.
         This provides a clean slate for the user.
         """
         filter_keys = [
-            'category_filter', 'sector_filter', 'industry_filter', 
-            'eps_tier_filter', 'pe_tier_filter', 'price_tier_filter',
-            'patterns', 'min_score', 'trend_filter',
+            'category_filter', 'sector_filter', 'industry_filter', 'eps_tier_filter',
+            'pe_tier_filter', 'price_tier_filter', 'patterns', 'min_score', 'trend_filter',
             'min_eps_change', 'min_pe', 'max_pe', 'require_fundamental_data',
-            'quick_filter', 'quick_filter_applied',
-            'wave_states_filter', 'wave_strength_range_slider',
-            'show_sensitivity_details', 'show_market_regime',
+            'quick_filter', 'quick_filter_applied', 'wave_states_filter',
+            'wave_strength_range_slider', 'show_sensitivity_details', 'show_market_regime',
             'wave_timeframe_select', 'wave_sensitivity'
         ]
         
@@ -3133,71 +2827,44 @@ class SessionStateManager:
                     if key == 'wave_strength_range_slider':
                         st.session_state[key] = (0, 100)
                 elif isinstance(st.session_state[key], (int, float)):
-                    st.session_state[key] = 0 if key == 'min_score' else None
+                    if key == 'min_score':
+                        st.session_state[key] = 0
+                    else:
+                        st.session_state[key] = None if key in ['min_eps_change', 'min_pe', 'max_pe'] else 0
                 else:
                     st.session_state[key] = None
         
         st.session_state.active_filter_count = 0
-        st.session_state.filters = {}
-        logger.info("All filters cleared successfully")
+        logger.info("All filters cleared successfully.")
     
     @staticmethod
-    def get_filter_summary() -> Dict[str, Any]:
+    def safe_get(key: str, default: Any = None) -> Any:
         """
-        Returns a summary of all active filters.
-        
-        Returns:
-            Dict[str, Any]: Dictionary containing active filter information.
-        """
-        active_filters = {}
-        
-        # Check each filter type
-        if st.session_state.get('category_filter'):
-            active_filters['Categories'] = st.session_state.category_filter
-        
-        if st.session_state.get('sector_filter'):
-            active_filters['Sectors'] = st.session_state.sector_filter
-        
-        if st.session_state.get('industry_filter'):
-            active_filters['Industries'] = st.session_state.industry_filter
-        
-        if st.session_state.get('patterns'):
-            active_filters['Patterns'] = st.session_state.patterns
-        
-        if st.session_state.get('min_score', 0) > 0:
-            active_filters['Min Score'] = st.session_state.min_score
-        
-        if st.session_state.get('trend_filter') != "All Trends":
-            active_filters['Trend'] = st.session_state.trend_filter
-        
-        if st.session_state.get('wave_states_filter'):
-            active_filters['Wave States'] = st.session_state.wave_states_filter
-        
-        wave_range = st.session_state.get('wave_strength_range_slider', (0, 100))
-        if wave_range != (0, 100):
-            active_filters['Wave Strength'] = f"{wave_range[0]}-{wave_range[1]}"
-        
-        return active_filters
-    
-    @staticmethod
-    def update_performance_metric(metric_name: str, value: float):
-        """
-        Updates a performance metric in session state.
+        Safely get a session state value with fallback.
+        This replaces the RobustSessionState.safe_get method.
         
         Args:
-            metric_name (str): Name of the metric.
-            value (float): Value of the metric.
+            key (str): The session state key.
+            default (Any): Default value if key doesn't exist.
+            
+        Returns:
+            Any: The value from session state or default.
         """
-        if 'performance_metrics' not in st.session_state:
-            st.session_state.performance_metrics = {}
+        if key not in st.session_state:
+            st.session_state[key] = default
+        return st.session_state[key]
+    
+    @staticmethod
+    def safe_set(key: str, value: Any) -> None:
+        """
+        Safely set a session state value.
+        This replaces the RobustSessionState.safe_set method.
         
-        st.session_state.performance_metrics[metric_name] = value
-        
-        # Keep only last 100 metrics to prevent memory bloat
-        if len(st.session_state.performance_metrics) > 100:
-            # Keep only the 50 most recent
-            items = list(st.session_state.performance_metrics.items())
-            st.session_state.performance_metrics = dict(items[-50:])
+        Args:
+            key (str): The session state key.
+            value (Any): The value to set.
+        """
+        st.session_state[key] = value
 
 # ============================================
 # MAIN APPLICATION
@@ -3506,7 +3173,7 @@ def main():
                     for error in metadata['errors']:
                         st.error(error)
                 
-            except Exception as e:
+           except Exception as e:
                 logger.error(f"Failed to load data: {str(e)}")
                 
                 last_good_data = st.session_state.get('last_good_data')
@@ -3514,6 +3181,7 @@ def main():
                     ranked_df, data_timestamp, metadata = last_good_data
                     st.warning("Failed to load fresh data, using cached version")
                 else:
+                    # FIX: Add proper error handling
                     st.error(f"❌ Error: {str(e)}")
                     st.info("Common issues:\n- Invalid Google Sheets ID\n- Sheet not publicly accessible\n- Network connectivity\n- Invalid CSV format")
                     st.stop()
