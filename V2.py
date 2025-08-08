@@ -1977,12 +1977,12 @@ class Visualizer:
             return go.Figure()
 
 # ============================================
-# FILTER ENGINE - ENHANCED WITH INTERCONNECTION
+# FILTER ENGINE - OPTIMIZED
 # ============================================
 
 class FilterEngine:
     """
-    Handles all filtering operations efficiently with perfect interconnection.
+    Handles all filtering operations with optimized performance.
     This class is optimized to apply filters robustly, preventing errors
     due to missing data or invalid user input.
     """
@@ -2015,15 +2015,23 @@ class FilterEngine:
         masks.append(create_mask_from_isin('sector', filters.get('sectors', [])))
         masks.append(create_mask_from_isin('industry', filters.get('industries', [])))
         
-        # 2. Score filter
+        # 2. Score filter - FIX: Ensure numeric
         min_score = filters.get('min_score', 0)
         if min_score > 0 and 'master_score' in df.columns:
-            masks.append(df['master_score'].fillna(0) >= min_score)
+            try:
+                min_score = float(min_score)
+                masks.append(df['master_score'].fillna(0) >= min_score)
+            except (ValueError, TypeError):
+                pass
         
-        # 3. EPS change filter
+        # 3. EPS change filter - FIX: Ensure numeric
         min_eps_change = filters.get('min_eps_change')
         if min_eps_change is not None and 'eps_change_pct' in df.columns:
-            masks.append(df['eps_change_pct'].notna() & (df['eps_change_pct'] >= min_eps_change))
+            try:
+                min_eps_change = float(min_eps_change)
+                masks.append(df['eps_change_pct'].notna() & (df['eps_change_pct'] >= min_eps_change))
+            except (ValueError, TypeError):
+                pass
         
         # 4. Pattern filter
         patterns = filters.get('patterns', [])
@@ -2037,13 +2045,26 @@ class FilterEngine:
             min_trend, max_trend = trend_range
             masks.append(df['trend_quality'].notna() & (df['trend_quality'] >= min_trend) & (df['trend_quality'] <= max_trend))
         
-        # 6. PE filters
+        # 6. PE filters - FIX: Ensure numeric
         if 'pe' in df.columns:
             pe_mask = pd.Series(True, index=df.index)
-            if filters.get('min_pe') is not None:
-                pe_mask &= df['pe'].notna() & (df['pe'] > 0) & (df['pe'] >= filters['min_pe'])
-            if filters.get('max_pe') is not None:
-                pe_mask &= df['pe'].notna() & (df['pe'] > 0) & (df['pe'] <= filters['max_pe'])
+            
+            min_pe = filters.get('min_pe')
+            if min_pe is not None:
+                try:
+                    min_pe = float(min_pe)
+                    pe_mask &= df['pe'].notna() & (df['pe'] > 0) & (df['pe'] >= min_pe)
+                except (ValueError, TypeError):
+                    pass
+            
+            max_pe = filters.get('max_pe')
+            if max_pe is not None:
+                try:
+                    max_pe = float(max_pe)
+                    pe_mask &= df['pe'].notna() & (df['pe'] > 0) & (df['pe'] <= max_pe)
+                except (ValueError, TypeError):
+                    pass
+            
             if filters.get('min_pe') is not None or filters.get('max_pe') is not None:
                 masks.append(pe_mask)
 
@@ -2063,8 +2084,16 @@ class FilterEngine:
         wave_strength_range = filters.get('wave_strength_range')
         if wave_strength_range and wave_strength_range != (0, 100) and 'overall_wave_strength' in df.columns:
             min_ws, max_ws = wave_strength_range
-            masks.append(df['overall_wave_strength'].notna() & (df['overall_wave_strength'] >= min_ws) & (df['overall_wave_strength'] <= max_ws))
+            try:
+                min_ws = float(min_ws)
+                max_ws = float(max_ws)
+                masks.append(df['overall_wave_strength'].notna() & 
+                           (df['overall_wave_strength'] >= min_ws) & 
+                           (df['overall_wave_strength'] <= max_ws))
+            except (ValueError, TypeError):
+                pass
 
+        # Combine all masks
         masks = [mask for mask in masks if mask is not None]
         
         if masks:
@@ -2097,22 +2126,33 @@ class FilterEngine:
         temp_filters = current_filters.copy()
         
         filter_key_map = {
-            'category': 'categories', 'sector': 'sectors', 'industry': 'industries',
-            'eps_tier': 'eps_tiers', 'pe_tier': 'pe_tiers', 'price_tier': 'price_tiers',
+            'category': 'categories', 
+            'sector': 'sectors', 
+            'industry': 'industries',
+            'eps_tier': 'eps_tiers', 
+            'pe_tier': 'pe_tiers', 
+            'price_tier': 'price_tiers',
             'wave_state': 'wave_states'
         }
         
         if column in filter_key_map:
             temp_filters.pop(filter_key_map[column], None)
         
+        # Apply remaining filters
         filtered_df = FilterEngine.apply_filters(df, temp_filters)
         
+        # Get unique values
         values = filtered_df[column].dropna().unique()
-        values = [v for v in values if str(v).strip().lower() not in ['unknown', '', 'nan', 'n/a', 'none', '-']]
         
+        # FIX: Complete the string filtering properly
+        values = [v for v in values if str(v).strip() not in ['Unknown', 'unknown', '', 'nan', 'NaN', 'None', 'N/A', '-']]
+        
+        # FIX: Sort with proper handling of mixed types
         try:
-            values = sorted(values, key=lambda x: float(str(x).replace(',', '')) if str(x).replace(',', '').replace('.', '').isdigit() else x)
-        except:
+            # Try numeric sort first
+            values = sorted(values, key=lambda x: float(str(x).replace(',', '')))
+        except (ValueError, TypeError):
+            # Fall back to string sort
             values = sorted(values, key=str)
         
         return values
