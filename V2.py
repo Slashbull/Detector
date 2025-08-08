@@ -5189,6 +5189,7 @@ def main():
             st.info("No data available for analysis.")
     
     # Tab 4: Search
+    # Tab 4: Search
     with tabs[4]:
         st.markdown("### 🔍 Advanced Stock Search")
         
@@ -5205,7 +5206,7 @@ def main():
         
         with col2:
             st.markdown("<br>", unsafe_allow_html=True)
-            search_clicked = st.button("🔎 Search", type="primary", use_container_width=True)
+            search_clicked = st.button("🔎 Search", type="primary", use_container_width=True, key="search_btn")
         
         # Perform search
         if search_query or search_clicked:
@@ -5215,12 +5216,115 @@ def main():
             if not search_results.empty:
                 st.success(f"Found {len(search_results)} matching stock(s)")
                 
-                # Display each result
+                # Create summary dataframe for search results
+                summary_columns = ['ticker', 'company_name', 'rank', 'master_score', 'price', 
+                                  'ret_30d', 'rvol', 'wave_state', 'category']
+                
+                available_summary_cols = [col for col in summary_columns if col in search_results.columns]
+                search_summary = search_results[available_summary_cols].copy()
+                
+                # Format the summary data
+                if 'price' in search_summary.columns:
+                    search_summary['price_display'] = search_summary['price'].apply(
+                        lambda x: f"₹{x:,.0f}" if pd.notna(x) else '-'
+                    )
+                    search_summary = search_summary.drop('price', axis=1)
+                
+                if 'ret_30d' in search_summary.columns:
+                    search_summary['ret_30d_display'] = search_summary['ret_30d'].apply(
+                        lambda x: f"{x:+.1f}%" if pd.notna(x) else '-'
+                    )
+                    search_summary = search_summary.drop('ret_30d', axis=1)
+                
+                if 'rvol' in search_summary.columns:
+                    search_summary['rvol_display'] = search_summary['rvol'].apply(
+                        lambda x: f"{x:.1f}x" if pd.notna(x) else '-'
+                    )
+                    search_summary = search_summary.drop('rvol', axis=1)
+                
+                # Rename columns for display
+                column_rename = {
+                    'ticker': 'Ticker',
+                    'company_name': 'Company',
+                    'rank': 'Rank',
+                    'master_score': 'Score',
+                    'price_display': 'Price',
+                    'ret_30d_display': '30D Return',
+                    'rvol_display': 'RVOL',
+                    'wave_state': 'Wave State',
+                    'category': 'Category'
+                }
+                
+                search_summary = search_summary.rename(columns=column_rename)
+                
+                # Display search results summary with optimized column_config
+                st.markdown("#### 📊 Search Results Overview")
+                st.dataframe(
+                    search_summary,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        'Ticker': st.column_config.TextColumn(
+                            'Ticker',
+                            help="Stock symbol - Click expander below for details",
+                            width="small"
+                        ),
+                        'Company': st.column_config.TextColumn(
+                            'Company',
+                            help="Company name",
+                            width="large"
+                        ),
+                        'Rank': st.column_config.NumberColumn(
+                            'Rank',
+                            help="Overall ranking position",
+                            format="%d",
+                            width="small"
+                        ),
+                        'Score': st.column_config.ProgressColumn(
+                            'Score',
+                            help="Master Score (0-100)",
+                            format="%.1f",
+                            min_value=0,
+                            max_value=100,
+                            width="small"
+                        ),
+                        'Price': st.column_config.TextColumn(
+                            'Price',
+                            help="Current stock price",
+                            width="small"
+                        ),
+                        '30D Return': st.column_config.TextColumn(
+                            '30D Return',
+                            help="30-day return percentage",
+                            width="small"
+                        ),
+                        'RVOL': st.column_config.TextColumn(
+                            'RVOL',
+                            help="Relative Volume",
+                            width="small"
+                        ),
+                        'Wave State': st.column_config.TextColumn(
+                            'Wave State',
+                            help="Current momentum wave state",
+                            width="medium"
+                        ),
+                        'Category': st.column_config.TextColumn(
+                            'Category',
+                            help="Market cap category",
+                            width="medium"
+                        )
+                    }
+                )
+                
+                st.markdown("---")
+                st.markdown("#### 📋 Detailed Stock Information")
+                
+                # Display each result in expandable sections
                 for idx, stock in search_results.iterrows():
                     with st.expander(
                         f"📊 {stock['ticker']} - {stock['company_name']} "
                         f"(Rank #{int(stock['rank'])})",
-                        expanded=True
+                        expanded=(len(search_results) == 1)  # Auto-expand if only one result
                     ):
                         # Header metrics
                         metric_cols = st.columns(6)
@@ -5240,7 +5344,7 @@ def main():
                         with metric_cols[2]:
                             UIComponents.render_metric_card(
                                 "From Low",
-                                f"{stock['from_low_pct']:.0f}%",
+                                f"{stock['from_low_pct']:.0f}%" if pd.notna(stock.get('from_low_pct')) else "N/A",
                                 "52-week range position"
                             )
                         
@@ -5248,222 +5352,524 @@ def main():
                             ret_30d = stock.get('ret_30d', 0)
                             UIComponents.render_metric_card(
                                 "30D Return",
-                                f"{ret_30d:+.1f}%",
-                                "↑" if ret_30d > 0 else "↓"
+                                f"{ret_30d:+.1f}%" if pd.notna(ret_30d) else "N/A",
+                                "↑" if ret_30d > 0 else "↓" if ret_30d < 0 else "→"
                             )
                         
                         with metric_cols[4]:
                             rvol = stock.get('rvol', 1)
                             UIComponents.render_metric_card(
                                 "RVOL",
-                                f"{rvol:.1f}x",
-                                "High" if rvol > 2 else "Normal"
+                                f"{rvol:.1f}x" if pd.notna(rvol) else "N/A",
+                                "High" if rvol > 2 else "Normal" if rvol > 0.5 else "Low"
                             )
                         
                         with metric_cols[5]:
                             UIComponents.render_metric_card(
                                 "Wave State",
                                 stock.get('wave_state', 'N/A'),
-                                stock['category']
+                                stock.get('category', 'N/A')
                             )
                         
-                        # Score breakdown
+                        # Score breakdown with optimized display
                         st.markdown("#### 📈 Score Components")
-                        score_cols = st.columns(6)
                         
-                        components = [
-                            ("Position", stock['position_score'], CONFIG.POSITION_WEIGHT),
-                            ("Volume", stock['volume_score'], CONFIG.VOLUME_WEIGHT),
-                            ("Momentum", stock['momentum_score'], CONFIG.MOMENTUM_WEIGHT),
-                            ("Acceleration", stock['acceleration_score'], CONFIG.ACCELERATION_WEIGHT),
-                            ("Breakout", stock['breakout_score'], CONFIG.BREAKOUT_WEIGHT),
-                            ("RVOL", stock['rvol_score'], CONFIG.RVOL_WEIGHT)
-                        ]
+                        # Create score breakdown dataframe
+                        score_data = {
+                            'Component': ['Position', 'Volume', 'Momentum', 'Acceleration', 'Breakout', 'RVOL'],
+                            'Score': [
+                                stock.get('position_score', 0),
+                                stock.get('volume_score', 0),
+                                stock.get('momentum_score', 0),
+                                stock.get('acceleration_score', 0),
+                                stock.get('breakout_score', 0),
+                                stock.get('rvol_score', 0)
+                            ],
+                            'Weight': [
+                                f"{CONFIG.POSITION_WEIGHT:.0%}",
+                                f"{CONFIG.VOLUME_WEIGHT:.0%}",
+                                f"{CONFIG.MOMENTUM_WEIGHT:.0%}",
+                                f"{CONFIG.ACCELERATION_WEIGHT:.0%}",
+                                f"{CONFIG.BREAKOUT_WEIGHT:.0%}",
+                                f"{CONFIG.RVOL_WEIGHT:.0%}"
+                            ],
+                            'Contribution': [
+                                stock.get('position_score', 0) * CONFIG.POSITION_WEIGHT,
+                                stock.get('volume_score', 0) * CONFIG.VOLUME_WEIGHT,
+                                stock.get('momentum_score', 0) * CONFIG.MOMENTUM_WEIGHT,
+                                stock.get('acceleration_score', 0) * CONFIG.ACCELERATION_WEIGHT,
+                                stock.get('breakout_score', 0) * CONFIG.BREAKOUT_WEIGHT,
+                                stock.get('rvol_score', 0) * CONFIG.RVOL_WEIGHT
+                            ]
+                        }
                         
-                        for i, (name, score, weight) in enumerate(components):
-                            with score_cols[i]:
-                                # Color coding
-                                if pd.isna(score):
-                                    color = "⚪"
-                                    display_score = "N/A"
-                                elif score >= 80:
-                                    color = "🟢"
-                                    display_score = f"{score:.0f}"
-                                elif score >= 60:
-                                    color = "🟡"
-                                    display_score = f"{score:.0f}"
-                                else:
-                                    color = "🔴"
-                                    display_score = f"{score:.0f}"
-                                
-                                st.markdown(
-                                    f"**{name}**<br>"
-                                    f"{color} {display_score}<br>"
-                                    f"<small>Weight: {weight:.0%}</small>",
-                                    unsafe_allow_html=True
+                        score_df = pd.DataFrame(score_data)
+                        
+                        # Add quality indicator
+                        score_df['Quality'] = score_df['Score'].apply(
+                            lambda x: '🟢 Strong' if x >= 80 
+                            else '🟡 Good' if x >= 60 
+                            else '🟠 Fair' if x >= 40 
+                            else '🔴 Weak'
+                        )
+                        
+                        # Display score breakdown with column_config
+                        st.dataframe(
+                            score_df,
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                'Component': st.column_config.TextColumn(
+                                    'Component',
+                                    help="Score component name",
+                                    width="medium"
+                                ),
+                                'Score': st.column_config.ProgressColumn(
+                                    'Score',
+                                    help="Component score (0-100)",
+                                    format="%.1f",
+                                    min_value=0,
+                                    max_value=100,
+                                    width="small"
+                                ),
+                                'Weight': st.column_config.TextColumn(
+                                    'Weight',
+                                    help="Component weight in master score",
+                                    width="small"
+                                ),
+                                'Contribution': st.column_config.NumberColumn(
+                                    'Contribution',
+                                    help="Points contributed to master score",
+                                    format="%.1f",
+                                    width="small"
+                                ),
+                                'Quality': st.column_config.TextColumn(
+                                    'Quality',
+                                    help="Component strength indicator",
+                                    width="small"
                                 )
+                            }
+                        )
                         
                         # Patterns
                         if stock.get('patterns'):
-                            st.markdown(f"**🎯 Patterns:** {stock['patterns']}")
+                            st.markdown(f"**🎯 Patterns Detected:**")
+                            patterns_list = stock['patterns'].split(' | ')
+                            pattern_cols = st.columns(min(3, len(patterns_list)))
+                            for i, pattern in enumerate(patterns_list):
+                                with pattern_cols[i % 3]:
+                                    st.info(pattern)
                         
-                        # Additional details - Reorganized layout
+                        # Additional details in organized tabs
+                        detail_tabs = st.tabs(["📊 Classification", "📈 Performance", "💰 Fundamentals", "🔍 Technicals", "🎯 Advanced"])
                         
-                        st.markdown("---")
-                        # First row: Classification & Fundamentals (col1), Performance (col2)
-                        # Second row: Technicals + Trading Position (col3)
-                        # Third row: Advanced Metrics (col4)
-                        
-                        # Use a container for logical grouping and then columns within it
-                        st.container()
-                        detail_cols_top = st.columns([1, 1])
-                        
-                        with detail_cols_top[0]:
-                            st.markdown("**📊 Classification**")
-                            st.text(f"Sector: {stock.get('sector', 'Unknown')}")
-                            st.text(f"Category: {stock.get('category', 'Unknown')}")
-                            st.text(f"industry: {stock.get('industry', 'Unknown')}")
+                        with detail_tabs[0]:  # Classification
+                            class_col1, class_col2 = st.columns(2)
                             
-                            if show_fundamentals:
-                                st.markdown("**💰 Fundamentals**")
+                            with class_col1:
+                                st.markdown("**📊 Stock Classification**")
+                                classification_data = {
+                                    'Attribute': ['Sector', 'Industry', 'Category', 'Market Cap'],
+                                    'Value': [
+                                        stock.get('sector', 'Unknown'),
+                                        stock.get('industry', 'Unknown'),
+                                        stock.get('category', 'Unknown'),
+                                        stock.get('market_cap', 'N/A')
+                                    ]
+                                }
+                                class_df = pd.DataFrame(classification_data)
+                                st.dataframe(
+                                    class_df,
+                                    use_container_width=True,
+                                    hide_index=True,
+                                    column_config={
+                                        'Attribute': st.column_config.TextColumn('Attribute', width="medium"),
+                                        'Value': st.column_config.TextColumn('Value', width="large")
+                                    }
+                                )
+                            
+                            with class_col2:
+                                st.markdown("**📈 Tier Classifications**")
+                                tier_data = {
+                                    'Tier Type': [],
+                                    'Classification': []
+                                }
                                 
-                                # PE Ratio
-                                if 'pe' in stock and pd.notna(stock['pe']):
-                                    pe_val = stock['pe']
-                                    if pe_val <= 0:
-                                        st.text("PE Ratio: 🔴 Loss")
-                                    elif pe_val < 15:
-                                        st.text(f"PE Ratio: 🟢 {pe_val:.1f}x")
-                                    elif pe_val < 25:
-                                        st.text(f"PE Ratio: 🟡 {pe_val:.1f}x")
-                                    else:
-                                        st.text(f"PE Ratio: 🔴 {pe_val:.1f}x")
-                                else:
-                                    st.text("PE Ratio: N/A")
+                                if 'price_tier' in stock.index:
+                                    tier_data['Tier Type'].append('Price Tier')
+                                    tier_data['Classification'].append(stock.get('price_tier', 'N/A'))
                                 
-                                # EPS Current
-                                if 'eps_current' in stock and pd.notna(stock['eps_current']):
-                                    st.text(f"EPS Current: ₹{stock['eps_current']:.2f}")
+                                if 'eps_tier' in stock.index:
+                                    tier_data['Tier Type'].append('EPS Tier')
+                                    tier_data['Classification'].append(stock.get('eps_tier', 'N/A'))
+                                
+                                if 'pe_tier' in stock.index:
+                                    tier_data['Tier Type'].append('PE Tier')
+                                    tier_data['Classification'].append(stock.get('pe_tier', 'N/A'))
+                                
+                                if tier_data['Tier Type']:
+                                    tier_df = pd.DataFrame(tier_data)
+                                    st.dataframe(
+                                        tier_df,
+                                        use_container_width=True,
+                                        hide_index=True,
+                                        column_config={
+                                            'Tier Type': st.column_config.TextColumn('Type', width="medium"),
+                                            'Classification': st.column_config.TextColumn('Class', width="medium")
+                                        }
+                                    )
                                 else:
-                                    st.text("EPS Current: N/A")
-
-                                # EPS Change
-                                if 'eps_change_pct' in stock and pd.notna(stock['eps_change_pct']):
-                                    eps_chg = stock['eps_change_pct']
-                                    if eps_chg >= 100:
-                                        st.text(f"EPS Growth: 🚀 {eps_chg:+.0f}%")
-                                    elif eps_chg >= 50:
-                                        st.text(f"EPS Growth: 🔥 {eps_chg:+.1f}%")
-                                    elif eps_chg >= 0:
-                                        st.text(f"EPS Growth: 📈 {eps_chg:+.1f}%")
-                                    else:
-                                        st.text(f"EPS Growth: 📉 {eps_chg:+.1f}%")
-                                else:
-                                    st.text("EPS Growth: N/A")
+                                    st.info("No tier data available")
                         
-                        with detail_cols_top[1]:
-                            st.markdown("**📈 Performance**")
-                            for period, col in [
-                                ("1 Day", 'ret_1d'),
-                                ("7 Days", 'ret_7d'),
-                                ("30 Days", 'ret_30d'),
-                                ("3 Months", 'ret_3m'),
-                                ("6 Months", 'ret_6m'),
-                                ("1 Year", 'ret_1y')
-                            ]:
-                                if col in stock.index and pd.notna(stock[col]):
-                                    st.text(f"{period}: {stock[col]:+.1f}%")
-                                else:
-                                    st.text(f"{period}: N/A")
-                        
-                        # Technicals and Trading Position (next row)
-                        st.markdown("---")
-                        detail_cols_tech = st.columns([1,1])
-                        
-                        with detail_cols_tech[0]: # This will contain 52W info and Trading Position
-                            st.markdown("**🔍 Technicals**")
+                        with detail_tabs[1]:  # Performance
+                            st.markdown("**📈 Historical Performance**")
                             
-                            # 52-week range details
-                            if all(col in stock.index for col in ['low_52w', 'high_52w']):
-                                st.text(f"52W Low: ₹{stock.get('low_52w', 0):,.0f}")
-                                st.text(f"52W High: ₹{stock.get('high_52w', 0):,.0f}")
-                            else:
-                                st.text("52W Range: N/A")
-
-                            st.text(f"From High: {stock.get('from_high_pct', 0):.0f}%")
-                            st.text(f"From Low: {stock.get('from_low_pct', 0):.0f}%")
+                            perf_data = {
+                                'Period': [],
+                                'Return': [],
+                                'Status': []
+                            }
                             
-                            st.markdown("**📊 Trading Position**")
-                            tp_col1, tp_col2, tp_col3 = st.columns(3)
-
-                            current_price = stock.get('price', 0)
-                            
-                            sma_checks = [
-                                ('sma_20d', '20DMA'),
-                                ('sma_50d', '50DMA'),
-                                ('sma_200d', '200DMA')
+                            periods = [
+                                ('1 Day', 'ret_1d'),
+                                ('3 Days', 'ret_3d'),
+                                ('7 Days', 'ret_7d'),
+                                ('30 Days', 'ret_30d'),
+                                ('3 Months', 'ret_3m'),
+                                ('6 Months', 'ret_6m'),
+                                ('1 Year', 'ret_1y'),
+                                ('3 Years', 'ret_3y'),
+                                ('5 Years', 'ret_5y')
                             ]
                             
-                            for i, (sma_col, sma_label) in enumerate(sma_checks):
-                                display_col = [tp_col1, tp_col2, tp_col3][i]
-                                with display_col:
+                            for period_name, col_name in periods:
+                                if col_name in stock.index and pd.notna(stock[col_name]):
+                                    perf_data['Period'].append(period_name)
+                                    ret_val = stock[col_name]
+                                    perf_data['Return'].append(f"{ret_val:+.1f}%")
+                                    
+                                    if ret_val > 10:
+                                        perf_data['Status'].append('🟢 Strong')
+                                    elif ret_val > 0:
+                                        perf_data['Status'].append('🟡 Positive')
+                                    elif ret_val > -10:
+                                        perf_data['Status'].append('🟠 Negative')
+                                    else:
+                                        perf_data['Status'].append('🔴 Weak')
+                            
+                            if perf_data['Period']:
+                                perf_df = pd.DataFrame(perf_data)
+                                st.dataframe(
+                                    perf_df,
+                                    use_container_width=True,
+                                    hide_index=True,
+                                    column_config={
+                                        'Period': st.column_config.TextColumn('Period', width="medium"),
+                                        'Return': st.column_config.TextColumn('Return', width="small"),
+                                        'Status': st.column_config.TextColumn('Status', width="small")
+                                    }
+                                )
+                            else:
+                                st.info("No performance data available")
+                        
+                        with detail_tabs[2]:  # Fundamentals
+                            if show_fundamentals:
+                                st.markdown("**💰 Fundamental Analysis**")
+                                
+                                fund_data = {
+                                    'Metric': [],
+                                    'Value': [],
+                                    'Assessment': []
+                                }
+                                
+                                # PE Ratio
+                                if 'pe' in stock.index and pd.notna(stock['pe']):
+                                    fund_data['Metric'].append('PE Ratio')
+                                    pe_val = stock['pe']
+                                    
+                                    if pe_val <= 0:
+                                        fund_data['Value'].append('Loss/Negative')
+                                        fund_data['Assessment'].append('🔴 No Earnings')
+                                    elif pe_val < 15:
+                                        fund_data['Value'].append(f"{pe_val:.1f}x")
+                                        fund_data['Assessment'].append('🟢 Undervalued')
+                                    elif pe_val < 25:
+                                        fund_data['Value'].append(f"{pe_val:.1f}x")
+                                        fund_data['Assessment'].append('🟡 Fair Value')
+                                    elif pe_val < 50:
+                                        fund_data['Value'].append(f"{pe_val:.1f}x")
+                                        fund_data['Assessment'].append('🟠 Expensive')
+                                    else:
+                                        fund_data['Value'].append(f"{pe_val:.1f}x")
+                                        fund_data['Assessment'].append('🔴 Very Expensive')
+                                
+                                # EPS
+                                if 'eps_current' in stock.index and pd.notna(stock['eps_current']):
+                                    fund_data['Metric'].append('Current EPS')
+                                    fund_data['Value'].append(f"₹{stock['eps_current']:.2f}")
+                                    fund_data['Assessment'].append('📊 Earnings/Share')
+                                
+                                # EPS Change
+                                if 'eps_change_pct' in stock.index and pd.notna(stock['eps_change_pct']):
+                                    fund_data['Metric'].append('EPS Growth')
+                                    eps_chg = stock['eps_change_pct']
+                                    
+                                    if eps_chg >= 100:
+                                        fund_data['Value'].append(f"{eps_chg:+.0f}%")
+                                        fund_data['Assessment'].append('🚀 Explosive Growth')
+                                    elif eps_chg >= 50:
+                                        fund_data['Value'].append(f"{eps_chg:+.1f}%")
+                                        fund_data['Assessment'].append('🔥 High Growth')
+                                    elif eps_chg >= 20:
+                                        fund_data['Value'].append(f"{eps_chg:+.1f}%")
+                                        fund_data['Assessment'].append('🟢 Good Growth')
+                                    elif eps_chg >= 0:
+                                        fund_data['Value'].append(f"{eps_chg:+.1f}%")
+                                        fund_data['Assessment'].append('🟡 Modest Growth')
+                                    else:
+                                        fund_data['Value'].append(f"{eps_chg:+.1f}%")
+                                        fund_data['Assessment'].append('🔴 Declining')
+                                
+                                if fund_data['Metric']:
+                                    fund_df = pd.DataFrame(fund_data)
+                                    st.dataframe(
+                                        fund_df,
+                                        use_container_width=True,
+                                        hide_index=True,
+                                        column_config={
+                                            'Metric': st.column_config.TextColumn('Metric', width="medium"),
+                                            'Value': st.column_config.TextColumn('Value', width="small"),
+                                            'Assessment': st.column_config.TextColumn('Assessment', width="medium")
+                                        }
+                                    )
+                                else:
+                                    st.info("No fundamental data available")
+                            else:
+                                st.info("Enable 'Hybrid' display mode to see fundamental data")
+                        
+                        with detail_tabs[3]:  # Technicals
+                            st.markdown("**🔍 Technical Analysis**")
+                            
+                            tech_col1, tech_col2 = st.columns(2)
+                            
+                            with tech_col1:
+                                st.markdown("**📊 52-Week Range**")
+                                range_data = {
+                                    'Metric': [],
+                                    'Value': []
+                                }
+                                
+                                if 'low_52w' in stock.index and pd.notna(stock['low_52w']):
+                                    range_data['Metric'].append('52W Low')
+                                    range_data['Value'].append(f"₹{stock['low_52w']:,.0f}")
+                                
+                                if 'high_52w' in stock.index and pd.notna(stock['high_52w']):
+                                    range_data['Metric'].append('52W High')
+                                    range_data['Value'].append(f"₹{stock['high_52w']:,.0f}")
+                                
+                                if 'from_low_pct' in stock.index and pd.notna(stock['from_low_pct']):
+                                    range_data['Metric'].append('From Low')
+                                    range_data['Value'].append(f"{stock['from_low_pct']:.0f}%")
+                                
+                                if 'from_high_pct' in stock.index and pd.notna(stock['from_high_pct']):
+                                    range_data['Metric'].append('From High')
+                                    range_data['Value'].append(f"{stock['from_high_pct']:.0f}%")
+                                
+                                if range_data['Metric']:
+                                    range_df = pd.DataFrame(range_data)
+                                    st.dataframe(
+                                        range_df,
+                                        use_container_width=True,
+                                        hide_index=True,
+                                        column_config={
+                                            'Metric': st.column_config.TextColumn('Metric', width="medium"),
+                                            'Value': st.column_config.TextColumn('Value', width="medium")
+                                        }
+                                    )
+                            
+                            with tech_col2:
+                                st.markdown("**📈 Moving Averages**")
+                                sma_data = {
+                                    'SMA': [],
+                                    'Value': [],
+                                    'Position': []
+                                }
+                                
+                                current_price = stock.get('price', 0)
+                                
+                                for sma_col, sma_label in [('sma_20d', '20 DMA'), ('sma_50d', '50 DMA'), ('sma_200d', '200 DMA')]:
                                     if sma_col in stock.index and pd.notna(stock[sma_col]) and stock[sma_col] > 0:
                                         sma_value = stock[sma_col]
+                                        sma_data['SMA'].append(sma_label)
+                                        sma_data['Value'].append(f"₹{sma_value:,.0f}")
+                                        
                                         if current_price > sma_value:
                                             pct_diff = ((current_price - sma_value) / sma_value) * 100
-                                            st.markdown(f"**{sma_label}**: <span style='color:green'>↑{pct_diff:.1f}%</span>", unsafe_allow_html=True)
+                                            sma_data['Position'].append(f"🟢 +{pct_diff:.1f}%")
                                         else:
                                             pct_diff = ((sma_value - current_price) / sma_value) * 100
-                                            st.markdown(f"**{sma_label}**: <span style='color:red'>↓{pct_diff:.1f}%</span>", unsafe_allow_html=True)
-                                    else:
-                                        st.markdown(f"**{sma_label}**: N/A")
+                                            sma_data['Position'].append(f"🔴 -{pct_diff:.1f}%")
+                                
+                                if sma_data['SMA']:
+                                    sma_df = pd.DataFrame(sma_data)
+                                    st.dataframe(
+                                        sma_df,
+                                        use_container_width=True,
+                                        hide_index=True,
+                                        column_config={
+                                            'SMA': st.column_config.TextColumn('SMA', width="small"),
+                                            'Value': st.column_config.TextColumn('Value', width="medium"),
+                                            'Position': st.column_config.TextColumn('Position', width="small")
+                                        }
+                                    )
                             
-                        with detail_cols_tech[1]: # This will contain Trend Analysis and Advanced Metrics
-                            st.markdown("**📈 Trend Analysis**")
-                            if 'trend_quality' in stock.index:
+                            # Trend Analysis
+                            if 'trend_quality' in stock.index and pd.notna(stock['trend_quality']):
                                 tq = stock['trend_quality']
                                 if tq >= 80:
-                                    st.markdown(f"🔥 Strong Uptrend ({tq:.0f})")
+                                    trend_status = f"🔥 Strong Uptrend ({tq:.0f})"
+                                    trend_color = "success"
                                 elif tq >= 60:
-                                    st.markdown(f"✅ Good Uptrend ({tq:.0f})")
+                                    trend_status = f"✅ Good Uptrend ({tq:.0f})"
+                                    trend_color = "success"
                                 elif tq >= 40:
-                                    st.markdown(f"➡️ Neutral Trend ({tq:.0f})")
+                                    trend_status = f"➡️ Neutral Trend ({tq:.0f})"
+                                    trend_color = "warning"
                                 else:
-                                    st.markdown(f"⚠️ Weak/Downtrend ({tq:.0f})")
+                                    trend_status = f"⚠️ Weak/Downtrend ({tq:.0f})"
+                                    trend_color = "error"
+                                
+                                getattr(st, trend_color)(f"**Trend Status:** {trend_status}")
+                        
+                        with detail_tabs[4]:  # Advanced Metrics
+                            st.markdown("**🎯 Advanced Metrics**")
+                            
+                            adv_data = {
+                                'Metric': [],
+                                'Value': [],
+                                'Description': []
+                            }
+                            
+                            # VMI
+                            if 'vmi' in stock.index and pd.notna(stock['vmi']):
+                                adv_data['Metric'].append('VMI')
+                                adv_data['Value'].append(f"{stock['vmi']:.2f}")
+                                adv_data['Description'].append('Volume Momentum Index')
+                            
+                            # Position Tension
+                            if 'position_tension' in stock.index and pd.notna(stock['position_tension']):
+                                adv_data['Metric'].append('Position Tension')
+                                adv_data['Value'].append(f"{stock['position_tension']:.0f}")
+                                adv_data['Description'].append('Range position stress')
+                            
+                            # Momentum Harmony
+                            if 'momentum_harmony' in stock.index and pd.notna(stock['momentum_harmony']):
+                                harmony_val = int(stock['momentum_harmony'])
+                                harmony_emoji = "🟢" if harmony_val >= 3 else "🟡" if harmony_val >= 2 else "🔴"
+                                adv_data['Metric'].append('Momentum Harmony')
+                                adv_data['Value'].append(f"{harmony_emoji} {harmony_val}/4")
+                                adv_data['Description'].append('Multi-timeframe alignment')
+                            
+                            # Money Flow
+                            if 'money_flow_mm' in stock.index and pd.notna(stock['money_flow_mm']):
+                                adv_data['Metric'].append('Money Flow')
+                                adv_data['Value'].append(f"₹{stock['money_flow_mm']:.1f}M")
+                                adv_data['Description'].append('Price × Volume × RVOL')
+                            
+                            # Overall Wave Strength
+                            if 'overall_wave_strength' in stock.index and pd.notna(stock['overall_wave_strength']):
+                                adv_data['Metric'].append('Wave Strength')
+                                adv_data['Value'].append(f"{stock['overall_wave_strength']:.1f}%")
+                                adv_data['Description'].append('Composite wave score')
+                            
+                            # Pattern Confidence
+                            if 'pattern_confidence' in stock.index and pd.notna(stock['pattern_confidence']):
+                                adv_data['Metric'].append('Pattern Confidence')
+                                adv_data['Value'].append(f"{stock['pattern_confidence']:.1f}%")
+                                adv_data['Description'].append('Pattern strength score')
+                            
+                            if adv_data['Metric']:
+                                adv_df = pd.DataFrame(adv_data)
+                                st.dataframe(
+                                    adv_df,
+                                    use_container_width=True,
+                                    hide_index=True,
+                                    column_config={
+                                        'Metric': st.column_config.TextColumn(
+                                            'Metric',
+                                            help="Advanced metric name",
+                                            width="medium"
+                                        ),
+                                        'Value': st.column_config.TextColumn(
+                                            'Value',
+                                            help="Metric value",
+                                            width="small"
+                                        ),
+                                        'Description': st.column_config.TextColumn(
+                                            'Description',
+                                            help="What this metric measures",
+                                            width="large"
+                                        )
+                                    }
+                                )
                             else:
-                                st.markdown("Trend: N/A")
-
-                            # NEW: Advanced Metrics - Reorganized into 4 columns
-                            st.markdown("---")
-                            st.markdown("#### 🎯 Advanced Metrics")
-                            adv_col1, adv_col2 = st.columns(2)
-                            
-                            with adv_col1:
-                                if 'vmi' in stock and pd.notna(stock['vmi']):
-                                    st.metric("VMI", f"{stock['vmi']:.2f}")
-                                else:
-                                    st.metric("VMI", "N/A")
-                                
-                                if 'momentum_harmony' in stock and pd.notna(stock['momentum_harmony']):
-                                    harmony_val = stock['momentum_harmony']
-                                    harmony_emoji = "🟢" if harmony_val >= 3 else "🟡" if harmony_val >= 2 else "🔴"
-                                    st.metric("Harmony", f"{harmony_emoji} {int(harmony_val)}/4")
-                                else:
-                                    st.metric("Harmony", "N/A")
-                            
-                            with adv_col2:
-                                if 'position_tension' in stock and pd.notna(stock['position_tension']):
-                                    st.metric("Position Tension", f"{stock['position_tension']:.0f}")
-                                else:
-                                    st.metric("Position Tension", "N/A")
-                                
-                                if 'money_flow_mm' in stock and pd.notna(stock['money_flow_mm']):
-                                    st.metric("Money Flow", f"₹{stock['money_flow_mm']:.1f}M")
-                                else:
-                                    st.metric("Money Flow", "N/A")
-
+                                st.info("No advanced metrics available")
+            
             else:
-                st.warning("No stocks found matching your search criteria.")    
+                st.warning("No stocks found matching your search criteria.")
+                
+                # Provide search suggestions
+                st.markdown("#### 💡 Search Tips:")
+                st.markdown("""
+                - **Ticker Search:** Enter exact ticker symbol (e.g., RELIANCE, TCS, INFY)
+                - **Company Search:** Enter part of company name (e.g., Tata, Infosys, Reliance)
+                - **Partial Match:** Search works with partial text (e.g., 'REL' finds RELIANCE)
+                - **Case Insensitive:** Search is not case-sensitive
+                """)
+        
+        else:
+            # Show search instructions when no search is active
+            st.info("Enter a ticker symbol or company name to search")
+            
+            # Show top performers as suggestions
+            st.markdown("#### 🏆 Today's Top Performers")
+            
+            if not filtered_df.empty:
+                top_performers = filtered_df.nlargest(5, 'master_score')[['ticker', 'company_name', 'master_score', 'ret_1d', 'rvol']]
+                
+                suggestions_data = []
+                for _, row in top_performers.iterrows():
+                    suggestions_data.append({
+                        'Ticker': row['ticker'],
+                        'Company': row['company_name'][:30] + '...' if len(row['company_name']) > 30 else row['company_name'],
+                        'Score': row['master_score'],
+                        '1D Return': f"{row['ret_1d']:+.1f}%" if pd.notna(row['ret_1d']) else '-',
+                        'RVOL': f"{row['rvol']:.1f}x" if pd.notna(row['rvol']) else '-'
+                    })
+                
+                suggestions_df = pd.DataFrame(suggestions_data)
+                
+                st.dataframe(
+                    suggestions_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        'Ticker': st.column_config.TextColumn('Ticker', width="small"),
+                        'Company': st.column_config.TextColumn('Company', width="large"),
+                        'Score': st.column_config.ProgressColumn(
+                            'Score',
+                            format="%.1f",
+                            min_value=0,
+                            max_value=100,
+                            width="small"
+                        ),
+                        '1D Return': st.column_config.TextColumn('1D Return', width="small"),
+                        'RVOL': st.column_config.TextColumn('RVOL', width="small")
+                    }
+                )
+                
+                st.caption("💡 Tip: Click on any ticker above and copy it to search")    
+                
     with tabs[5]:
         st.markdown("### 📥 Export Data")
         
