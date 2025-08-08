@@ -2795,7 +2795,7 @@ class UIComponents:
                     showlegend=False
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, theme="streamlit")
             else:
                 st.info("No sector rotation data available.")
         
