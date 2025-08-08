@@ -2031,27 +2031,28 @@ class FilterEngine:
         filters = st.session_state.filter_state
         
         # Check each filter type
-        if filters['categories']: count += 1
-        if filters['sectors']: count += 1
-        if filters['industries']: count += 1
-        if filters['min_score'] > 0: count += 1
-        if filters['patterns']: count += 1
-        if filters['trend_filter'] != "All Trends": count += 1
-        if filters['eps_tiers']: count += 1
-        if filters['pe_tiers']: count += 1
-        if filters['price_tiers']: count += 1
-        if filters['min_eps_change'] is not None: count += 1
-        if filters['min_pe'] is not None: count += 1
-        if filters['max_pe'] is not None: count += 1
-        if filters['require_fundamental_data']: count += 1
-        if filters['wave_states']: count += 1
-        if filters['wave_strength_range'] != (0, 100): count += 1
+        if filters.get('categories'): count += 1
+        if filters.get('sectors'): count += 1
+        if filters.get('industries'): count += 1
+        if filters.get('min_score', 0) > 0: count += 1
+        if filters.get('patterns'): count += 1
+        if filters.get('trend_filter') != "All Trends": count += 1
+        if filters.get('eps_tiers'): count += 1
+        if filters.get('pe_tiers'): count += 1
+        if filters.get('price_tiers'): count += 1
+        if filters.get('min_eps_change') is not None: count += 1
+        if filters.get('min_pe') is not None: count += 1
+        if filters.get('max_pe') is not None: count += 1
+        if filters.get('require_fundamental_data'): count += 1
+        if filters.get('wave_states'): count += 1
+        if filters.get('wave_strength_range') != (0, 100): count += 1
         
         return count
     
     @staticmethod
     def clear_all_filters():
-        """Reset all filters to defaults"""
+        """Reset all filters to defaults and clear widget states"""
+        # Reset centralized filter state
         st.session_state.filter_state = {
             'categories': [],
             'sectors': [],
@@ -2072,6 +2073,82 @@ class FilterEngine:
             'quick_filter': None,
             'quick_filter_applied': False
         }
+        
+        # CRITICAL FIX: Delete all widget keys to force UI reset
+        widget_keys_to_delete = [
+            # Multiselect widgets
+            'category_multiselect', 'sector_multiselect', 'industry_multiselect',
+            'patterns_multiselect', 'wave_states_multiselect',
+            'eps_tier_multiselect', 'pe_tier_multiselect', 'price_tier_multiselect',
+            
+            # Slider widgets
+            'min_score_slider', 'wave_strength_slider',
+            
+            # Selectbox widgets
+            'trend_selectbox', 'wave_timeframe_select',
+            
+            # Text input widgets
+            'eps_change_input', 'min_pe_input', 'max_pe_input',
+            
+            # Checkbox widgets
+            'require_fundamental_checkbox',
+            
+            # Additional filter-related keys
+            'display_count_select', 'sort_by_select', 'export_template_radio',
+            'wave_sensitivity', 'show_sensitivity_details', 'show_market_regime'
+        ]
+        
+        # Delete each widget key if it exists
+        for key in widget_keys_to_delete:
+            if key in st.session_state:
+                del st.session_state[key]
+        
+        # Also clear legacy filter keys for backward compatibility
+        legacy_keys = [
+            'category_filter', 'sector_filter', 'industry_filter',
+            'min_score', 'patterns', 'trend_filter',
+            'eps_tier_filter', 'pe_tier_filter', 'price_tier_filter',
+            'min_eps_change', 'min_pe', 'max_pe',
+            'require_fundamental_data', 'wave_states_filter',
+            'wave_strength_range_slider'
+        ]
+        
+        for key in legacy_keys:
+            if key in st.session_state:
+                if isinstance(st.session_state[key], list):
+                    st.session_state[key] = []
+                elif isinstance(st.session_state[key], bool):
+                    st.session_state[key] = False
+                elif isinstance(st.session_state[key], str):
+                    if key == 'trend_filter':
+                        st.session_state[key] = "All Trends"
+                    else:
+                        st.session_state[key] = ""
+                elif isinstance(st.session_state[key], tuple):
+                    if key == 'wave_strength_range_slider':
+                        st.session_state[key] = (0, 100)
+                elif isinstance(st.session_state[key], (int, float)):
+                    if key == 'min_score':
+                        st.session_state[key] = 0
+                    else:
+                        st.session_state[key] = None
+                else:
+                    st.session_state[key] = None
+        
+        # Reset active filter count
+        st.session_state.active_filter_count = 0
+        
+        # Clear quick filter
+        st.session_state.quick_filter = None
+        st.session_state.quick_filter_applied = False
+        
+        logger.info("All filters and widget states cleared successfully")
+    
+    @staticmethod
+    def sync_widget_to_filter(widget_key: str, filter_key: str):
+        """Sync widget state to filter state - used in callbacks"""
+        if widget_key in st.session_state:
+            st.session_state.filter_state[filter_key] = st.session_state[widget_key]
     
     @staticmethod
     def build_filter_dict() -> Dict[str, Any]:
@@ -2081,36 +2158,36 @@ class FilterEngine:
         state = st.session_state.filter_state
         
         # Map internal state to filter dict format
-        if state['categories']:
+        if state.get('categories'):
             filters['categories'] = state['categories']
-        if state['sectors']:
+        if state.get('sectors'):
             filters['sectors'] = state['sectors']
-        if state['industries']:
+        if state.get('industries'):
             filters['industries'] = state['industries']
-        if state['min_score'] > 0:
+        if state.get('min_score', 0) > 0:
             filters['min_score'] = state['min_score']
-        if state['patterns']:
+        if state.get('patterns'):
             filters['patterns'] = state['patterns']
-        if state['trend_filter'] != "All Trends":
+        if state.get('trend_filter') != "All Trends":
             filters['trend_filter'] = state['trend_filter']
-            filters['trend_range'] = state['trend_range']
-        if state['eps_tiers']:
+            filters['trend_range'] = state.get('trend_range', (0, 100))
+        if state.get('eps_tiers'):
             filters['eps_tiers'] = state['eps_tiers']
-        if state['pe_tiers']:
+        if state.get('pe_tiers'):
             filters['pe_tiers'] = state['pe_tiers']
-        if state['price_tiers']:
+        if state.get('price_tiers'):
             filters['price_tiers'] = state['price_tiers']
-        if state['min_eps_change'] is not None:
+        if state.get('min_eps_change') is not None:
             filters['min_eps_change'] = state['min_eps_change']
-        if state['min_pe'] is not None:
+        if state.get('min_pe') is not None:
             filters['min_pe'] = state['min_pe']
-        if state['max_pe'] is not None:
+        if state.get('max_pe') is not None:
             filters['max_pe'] = state['max_pe']
-        if state['require_fundamental_data']:
+        if state.get('require_fundamental_data'):
             filters['require_fundamental_data'] = True
-        if state['wave_states']:
+        if state.get('wave_states'):
             filters['wave_states'] = state['wave_states']
-        if state['wave_strength_range'] != (0, 100):
+        if state.get('wave_strength_range') != (0, 100):
             filters['wave_strength_range'] = state['wave_strength_range']
             
         return filters
@@ -2142,9 +2219,12 @@ class FilterEngine:
             return None
         
         # 1. Category filters
-        masks.append(create_mask_from_isin('category', filters.get('categories', [])))
-        masks.append(create_mask_from_isin('sector', filters.get('sectors', [])))
-        masks.append(create_mask_from_isin('industry', filters.get('industries', [])))
+        if 'categories' in filters:
+            masks.append(create_mask_from_isin('category', filters['categories']))
+        if 'sectors' in filters:
+            masks.append(create_mask_from_isin('sector', filters['sectors']))
+        if 'industries' in filters:
+            masks.append(create_mask_from_isin('industry', filters['industries']))
         
         # 2. Score filter
         if filters.get('min_score', 0) > 0 and 'master_score' in df.columns:
@@ -2175,9 +2255,12 @@ class FilterEngine:
             masks.append(df['pe'] <= filters['max_pe'])
         
         # 7. Tier filters
-        masks.append(create_mask_from_isin('eps_tier', filters.get('eps_tiers', [])))
-        masks.append(create_mask_from_isin('pe_tier', filters.get('pe_tiers', [])))
-        masks.append(create_mask_from_isin('price_tier', filters.get('price_tiers', [])))
+        if 'eps_tiers' in filters:
+            masks.append(create_mask_from_isin('eps_tier', filters['eps_tiers']))
+        if 'pe_tiers' in filters:
+            masks.append(create_mask_from_isin('pe_tier', filters['pe_tiers']))
+        if 'price_tiers' in filters:
+            masks.append(create_mask_from_isin('price_tier', filters['price_tiers']))
         
         # 8. Data completeness filter
         if filters.get('require_fundamental_data', False):
@@ -2185,7 +2268,8 @@ class FilterEngine:
                 masks.append(df['pe'].notna() & (df['pe'] > 0) & df['eps_change_pct'].notna())
         
         # 9. Wave filters
-        masks.append(create_mask_from_isin('wave_state', filters.get('wave_states', [])))
+        if 'wave_states' in filters:
+            masks.append(create_mask_from_isin('wave_state', filters['wave_states']))
         
         wave_strength_range = filters.get('wave_strength_range')
         if wave_strength_range and wave_strength_range != (0, 100) and 'overall_wave_strength' in df.columns:
@@ -2827,6 +2911,10 @@ class SessionStateManager:
             'show_market_regime': True,
             'wave_timeframe_select': "All Waves",
             'wave_sensitivity': "Balanced",
+            
+            # Sheet configuration
+            'sheet_id': '',
+            'gid': CONFIG.DEFAULT_GID
         }
         
         # Initialize default values
@@ -3054,14 +3142,49 @@ class SessionStateManager:
                 else:
                     st.session_state[key] = None
         
+        # CRITICAL FIX: Delete all widget keys to force UI reset
+        widget_keys_to_delete = [
+            # Multiselect widgets
+            'category_multiselect', 'sector_multiselect', 'industry_multiselect',
+            'patterns_multiselect', 'wave_states_multiselect',
+            'eps_tier_multiselect', 'pe_tier_multiselect', 'price_tier_multiselect',
+            
+            # Slider widgets
+            'min_score_slider', 'wave_strength_slider',
+            
+            # Selectbox widgets
+            'trend_selectbox', 'wave_timeframe_select', 'display_mode_toggle',
+            
+            # Text input widgets
+            'eps_change_input', 'min_pe_input', 'max_pe_input',
+            
+            # Checkbox widgets
+            'require_fundamental_checkbox', 'show_sensitivity_details', 'show_market_regime',
+            
+            # Additional keys
+            'display_count_select', 'sort_by_select', 'export_template_radio',
+            'wave_sensitivity', 'search_input', 'sheet_input', 'gid_input'
+        ]
+        
+        # Delete each widget key if it exists
+        deleted_count = 0
+        for key in widget_keys_to_delete:
+            if key in st.session_state:
+                del st.session_state[key]
+                deleted_count += 1
+        
         # Reset active filter count
         st.session_state.active_filter_count = 0
+        
+        # Reset quick filter states
+        st.session_state.quick_filter = None
+        st.session_state.quick_filter_applied = False
         
         # Clear any cached filter results
         if 'user_preferences' in st.session_state:
             st.session_state.user_preferences['last_filters'] = {}
         
-        logger.info("All filters cleared successfully.")
+        logger.info(f"All filters cleared successfully. Deleted {deleted_count} widget keys.")
     
     @staticmethod
     def sync_filter_states():
@@ -3156,7 +3279,6 @@ class SessionStateManager:
     def safe_get(key: str, default: Any = None) -> Any:
         """
         Safely get a session state value with fallback.
-        This replaces the RobustSessionState.safe_get method.
         
         Args:
             key (str): The session state key.
@@ -3173,13 +3295,22 @@ class SessionStateManager:
     def safe_set(key: str, value: Any) -> None:
         """
         Safely set a session state value.
-        This replaces the RobustSessionState.safe_set method.
         
         Args:
             key (str): The session state key.
             value (Any): The value to set.
         """
         st.session_state[key] = value
+    
+    @staticmethod
+    def reset_quick_filters():
+        """Reset quick filter states"""
+        st.session_state.quick_filter = None
+        st.session_state.quick_filter_applied = False
+        
+        if 'filter_state' in st.session_state:
+            st.session_state.filter_state['quick_filter'] = None
+            st.session_state.filter_state['quick_filter_applied'] = False
         
 # ============================================
 # MAIN APPLICATION
@@ -3582,7 +3713,48 @@ def main():
         
         st.markdown("---")
         
-        # Category filter
+        # CRITICAL: Define callback functions BEFORE widgets
+        def sync_categories():
+            if 'category_multiselect' in st.session_state:
+                st.session_state.filter_state['categories'] = st.session_state.category_multiselect
+        
+        def sync_sectors():
+            if 'sector_multiselect' in st.session_state:
+                st.session_state.filter_state['sectors'] = st.session_state.sector_multiselect
+        
+        def sync_industries():
+            if 'industry_multiselect' in st.session_state:
+                st.session_state.filter_state['industries'] = st.session_state.industry_multiselect
+        
+        def sync_min_score():
+            if 'min_score_slider' in st.session_state:
+                st.session_state.filter_state['min_score'] = st.session_state.min_score_slider
+        
+        def sync_patterns():
+            if 'patterns_multiselect' in st.session_state:
+                st.session_state.filter_state['patterns'] = st.session_state.patterns_multiselect
+        
+        def sync_trend():
+            if 'trend_selectbox' in st.session_state:
+                trend_options = {
+                    "All Trends": (0, 100),
+                    "🔥 Strong Uptrend (80+)": (80, 100),
+                    "✅ Good Uptrend (60-79)": (60, 79),
+                    "➡️ Neutral Trend (40-59)": (40, 59),
+                    "⚠️ Weak/Downtrend (<40)": (0, 39)
+                }
+                st.session_state.filter_state['trend_filter'] = st.session_state.trend_selectbox
+                st.session_state.filter_state['trend_range'] = trend_options[st.session_state.trend_selectbox]
+        
+        def sync_wave_states():
+            if 'wave_states_multiselect' in st.session_state:
+                st.session_state.filter_state['wave_states'] = st.session_state.wave_states_multiselect
+        
+        def sync_wave_strength():
+            if 'wave_strength_slider' in st.session_state:
+                st.session_state.filter_state['wave_strength_range'] = st.session_state.wave_strength_slider
+        
+        # Category filter with callback
         categories = FilterEngine.get_filter_options(ranked_df_display, 'category', filters)
         
         selected_categories = st.multiselect(
@@ -3591,13 +3763,14 @@ def main():
             default=st.session_state.filter_state.get('categories', []),
             placeholder="Select categories (empty = All)",
             help="Filter by market capitalization category",
-            key="category_multiselect"
+            key="category_multiselect",
+            on_change=sync_categories  # SYNC ON CHANGE
         )
-        st.session_state.filter_state['categories'] = selected_categories
+        
         if selected_categories:
             filters['categories'] = selected_categories
         
-        # Sector filter
+        # Sector filter with callback
         sectors = FilterEngine.get_filter_options(ranked_df_display, 'sector', filters)
         
         selected_sectors = st.multiselect(
@@ -3606,13 +3779,14 @@ def main():
             default=st.session_state.filter_state.get('sectors', []),
             placeholder="Select sectors (empty = All)",
             help="Filter by business sector",
-            key="sector_multiselect"
+            key="sector_multiselect",
+            on_change=sync_sectors  # SYNC ON CHANGE
         )
-        st.session_state.filter_state['sectors'] = selected_sectors
+        
         if selected_sectors:
             filters['sectors'] = selected_sectors
         
-        # Industry filter
+        # Industry filter with callback
         industries = FilterEngine.get_filter_options(ranked_df_display, 'industry', filters)
         
         selected_industries = st.multiselect(
@@ -3621,13 +3795,14 @@ def main():
             default=st.session_state.filter_state.get('industries', []),
             placeholder="Select industries (empty = All)",
             help="Filter by specific industry",
-            key="industry_multiselect"
+            key="industry_multiselect",
+            on_change=sync_industries  # SYNC ON CHANGE
         )
-        st.session_state.filter_state['industries'] = selected_industries
+        
         if selected_industries:
             filters['industries'] = selected_industries
         
-        # Score filter
+        # Score filter with callback
         min_score = st.slider(
             "Minimum Master Score",
             min_value=0,
@@ -3635,13 +3810,14 @@ def main():
             value=st.session_state.filter_state.get('min_score', 0),
             step=5,
             help="Filter stocks by minimum score",
-            key="min_score_slider"
+            key="min_score_slider",
+            on_change=sync_min_score  # SYNC ON CHANGE
         )
-        st.session_state.filter_state['min_score'] = min_score
+        
         if min_score > 0:
             filters['min_score'] = min_score
         
-        # Pattern filter
+        # Pattern filter with callback
         all_patterns = set()
         for patterns in ranked_df_display['patterns'].dropna():
             if patterns:
@@ -3654,13 +3830,14 @@ def main():
                 default=st.session_state.filter_state.get('patterns', []),
                 placeholder="Select patterns (empty = All)",
                 help="Filter by specific patterns",
-                key="patterns_multiselect"
+                key="patterns_multiselect",
+                on_change=sync_patterns  # SYNC ON CHANGE
             )
-            st.session_state.filter_state['patterns'] = selected_patterns
+            
             if selected_patterns:
                 filters['patterns'] = selected_patterns
         
-        # Trend filter
+        # Trend filter with callback
         st.markdown("#### 📈 Trend Strength")
         trend_options = {
             "All Trends": (0, 100),
@@ -3679,17 +3856,15 @@ def main():
             options=list(trend_options.keys()),
             index=list(trend_options.keys()).index(current_trend),
             help="Filter stocks by trend strength based on SMA alignment",
-            key="trend_selectbox"
+            key="trend_selectbox",
+            on_change=sync_trend  # SYNC ON CHANGE
         )
-        
-        st.session_state.filter_state['trend_filter'] = selected_trend
-        st.session_state.filter_state['trend_range'] = trend_options[selected_trend]
         
         if selected_trend != "All Trends":
             filters['trend_filter'] = selected_trend
             filters['trend_range'] = trend_options[selected_trend]
         
-        # Wave filters
+        # Wave filters with callbacks
         st.markdown("#### 🌊 Wave Filters")
         wave_states_options = FilterEngine.get_filter_options(ranked_df_display, 'wave_state', filters)
         
@@ -3699,9 +3874,10 @@ def main():
             default=st.session_state.filter_state.get('wave_states', []),
             placeholder="Select wave states (empty = All)",
             help="Filter by the detected 'Wave State'",
-            key="wave_states_multiselect"
+            key="wave_states_multiselect",
+            on_change=sync_wave_states  # SYNC ON CHANGE
         )
-        st.session_state.filter_state['wave_states'] = selected_wave_states
+        
         if selected_wave_states:
             filters['wave_states'] = selected_wave_states
         
@@ -3730,20 +3906,70 @@ def main():
                 value=current_wave_range,
                 step=1,
                 help="Filter by the calculated 'Overall Wave Strength' score",
-                key="wave_strength_slider"
+                key="wave_strength_slider",
+                on_change=sync_wave_strength  # SYNC ON CHANGE
             )
             
-            st.session_state.filter_state['wave_strength_range'] = wave_strength_range
             if wave_strength_range != (0, 100):
                 filters['wave_strength_range'] = wave_strength_range
         
-        # Advanced filters
+        # Advanced filters with callbacks
         with st.expander("🔧 Advanced Filters"):
+            # Define callbacks for advanced filters
+            def sync_eps_tier():
+                if 'eps_tier_multiselect' in st.session_state:
+                    st.session_state.filter_state['eps_tiers'] = st.session_state.eps_tier_multiselect
+            
+            def sync_pe_tier():
+                if 'pe_tier_multiselect' in st.session_state:
+                    st.session_state.filter_state['pe_tiers'] = st.session_state.pe_tier_multiselect
+            
+            def sync_price_tier():
+                if 'price_tier_multiselect' in st.session_state:
+                    st.session_state.filter_state['price_tiers'] = st.session_state.price_tier_multiselect
+            
+            def sync_eps_change():
+                if 'eps_change_input' in st.session_state:
+                    value = st.session_state.eps_change_input
+                    if value.strip():
+                        try:
+                            st.session_state.filter_state['min_eps_change'] = float(value)
+                        except ValueError:
+                            st.session_state.filter_state['min_eps_change'] = None
+                    else:
+                        st.session_state.filter_state['min_eps_change'] = None
+            
+            def sync_min_pe():
+                if 'min_pe_input' in st.session_state:
+                    value = st.session_state.min_pe_input
+                    if value.strip():
+                        try:
+                            st.session_state.filter_state['min_pe'] = float(value)
+                        except ValueError:
+                            st.session_state.filter_state['min_pe'] = None
+                    else:
+                        st.session_state.filter_state['min_pe'] = None
+            
+            def sync_max_pe():
+                if 'max_pe_input' in st.session_state:
+                    value = st.session_state.max_pe_input
+                    if value.strip():
+                        try:
+                            st.session_state.filter_state['max_pe'] = float(value)
+                        except ValueError:
+                            st.session_state.filter_state['max_pe'] = None
+                    else:
+                        st.session_state.filter_state['max_pe'] = None
+            
+            def sync_fundamental():
+                if 'require_fundamental_checkbox' in st.session_state:
+                    st.session_state.filter_state['require_fundamental_data'] = st.session_state.require_fundamental_checkbox
+            
             # Tier filters
-            for tier_type, col_name, filter_key in [
-                ('eps_tiers', 'eps_tier', 'eps_tiers'),
-                ('pe_tiers', 'pe_tier', 'pe_tiers'),
-                ('price_tiers', 'price_tier', 'price_tiers')
+            for tier_type, col_name, filter_key, sync_func in [
+                ('eps_tiers', 'eps_tier', 'eps_tiers', sync_eps_tier),
+                ('pe_tiers', 'pe_tier', 'pe_tiers', sync_pe_tier),
+                ('price_tiers', 'price_tier', 'price_tiers', sync_price_tier)
             ]:
                 if col_name in ranked_df_display.columns:
                     tier_options = FilterEngine.get_filter_options(ranked_df_display, col_name, filters)
@@ -3753,9 +3979,10 @@ def main():
                         options=tier_options,
                         default=st.session_state.filter_state.get(filter_key, []),
                         placeholder=f"Select {col_name.replace('_', ' ')}s (empty = All)",
-                        key=f"{col_name}_tier_multiselect"
+                        key=f"{col_name}_multiselect",
+                        on_change=sync_func  # SYNC ON CHANGE
                     )
-                    st.session_state.filter_state[filter_key] = selected_tiers
+                    
                     if selected_tiers:
                         filters[tier_type] = selected_tiers
             
@@ -3769,17 +3996,16 @@ def main():
                     value=eps_change_str,
                     placeholder="e.g. -50 or leave empty",
                     help="Enter minimum EPS growth percentage",
-                    key="eps_change_input"
+                    key="eps_change_input",
+                    on_change=sync_eps_change  # SYNC ON CHANGE
                 )
                 
                 if eps_change_input.strip():
                     try:
                         eps_change_val = float(eps_change_input)
-                        st.session_state.filter_state['min_eps_change'] = eps_change_val
                         filters['min_eps_change'] = eps_change_val
                     except ValueError:
                         st.error("Please enter a valid number for EPS change")
-                        st.session_state.filter_state['min_eps_change'] = None
                 else:
                     st.session_state.filter_state['min_eps_change'] = None
             
@@ -3796,19 +4022,16 @@ def main():
                         "Min PE Ratio",
                         value=min_pe_str,
                         placeholder="e.g. 10",
-                        key="min_pe_input"
+                        key="min_pe_input",
+                        on_change=sync_min_pe  # SYNC ON CHANGE
                     )
                     
                     if min_pe_input.strip():
                         try:
                             min_pe_val = float(min_pe_input)
-                            st.session_state.filter_state['min_pe'] = min_pe_val
                             filters['min_pe'] = min_pe_val
                         except ValueError:
                             st.error("Invalid Min PE")
-                            st.session_state.filter_state['min_pe'] = None
-                    else:
-                        st.session_state.filter_state['min_pe'] = None
                 
                 with col2:
                     current_max_pe = st.session_state.filter_state.get('max_pe')
@@ -3818,46 +4041,47 @@ def main():
                         "Max PE Ratio",
                         value=max_pe_str,
                         placeholder="e.g. 30",
-                        key="max_pe_input"
+                        key="max_pe_input",
+                        on_change=sync_max_pe  # SYNC ON CHANGE
                     )
                     
                     if max_pe_input.strip():
                         try:
                             max_pe_val = float(max_pe_input)
-                            st.session_state.filter_state['max_pe'] = max_pe_val
                             filters['max_pe'] = max_pe_val
                         except ValueError:
                             st.error("Invalid Max PE")
-                            st.session_state.filter_state['max_pe'] = None
-                    else:
-                        st.session_state.filter_state['max_pe'] = None
                 
                 # Data completeness filter
                 require_fundamental = st.checkbox(
                     "Only show stocks with PE and EPS data",
                     value=st.session_state.filter_state.get('require_fundamental_data', False),
-                    key="require_fundamental_checkbox"
+                    key="require_fundamental_checkbox",
+                    on_change=sync_fundamental  # SYNC ON CHANGE
                 )
-                st.session_state.filter_state['require_fundamental_data'] = require_fundamental
+                
                 if require_fundamental:
                     filters['require_fundamental_data'] = True
         
-        # USE ONLY THE NEW METHOD FOR COUNTING FILTERS
-        active_filter_count = FilterEngine.get_active_count()  # Use FilterEngine's method
+        # Count active filters using FilterEngine method
+        active_filter_count = FilterEngine.get_active_count()
         st.session_state.active_filter_count = active_filter_count
         
         if active_filter_count > 0:
             st.info(f"🔍 **{active_filter_count} filter{'s' if active_filter_count > 1 else ''} active**")
         
-        # Clear filters button with callback
+        # Clear filters button - ENHANCED VERSION
         if st.button("🗑️ Clear All Filters", 
                     use_container_width=True, 
                     type="primary" if active_filter_count > 0 else "secondary",
                     key="clear_filters_sidebar_btn"):
-            FilterEngine.clear_all_filters()  # Use FilterEngine's method
-            SessionStateManager.clear_filters()  # Also clear legacy keys
+            
+            # Use both FilterEngine and SessionStateManager clear methods
+            FilterEngine.clear_all_filters()
+            SessionStateManager.clear_filters()
+            
             st.success("✅ All filters cleared!")
-            time.sleep(0.5)
+            time.sleep(0.3)
             st.rerun()
     
     # Apply filters (outside sidebar)
@@ -3871,7 +4095,7 @@ def main():
     # Save current filters
     st.session_state.user_preferences['last_filters'] = filters
     
-    # Debug info (OPTIONAL - you can remove this in production)
+    # Debug info (OPTIONAL)
     if show_debug:
         with st.sidebar.expander("🐛 Debug Info", expanded=True):
             st.write("**Active Filters:**")
@@ -3879,6 +4103,9 @@ def main():
                 if value is not None and value != [] and value != 0 and \
                    (not (isinstance(value, tuple) and value == (0,100))):
                     st.write(f"• {key}: {value}")
+            
+            st.write(f"\n**Filter State:**")
+            st.write(st.session_state.filter_state)
             
             st.write(f"\n**Filter Result:**")
             st.write(f"Before: {len(ranked_df)} stocks")
