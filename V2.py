@@ -1327,7 +1327,7 @@ class PatternDetector:
         '📊 EARNINGS ROCKET': {'importance_weight': 10},
         '🏆 QUALITY LEADER': {'importance_weight': 10},
         '⚡ TURNAROUND': {'importance_weight': 10},
-        '⚠️ HIGH PE': {'importance_weight': -5}, # Negative weight for a "warning" pattern
+        ⚠️ HIGH PE': {'importance_weight': -5}, # Negative weight for a "warning" pattern
         '🎯 52W HIGH APPROACH': {'importance_weight': 10},
         '🔄 52W LOW BOUNCE': {'importance_weight': 10},
         '👑 GOLDEN ZONE': {'importance_weight': 5},
