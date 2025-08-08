@@ -67,7 +67,7 @@ class Config:
     """System configuration with validated weights and thresholds"""
     
     # Data source - Default configuration
-    DEFAULT_SHEET_URL: str = ""
+    DEFAULT_SHEET_URL: str = "https://docs.google.com/spreadsheets/d/1OEQ_qxL4lXbO9LlKWDGlDju2yQC1iYvOYeXF3mTQuJM/edit?usp=sharing"
     DEFAULT_GID: str = "1823439984"
     
     # Cache settings - Dynamic refresh
