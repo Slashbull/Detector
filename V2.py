@@ -5540,14 +5540,6 @@ def main():
         st.markdown("### 📊 Market Analysis")
         
         if not filtered_df.empty:
-             # 1️⃣ DEFINE THE CACHED FUNCTION HERE
-            @st.cache_data(ttl=60)
-            def get_cached_rotations(df_hash, row_count):
-            # Reconstruct calculations inside
-            sector = MarketIntelligence.detect_sector_rotation(filtered_df)
-            industry = MarketIntelligence.detect_industry_rotation(filtered_df)
-            return sector, industry
-            
             col1, col2 = st.columns(2)
             
             with col1:
@@ -5593,11 +5585,8 @@ def main():
             
             st.markdown("---")
             
-            # 3️⃣ CALL THE CACHED FUNCTION ONCE
-            cache_key = (len(filtered_df), round(filtered_df['master_score'].sum(), 2))
-            sector_overview_df_local, industry_rotation = get_cached_rotations(cache_key, len(filtered_df))
-            
             st.markdown("#### 🏢 Sector Performance")
+            sector_overview_df_local = MarketIntelligence.detect_sector_rotation(filtered_df)
             
             if not sector_overview_df_local.empty:
                 display_cols_overview = ['flow_score', 'avg_score', 'median_score', 'avg_momentum', 
@@ -5632,6 +5621,7 @@ def main():
             st.markdown("---")
             
             st.markdown("#### 🏭 Industry Performance")
+            industry_rotation = MarketIntelligence.detect_industry_rotation(filtered_df)
             
             if not industry_rotation.empty:
                 industry_display = industry_rotation[['flow_score', 'avg_score', 'analyzed_stocks', 
