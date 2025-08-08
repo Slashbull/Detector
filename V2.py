@@ -4221,8 +4221,102 @@ def main():
                 display_df,
                 use_container_width=True,
                 height=min(600, len(display_df) * 35 + 50),
-                hide_index=True
+                hide_index=True,
+                column_config={
+                    "Rank": st.column_config.NumberColumn(
+                        "Rank",
+                        help="Overall ranking position",
+                        format="%d",
+                        width="small"
+                    ),
+                    "Ticker": st.column_config.TextColumn(
+                        "Ticker",
+                        help="Stock symbol",
+                        width="small"
+                    ),
+                    "Company": st.column_config.TextColumn(
+                        "Company",
+                        help="Company name",
+                        width="medium"
+                    ),
+                    "Score": st.column_config.ProgressColumn(
+                        "Score",
+                        help="Master Score (0-100)",
+                        format="%.1f",
+                        min_value=0,
+                        max_value=100,
+                        width="small"
+                    ),
+                    "Wave": st.column_config.TextColumn(
+                        "Wave",
+                        help="Current wave state",
+                        width="medium"
+                    ),
+                    "Trend": st.column_config.TextColumn(
+                        "Trend",
+                        help="Trend indicator",
+                        width="small"
+                    ),
+                    "Price": st.column_config.NumberColumn(
+                        "Price",
+                        help="Current stock price",
+                        format="₹%,.0f",
+                        width="small"
+                    ),
+                    "PE": st.column_config.NumberColumn(
+                        "PE",
+                        help="Price to Earnings ratio",
+                        format="%.1f",
+                        width="small"
+                    ),
+                    "EPS Δ%": st.column_config.NumberColumn(
+                        "EPS Δ%",
+                        help="EPS change percentage",
+                        format="%+.1f%%",
+                        width="small"
+                    ),
+                    "From Low": st.column_config.NumberColumn(
+                        "From Low",
+                        help="Distance from 52-week low",
+                        format="%.0f%%",
+                        width="small"
+                    ),
+                    "30D Ret": st.column_config.NumberColumn(
+                        "30D Ret",
+                        help="30-day return",
+                        format="%+.1f%%",
+                        width="small"
+                    ),
+                    "RVOL": st.column_config.NumberColumn(
+                        "RVOL",
+                        help="Relative volume",
+                        format="%.1fx",
+                        width="small"
+                    ),
+                    "VMI": st.column_config.NumberColumn(
+                        "VMI",
+                        help="Volume Momentum Index",
+                        format="%.2f",
+                        width="small"
+                    ),
+                    "Patterns": st.column_config.TextColumn(
+                        "Patterns",
+                        help="Detected patterns",
+                        width="large"
+                    ),
+                    "Category": st.column_config.TextColumn(
+                        "Category",
+                        help="Market cap category",
+                        width="medium"
+                    ),
+                    "Industry": st.column_config.TextColumn(
+                        "Industry",
+                        help="Industry classification",
+                        width="medium"
+                    )
+                }
             )
+
             
             with st.expander("📊 Quick Statistics"):
                 stat_cols = st.columns(4)
