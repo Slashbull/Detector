@@ -2610,172 +2610,172 @@ class UIComponents:
             st.metric(label, value, delta)
     
     @staticmethod
-def render_summary_section(df: pd.DataFrame) -> None:
-    """ULTRA-CLEAN, FOCUSED, ACTIONABLE Summary"""
-    
-    if df.empty:
-        st.warning("No data available")
-        return
-    
-    # ====================================
-    # HERO SECTION - THE #1 OPPORTUNITY
-    # ====================================
-    st.markdown("## 🎯 TODAY'S BEST OPPORTUNITY")
-    
-    # Get THE SINGLE BEST stock
-    best_stock = df.nlargest(1, 'master_score').iloc[0]
-    
-    # Hero Card
-    hero_col1, hero_col2, hero_col3 = st.columns([2, 1, 1])
-    
-    with hero_col1:
-        st.markdown(f"### {best_stock['ticker']}")
-        st.caption(f"{best_stock.get('company_name', 'N/A')[:40]}")
+    def render_summary_section(df: pd.DataFrame) -> None:
+        """ULTRA-CLEAN, FOCUSED, ACTIONABLE Summary"""
         
-        # One-line summary
-        if best_stock['rvol'] > 3:
-            status = "🔥 EXPLOSIVE VOLUME"
-        elif best_stock['acceleration_score'] > 85:
-            status = "🚀 ACCELERATING HARD"
-        elif best_stock['momentum_score'] > 85:
-            status = "💪 STRONG MOMENTUM"
-        else:
-            status = "📈 TOP RANKED"
+        if df.empty:
+            st.warning("No data available")
+            return
         
-        st.success(status)
-    
-    with hero_col2:
-        entry = best_stock['price']
-        stop = entry * 0.95
-        target = entry * 1.12
-        
-        st.metric("ENTRY", f"₹{entry:.0f}")
-        st.metric("STOP", f"₹{stop:.0f}", f"-5%")
-    
-    with hero_col3:
-        risk = entry - stop
-        reward = target - entry
-        rr = reward / risk
-        
-        st.metric("TARGET", f"₹{target:.0f}", f"+12%")
-        st.metric("Risk:Reward", f"1:{rr:.1f}")
-    
-    # Why this stock? (Single line)
-    signals = []
-    if best_stock.get('patterns'):
-        first_pattern = str(best_stock['patterns']).split(' | ')[0]
-        signals.append(first_pattern)
-    if best_stock.get('ret_30d', 0) > 20:
-        signals.append(f"30D: +{best_stock['ret_30d']:.0f}%")
-    if best_stock.get('rvol', 0) > 2:
-        signals.append(f"Vol: {best_stock['rvol']:.1f}x")
-    
-    st.info("**Why:** " + " • ".join(signals[:3]))
-    
-    st.markdown("---")
-    
-    # ====================================
-    # SIMPLE 2-COLUMN LAYOUT
-    # ====================================
-    left_col, right_col = st.columns(2)
-    
-    with left_col:
         # ====================================
-        # MARKET PULSE (SIMPLIFIED)
+        # HERO SECTION - THE #1 OPPORTUNITY
         # ====================================
-        st.markdown("### 📊 Market Pulse")
+        st.markdown("## 🎯 TODAY'S BEST OPPORTUNITY")
         
-        # Single most important metric
-        if 'ret_1d' in df.columns:
-            advancing = (df['ret_1d'] > 0).sum()
-            total = len(df)
-            breadth_pct = (advancing / total * 100)
+        # Get THE SINGLE BEST stock
+        best_stock = df.nlargest(1, 'master_score').iloc[0]
+        
+        # Hero Card
+        hero_col1, hero_col2, hero_col3 = st.columns([2, 1, 1])
+        
+        with hero_col1:
+            st.markdown(f"### {best_stock['ticker']}")
+            st.caption(f"{best_stock.get('company_name', 'N/A')[:40]}")
             
-            if breadth_pct > 60:
-                market_state = "🟢 BULLISH"
-                color = "success"
-            elif breadth_pct < 40:
-                market_state = "🔴 BEARISH"
-                color = "error"
+            # One-line summary
+            if best_stock['rvol'] > 3:
+                status = "🔥 EXPLOSIVE VOLUME"
+            elif best_stock['acceleration_score'] > 85:
+                status = "🚀 ACCELERATING HARD"
+            elif best_stock['momentum_score'] > 85:
+                status = "💪 STRONG MOMENTUM"
             else:
-                market_state = "🟡 NEUTRAL"
-                color = "warning"
+                status = "📈 TOP RANKED"
             
-            getattr(st, color)(f"**{market_state}** ({breadth_pct:.0f}% advancing)")
+            st.success(status)
         
-        # Quick stats in simple format
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            high_rvol = (df['rvol'] > 3).sum() if 'rvol' in df.columns else 0
-            st.metric("🔥 Volume Surges", high_rvol)
-        
-        with col2:
-            patterns_count = (df['patterns'] != '').sum() if 'patterns' in df.columns else 0
-            st.metric("🎯 Patterns Active", patterns_count)
-        
-        # ====================================
-        # TOP 5 MOVERS (CLEAN LIST)
-        # ====================================
-        st.markdown("### 🏆 Top 5 Movers")
-        
-        top5 = df.nlargest(5, 'master_score')[['ticker', 'master_score', 'ret_1d']]
-        
-        for i, (_, stock) in enumerate(top5.iterrows(), 1):
-            ret_str = f"+{stock['ret_1d']:.1f}%" if stock.get('ret_1d', 0) > 0 else f"{stock['ret_1d']:.1f}%"
+        with hero_col2:
+            entry = best_stock['price']
+            stop = entry * 0.95
+            target = entry * 1.12
             
-            # Clean single line per stock
-            st.write(f"**{i}. {stock['ticker']}** - Score: {stock['master_score']:.0f} • Today: {ret_str}")
-    
-    with right_col:
-        # ====================================
-        # RISK ALERTS (SIMPLIFIED)
-        # ====================================
-        st.markdown("### ⚠️ Risk Alerts")
+            st.metric("ENTRY", f"₹{entry:.0f}")
+            st.metric("STOP", f"₹{stop:.0f}", f"-5%")
         
-        # Find top 3 risks
-        risk_stocks = []
+        with hero_col3:
+            risk = entry - stop
+            reward = target - entry
+            rr = reward / risk
+            
+            st.metric("TARGET", f"₹{target:.0f}", f"+12%")
+            st.metric("Risk:Reward", f"1:{rr:.1f}")
         
-        # Overextended
-        if 'from_low_pct' in df.columns:
-            overextended = df[df['from_low_pct'] > 85]
-            for _, s in overextended.iterrows():
-                risk_stocks.append((s['ticker'], "Overextended", s.get('master_score', 0)))
+        # Why this stock? (Single line)
+        signals = []
+        if best_stock.get('patterns'):
+            first_pattern = str(best_stock['patterns']).split(' | ')[0]
+            signals.append(first_pattern)
+        if best_stock.get('ret_30d', 0) > 20:
+            signals.append(f"30D: +{best_stock['ret_30d']:.0f}%")
+        if best_stock.get('rvol', 0) > 2:
+            signals.append(f"Vol: {best_stock['rvol']:.1f}x")
         
-        # High PE
-        if 'pe' in df.columns:
-            high_pe = df[(df['pe'] > 100) & df['pe'].notna()]
-            for _, s in high_pe.iterrows():
-                risk_stocks.append((s['ticker'], f"PE: {s['pe']:.0f}", s.get('master_score', 0)))
+        st.info("**Why:** " + " • ".join(signals[:3]))
         
-        # Show top 3 risks
-        risk_stocks = sorted(risk_stocks, key=lambda x: x[2], reverse=True)[:3]
-        
-        if risk_stocks:
-            for ticker, reason, _ in risk_stocks:
-                st.error(f"**{ticker}** - {reason}")
-        else:
-            st.success("✅ No major risks detected")
+        st.markdown("---")
         
         # ====================================
-        # WATCHLIST (NEXT BEST)
+        # SIMPLE 2-COLUMN LAYOUT
         # ====================================
-        st.markdown("### 👀 Watch These")
+        left_col, right_col = st.columns(2)
         
-        # Get stocks ranked 2-6 (excluding #1 already shown)
-        watch = df.nlargest(6, 'master_score')[1:6][['ticker', 'master_score']]
+        with left_col:
+            # ====================================
+            # MARKET PULSE (SIMPLIFIED)
+            # ====================================
+            st.markdown("### 📊 Market Pulse")
+            
+            # Single most important metric
+            if 'ret_1d' in df.columns:
+                advancing = (df['ret_1d'] > 0).sum()
+                total = len(df)
+                breadth_pct = (advancing / total * 100)
+                
+                if breadth_pct > 60:
+                    market_state = "🟢 BULLISH"
+                    color = "success"
+                elif breadth_pct < 40:
+                    market_state = "🔴 BEARISH"
+                    color = "error"
+                else:
+                    market_state = "🟡 NEUTRAL"
+                    color = "warning"
+                
+                getattr(st, color)(f"**{market_state}** ({breadth_pct:.0f}% advancing)")
+            
+            # Quick stats in simple format
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                high_rvol = (df['rvol'] > 3).sum() if 'rvol' in df.columns else 0
+                st.metric("🔥 Volume Surges", high_rvol)
+            
+            with col2:
+                patterns_count = (df['patterns'] != '').sum() if 'patterns' in df.columns else 0
+                st.metric("🎯 Patterns Active", patterns_count)
+            
+            # ====================================
+            # TOP 5 MOVERS (CLEAN LIST)
+            # ====================================
+            st.markdown("### 🏆 Top 5 Movers")
+            
+            top5 = df.nlargest(5, 'master_score')[['ticker', 'master_score', 'ret_1d']]
+            
+            for i, (_, stock) in enumerate(top5.iterrows(), 1):
+                ret_str = f"+{stock['ret_1d']:.1f}%" if stock.get('ret_1d', 0) > 0 else f"{stock['ret_1d']:.1f}%"
+                
+                # Clean single line per stock
+                st.write(f"**{i}. {stock['ticker']}** - Score: {stock['master_score']:.0f} • Today: {ret_str}")
         
-        for _, stock in watch.iterrows():
-            # Determine readiness
-            score = stock['master_score']
-            if score > 80:
-                emoji = "🔥"
-            elif score > 70:
-                emoji = "⚡"
+        with right_col:
+            # ====================================
+            # RISK ALERTS (SIMPLIFIED)
+            # ====================================
+            st.markdown("### ⚠️ Risk Alerts")
+            
+            # Find top 3 risks
+            risk_stocks = []
+            
+            # Overextended
+            if 'from_low_pct' in df.columns:
+                overextended = df[df['from_low_pct'] > 85]
+                for _, s in overextended.iterrows():
+                    risk_stocks.append((s['ticker'], "Overextended", s.get('master_score', 0)))
+            
+            # High PE
+            if 'pe' in df.columns:
+                high_pe = df[(df['pe'] > 100) & df['pe'].notna()]
+                for _, s in high_pe.iterrows():
+                    risk_stocks.append((s['ticker'], f"PE: {s['pe']:.0f}", s.get('master_score', 0)))
+            
+            # Show top 3 risks
+            risk_stocks = sorted(risk_stocks, key=lambda x: x[2], reverse=True)[:3]
+            
+            if risk_stocks:
+                for ticker, reason, _ in risk_stocks:
+                    st.error(f"**{ticker}** - {reason}")
             else:
-                emoji = "👀"
+                st.success("✅ No major risks detected")
             
-            st.write(f"{emoji} **{stock['ticker']}** (Score: {score:.0f})")
+            # ====================================
+            # WATCHLIST (NEXT BEST)
+            # ====================================
+            st.markdown("### 👀 Watch These")
+            
+            # Get stocks ranked 2-6 (excluding #1 already shown)
+            watch = df.nlargest(6, 'master_score')[1:6][['ticker', 'master_score']]
+            
+            for _, stock in watch.iterrows():
+                # Determine readiness
+                score = stock['master_score']
+                if score > 80:
+                    emoji = "🔥"
+                elif score > 70:
+                    emoji = "⚡"
+                else:
+                    emoji = "👀"
+                
+                st.write(f"{emoji} **{stock['ticker']}** (Score: {score:.0f})")
 
 # ============================================
 # SESSION STATE MANAGER
