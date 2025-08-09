@@ -3447,6 +3447,92 @@ class UIComponents:
         
         st.markdown("</div>", unsafe_allow_html=True)
 
+@staticmethod
+def render_summary_section(df: pd.DataFrame):
+    """Render the complete summary section with all metrics"""
+    
+    if df.empty:
+        st.warning("No data available to display")
+        return
+    
+    # Calculate key metrics
+    total_stocks = len(df)
+    avg_score = df['master_score'].mean() if 'master_score' in df.columns else 0
+    std_score = df['master_score'].std() if 'master_score' in df.columns else 0
+    min_score = df['master_score'].min() if 'master_score' in df.columns else 0
+    max_score = df['master_score'].max() if 'master_score' in df.columns else 0
+    
+    # Additional metrics
+    accelerating = len(df[df['acceleration_score'] >= 70]) if 'acceleration_score' in df.columns else 0
+    high_rvol = len(df[df['rvol'] >= 2]) if 'rvol' in df.columns else 0
+    strong_trends = len(df[df['momentum_score'] >= 70]) if 'momentum_score' in df.columns else 0
+    
+    # Top row metrics
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    
+    with col1:
+        UIComponents.render_metric_card(
+            "Total Stocks",
+            f"{total_stocks:,}",
+            f"100% of {total_stocks:,}",
+            color="default"
+        )
+    
+    with col2:
+        UIComponents.render_metric_card(
+            "Avg Score",
+            f"{avg_score:.1f}",
+            f"σ={std_score:.1f}",
+            color="green" if avg_score >= 60 else "orange"
+        )
+    
+    with col3:
+        UIComponents.render_metric_card(
+            "Score Range",
+            f"{min_score:.1f}-{max_score:.1f}",
+            None,
+            color="default"
+        )
+    
+    with col4:
+        UIComponents.render_metric_card(
+            "Accelerating",
+            f"{accelerating}",
+            f"{(accelerating/total_stocks*100):.0f}%" if total_stocks > 0 else "0%",
+            color="green" if accelerating > 100 else "default"
+        )
+    
+    with col5:
+        UIComponents.render_metric_card(
+            "High RVOL",
+            f"{high_rvol}",
+            f"{(high_rvol/total_stocks*100):.0f}%" if total_stocks > 0 else "0%",
+            color="orange" if high_rvol > 50 else "default"
+        )
+    
+    with col6:
+        UIComponents.render_metric_card(
+            "Strong Trends",
+            f"{strong_trends}",
+            f"{(strong_trends/total_stocks*100):.0f}%" if total_stocks > 0 else "0%",
+            color="green" if strong_trends > 100 else "default"
+        )
+    
+    # Additional sections
+    st.markdown("---")
+    
+    # Market Pulse
+    UIComponents.render_market_pulse(df)
+    
+    # Top Opportunities
+    UIComponents.render_top_opportunities(df)
+    
+    # Pattern Distribution
+    UIComponents.render_pattern_distribution(df)
+    
+    # Sector Rotation
+    UIComponents.render_sector_rotation(df)
+
 # ============================================
 # SESSION STATE MANAGER
 # ============================================
