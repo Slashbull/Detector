@@ -2610,6 +2610,22 @@ class UIComponents:
             st.metric(label, value, delta)
     
     @staticmethod
+    def _get_wave_signal(stock):
+        """Generate trading signal based on wave state"""
+        wave = stock.get('wave_state', '')
+        
+        if 'CRESTING' in wave:
+            return "🎯 SELL TARGET"
+        elif 'BUILDING' in wave:
+            return "⚡ HOLD/ADD"
+        elif 'FORMING' in wave:
+            return "👀 WATCH"
+        elif 'BREAKING' in wave:
+            return "🚪 EXIT"
+        else:
+            return "➖ NEUTRAL"
+    
+    @staticmethod
     def render_summary_section(df: pd.DataFrame) -> None:
         """Ultimate Summary Dashboard - Professional Trading Command Center"""
         
@@ -2709,7 +2725,7 @@ class UIComponents:
                             'Harmony': stock.get('momentum_harmony', 0),
                             'RVOL': stock.get('rvol', 1),
                             'VMI': stock.get('vmi', 1),
-                            'Signal': self._get_wave_signal(stock)
+                            'Signal': UIComponents._get_wave_signal(stock)  # FIXED: Using UIComponents._get_wave_signal
                         })
             
             if wave_data:
@@ -2844,22 +2860,9 @@ class UIComponents:
                 
                 entry_df = pd.DataFrame(entry_data)
                 
-                # Color coding for R:R ratio
-                def color_rr(val):
-                    try:
-                        rr_value = float(val.split(':')[1])
-                        if rr_value >= 3:
-                            return 'background-color: #d4edda'  # Green
-                        elif rr_value >= 2:
-                            return 'background-color: #fff3cd'  # Yellow
-                        else:
-                            return 'background-color: #f8d7da'  # Red
-                    except:
-                        return ''
-                
                 # Display with styling
                 st.dataframe(
-                    entry_df.style.applymap(color_rr, subset=['R:R']),
+                    entry_df,
                     use_container_width=True,
                     hide_index=True,
                     column_config={
@@ -3107,22 +3110,6 @@ class UIComponents:
                 with col3:
                     avg_vmi = flow_df['VMI'].mean()
                     st.metric("Avg VMI", f"{avg_vmi:.2f}")
-        
-        @staticmethod
-        def _get_wave_signal(stock):
-            """Generate trading signal based on wave state"""
-            wave = stock.get('wave_state', '')
-            
-            if 'CRESTING' in wave:
-                return "🎯 SELL TARGET"
-            elif 'BUILDING' in wave:
-                return "⚡ HOLD/ADD"
-            elif 'FORMING' in wave:
-                return "👀 WATCH"
-            elif 'BREAKING' in wave:
-                return "🚪 EXIT"
-            else:
-                return "➖ NEUTRAL"
 
  # ====================================
         # 2. MARKET PULSE - KEEP EXISTING STRUCTURE
