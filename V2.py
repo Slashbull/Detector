@@ -2879,57 +2879,6 @@ class UIComponents:
         st.markdown("---")
         
         # ====================================
-        # SECTION 4: SMART MONEY FLOW
-        # ====================================
-        st.markdown("### 💰 SMART MONEY FLOW")
-        
-        flow_col1, flow_col2, flow_col3, flow_col4 = st.columns(4)
-        
-        with flow_col1:
-            # Highest money flow
-            if 'money_flow_mm' in df.columns:
-                top_flow = df.nlargest(1, 'money_flow_mm').iloc[0]
-                
-                st.metric(
-                    "Max Flow",
-                    f"₹{top_flow['money_flow_mm']:.0f}M",
-                    top_flow['ticker']
-                )
-        
-        with flow_col2:
-            # Total institutional flow (top 10)
-            if 'money_flow_mm' in df.columns:
-                institutional = df.nlargest(10, 'money_flow_mm')['money_flow_mm'].sum()
-                
-                st.metric(
-                    "Top 10 Flow",
-                    f"₹{institutional:.0f}M",
-                    "Institutional"
-                )
-        
-        with flow_col3:
-            # Highest VMI
-            if 'vmi' in df.columns:
-                max_vmi = df.nlargest(1, 'vmi').iloc[0]
-                
-                st.metric(
-                    "Max VMI",
-                    f"{max_vmi['vmi']:.2f}",
-                    max_vmi['ticker']
-                )
-        
-        with flow_col4:
-            # Position tension leader
-            if 'position_tension' in df.columns:
-                max_tension = df.nlargest(1, 'position_tension').iloc[0]
-                
-                st.metric(
-                    "Max Tension",
-                    f"{max_tension['position_tension']:.0f}",
-                    max_tension['ticker']
-                )
-        
-        # ====================================
         # 2. MARKET PULSE - KEEP EXISTING STRUCTURE
         # ====================================
         st.markdown("### 📊 Market Pulse")
