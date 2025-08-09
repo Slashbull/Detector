@@ -2610,297 +2610,324 @@ class UIComponents:
             st.metric(label, value, delta)
     
     @staticmethod
-    def render_summary_section(df: pd.DataFrame) -> None:
-        """Render enhanced summary dashboard - KEEPING ALL FEATURES BUT MAKING THEM QUANTITATIVE"""
+def render_summary_section(df: pd.DataFrame) -> None:
+    """Render WAVE COMMAND CENTER - Perfectly aligned with Wave Detection Ultimate"""
+    
+    if df.empty:
+        st.warning("No data available for wave analysis")
+        return
+    
+    # ====================================
+    # 🌊 WAVE COMMAND CENTER
+    # ====================================
+    st.markdown("### 🌊 WAVE COMMAND CENTER")
+    st.caption("Real-Time Wave Detection • Momentum Harmony Analysis • Smart Money Flow")
+    
+    # ====================================
+    # SECTION 1: ACTIVE WAVES (Using your wave_state!)
+    # ====================================
+    wave_col1, wave_col2, wave_col3, wave_col4 = st.columns(4)
+    
+    with wave_col1:
+        st.markdown("**🌊🌊🌊 CRESTING**")
+        st.caption("Peak momentum NOW")
         
-        if df.empty:
-            st.warning("No data available for summary")
-            return
-        
-        # ====================================
-        # 1. TODAY'S ACTION PLAN - ENHANCED WITH REAL SIGNALS
-        # ====================================
-        st.markdown("### 🎯 TODAY'S ACTION PLAN")
-        
-        action_col1, action_col2, action_col3 = st.columns(3)
-        
-        with action_col1:
-            st.markdown("**🟢 BUY SIGNALS**")
+        # Find stocks in CRESTING state
+        if 'wave_state' in df.columns:
+            cresting = df[df['wave_state'].str.contains('CRESTING', na=False)]
             
-            try:
-                # ENHANCED buy criteria - MORE QUANTITATIVE
-                buy_conditions = pd.Series(True, index=df.index)
+            if len(cresting) > 0:
+                # Best cresting stock
+                best_crest = cresting.nlargest(1, 'master_score').iloc[0]
                 
-                # Check each condition with proper validation
-                if 'master_score' in df.columns:
-                    buy_conditions &= (df['master_score'] > 75)  # Higher threshold
+                st.success(f"**{best_crest['ticker']}**")
                 
-                if all(col in df.columns for col in ['momentum_score', 'acceleration_score']):
-                    buy_conditions &= (df['momentum_score'] > 70) & (df['acceleration_score'] > 70)
+                # Show why it's cresting
+                if best_crest.get('momentum_harmony', 0) == 4:
+                    st.caption("✅ Perfect harmony (4/4)")
                 
-                if 'wave_state' in df.columns:
-                    buy_conditions &= df['wave_state'].str.contains('BUILDING|CRESTING', na=False, regex=True)
+                # Trading levels
+                entry = best_crest['price']
+                target = entry * 1.08  # Quick 8% on cresting waves
+                stop = entry * 0.97   # Tight 3% stop
                 
-                if 'rvol' in df.columns:
-                    buy_conditions &= (df['rvol'] >= 2.0)  # Stronger volume
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    st.metric("Entry", f"₹{entry:.0f}")
+                with col_b:
+                    st.metric("Target", f"₹{target:.0f}")
                 
-                # ADD: Statistical edge check
-                if 'ret_30d' in df.columns:
-                    top_20_percentile = df['ret_30d'].quantile(0.8)
-                    buy_conditions &= (df['ret_30d'] > top_20_percentile)
+                # Show momentum harmony
+                harmony = best_crest.get('momentum_harmony', 0)
+                harmony_bar = "🟢" * harmony + "⚪" * (4 - harmony)
+                st.caption(f"Harmony: {harmony_bar}")
                 
-                # ADD: Trend alignment
-                if all(col in df.columns for col in ['price', 'sma_20d', 'sma_50d']):
-                    buy_conditions &= (df['price'] > df['sma_20d']) & (df['sma_20d'] > df['sma_50d'])
-                
-                # Get candidates
-                buy_candidates = df[buy_conditions]
-                
-                if len(buy_candidates) > 0:
-                    # Calculate composite buy score for ranking
-                    buy_candidates = buy_candidates.copy()
-                    buy_candidates['buy_score'] = (
-                        buy_candidates.get('master_score', 0) * 0.4 +
-                        buy_candidates.get('momentum_score', 0) * 0.3 +
-                        buy_candidates.get('acceleration_score', 0) * 0.3
-                    )
-                    
-                    top_buy = buy_candidates.nlargest(1, 'buy_score').iloc[0]
-                    
-                    # Display with ENHANCED details
-                    ticker = top_buy.get('ticker', 'N/A')
-                    score = top_buy.get('master_score', 0)
-                    
-                    st.success(f"**{ticker}** - STRONG BUY")
-                    
-                    # Company name
-                    if 'company_name' in top_buy.index:
-                        company = str(top_buy['company_name'])[:30] if pd.notna(top_buy['company_name']) else 'N/A'
-                        st.caption(company)
-                    
-                    # ENHANCED: Add entry/stop/target
-                    buy_col_a, buy_col_b = st.columns(2)
-                    
-                    with buy_col_a:
-                        st.write(f"**Score:** {score:.0f}")
-                        
-                        if 'momentum_score' in top_buy.index and pd.notna(top_buy['momentum_score']):
-                            st.caption(f"Mom: {top_buy['momentum_score']:.0f}")
-                        
-                        if 'acceleration_score' in top_buy.index and pd.notna(top_buy['acceleration_score']):
-                            st.caption(f"Acc: {top_buy['acceleration_score']:.0f}")
-                    
-                    with buy_col_b:
-                        if 'price' in top_buy.index and pd.notna(top_buy['price']):
-                            entry = top_buy['price']
-                            
-                            # Calculate dynamic stop based on volatility
-                            if 'ret_7d' in top_buy.index and pd.notna(top_buy['ret_7d']):
-                                volatility = abs(top_buy['ret_7d']) / 7
-                                stop_pct = max(3, min(8, volatility * 2))
-                            else:
-                                stop_pct = 5
-                            
-                            stop = entry * (1 - stop_pct/100)
-                            
-                            # Calculate target based on momentum
-                            if 'ret_30d' in top_buy.index and pd.notna(top_buy['ret_30d']):
-                                momentum = top_buy['ret_30d'] / 30
-                                target_pct = max(8, min(20, momentum * 15))
-                            else:
-                                target_pct = 10
-                            
-                            target = entry * (1 + target_pct/100)
-                            
-                            st.write(f"**Entry:** ₹{entry:.0f}")
-                            st.caption(f"Stop: ₹{stop:.0f} (-{stop_pct:.1f}%)")
-                            st.caption(f"Tgt: ₹{target:.0f} (+{target_pct:.1f}%)")
-                        
-                        if 'rvol' in top_buy.index and pd.notna(top_buy['rvol']):
-                            st.caption(f"RVOL: {top_buy['rvol']:.1f}x")
-                    
-                    # Patterns display
-                    if 'patterns' in top_buy.index and pd.notna(top_buy['patterns']) and top_buy['patterns']:
-                        patterns = str(top_buy['patterns']).split(' | ')[:2]
-                        if patterns:
-                            st.info(' | '.join(patterns))
-                    
-                    # ENHANCED: Add risk/reward
-                    if 'price' in top_buy.index:
-                        risk = entry - stop
-                        reward = target - entry
-                        rr = reward / risk if risk > 0 else 0
-                        st.caption(f"📊 Risk:Reward = 1:{rr:.1f}")
-                        
-                else:
-                    st.info("📊 No strong buy signals today")
-                    st.caption("Waiting for better setups")
-                    
-                    # Show best available
-                    if 'master_score' in df.columns and not df.empty:
-                        best = df.nlargest(1, 'master_score').iloc[0]
-                        st.caption(f"Best: {best.get('ticker', 'N/A')} ({best.get('master_score', 0):.0f})")
-                        
-            except Exception as e:
-                logger.debug(f"Buy signals error: {str(e)}")
-                st.info("📊 Analyzing buy signals...")
+                # Money flow
+                if 'money_flow_mm' in best_crest:
+                    st.caption(f"💰 Flow: ₹{best_crest['money_flow_mm']:.1f}M")
+            else:
+                st.info("No cresting waves")
+                st.caption("Market calm")
+    
+    with wave_col2:
+        st.markdown("**🌊🌊 BUILDING**")
+        st.caption("Gaining strength")
         
-        with action_col2:
-            st.markdown("**⚠️ AVOID LIST**")
+        if 'wave_state' in df.columns:
+            building = df[df['wave_state'].str.contains('BUILDING', na=False)]
             
-            try:
-                # ENHANCED danger criteria with quantitative thresholds
-                danger_conditions = pd.Series(False, index=df.index)
-                danger_reasons = {}
+            if len(building) > 0:
+                # Top 2 building waves
+                top_building = building.nlargest(2, 'overall_wave_strength')
                 
-                # Check danger signals with validation
-                if 'patterns' in df.columns:
-                    high_pe_mask = df['patterns'].str.contains('HIGH PE|⚠️', na=False, regex=True)
-                    danger_conditions |= high_pe_mask
-                    for idx in df[high_pe_mask].index:
-                        danger_reasons[idx] = "High PE"
-                
-                if 'wave_state' in df.columns:
-                    breaking_mask = (df['wave_state'] == '💥 BREAKING')
-                    danger_conditions |= breaking_mask
-                    for idx in df[breaking_mask].index:
-                        if idx not in danger_reasons:
-                            danger_reasons[idx] = "Breaking"
-                
-                # ENHANCED: Overextended check
-                if 'from_low_pct' in df.columns:
-                    overextended = df['from_low_pct'] > 85
-                    danger_conditions |= overextended
-                    for idx in df[overextended].index:
-                        if idx not in danger_reasons:
-                            danger_reasons[idx] = f"Up {df.loc[idx, 'from_low_pct']:.0f}%"
-                
-                # ENHANCED: Volume divergence
-                if all(col in df.columns for col in ['ret_7d', 'rvol']):
-                    vol_diverge = (df['ret_7d'] > 5) & (df['rvol'] < 0.5)
-                    danger_conditions |= vol_diverge
-                    for idx in df[vol_diverge].index:
-                        if idx not in danger_reasons:
-                            danger_reasons[idx] = "No volume"
-                
-                # ENHANCED: Pump and dump check
-                if all(col in df.columns for col in ['rvol', 'master_score']):
-                    pump_risk = (df['rvol'] > 5) & (df['master_score'] < 50)
-                    danger_conditions |= pump_risk
-                    for idx in df[pump_risk].index:
-                        if idx not in danger_reasons:
-                            danger_reasons[idx] = "Pump risk"
-                
-                # ENHANCED: PE check with threshold
-                if 'pe' in df.columns:
-                    valid_pe = df['pe'].notna()
-                    high_pe = valid_pe & (df['pe'] > 80)
-                    danger_conditions |= high_pe
-                    for idx in df[high_pe].index:
-                        if idx not in danger_reasons:
-                            danger_reasons[idx] = f"PE: {df.loc[idx, 'pe']:.0f}"
-                
-                danger_stocks = df[danger_conditions]
-                
-                if len(danger_stocks) > 0:
-                    # Show top 3 dangers sorted by volume (most liquid = most dangerous)
-                    sort_col = 'rvol' if 'rvol' in danger_stocks.columns else 'master_score'
-                    top_dangers = danger_stocks.nlargest(min(3, len(danger_stocks)), sort_col)
+                for _, wave in top_building.iterrows():
+                    ticker = wave['ticker']
+                    strength = wave.get('overall_wave_strength', 0)
                     
-                    for idx, (index, stock) in enumerate(top_dangers.iterrows()):
-                        if idx >= 3:
-                            break
-                        
-                        ticker = stock.get('ticker', 'N/A')
-                        reason = danger_reasons.get(index, "Risky")
-                        
-                        # Calculate potential downside
-                        if 'from_low_pct' in stock and stock['from_low_pct'] > 80:
-                            downside = min(25, (stock['from_low_pct'] - 50) * 0.5)
-                            st.warning(f"**{ticker}** - {reason}")
-                            st.caption(f"Risk: -{downside:.0f}% potential")
-                        else:
-                            st.warning(f"**{ticker}** - {reason}")
-                else:
-                    st.success("✅ No danger signals")
-                    st.caption("Market looks healthy")
+                    st.warning(f"**{ticker}**")
                     
-            except Exception as e:
-                logger.debug(f"Danger signals error: {str(e)}")
-                st.info("📊 Scanning for risks...")
+                    # Wave strength meter
+                    if strength > 80:
+                        st.progress(strength/100, f"💪 {strength:.0f}%")
+                    else:
+                        st.progress(strength/100, f"{strength:.0f}%")
+                    
+                    # Position in range
+                    if 'from_low_pct' in wave:
+                        st.caption(f"📍 {wave['from_low_pct']:.0f}% from low")
+            else:
+                st.info("No building waves")
+    
+    with wave_col3:
+        st.markdown("**🌊 FORMING**")
+        st.caption("Early stage")
         
-        with action_col3:
-            st.markdown("**👀 WATCH LIST**")
+        if 'wave_state' in df.columns:
+            forming = df[df['wave_state'].str.contains('FORMING', na=False)]
             
-            try:
-                # ENHANCED watch criteria - stocks about to break out
-                watch_conditions = pd.Series(True, index=df.index)
+            if len(forming) > 0:
+                # Filter for quality forming waves
+                quality_forming = forming[
+                    (forming['master_score'] > 60) &
+                    (forming.get('vmi', 0) > 1)  # Volume building
+                ]
                 
-                # Near breakout threshold
-                if 'master_score' in df.columns:
-                    watch_conditions &= df['master_score'].between(65, 75)
-                
-                # Building momentum
-                if 'momentum_score' in df.columns:
-                    watch_conditions &= (df['momentum_score'] > 60)
-                
-                # Wave state check
-                if 'wave_state' in df.columns:
-                    watch_conditions &= df['wave_state'].str.contains('FORMING|BUILDING', na=False, regex=True)
-                
-                # ENHANCED: Volume accumulation
-                if 'vol_ratio_30d_90d' in df.columns:
-                    watch_conditions &= (df['vol_ratio_30d_90d'] > 1.1)
-                
-                # ENHANCED: Near resistance
-                if 'from_high_pct' in df.columns:
-                    watch_conditions &= (df['from_high_pct'] > -20)
-                
-                watch_list = df[watch_conditions]
-                
-                if len(watch_list) > 0:
-                    # Calculate breakout probability
-                    watch_list = watch_list.copy()
-                    watch_list['breakout_prob'] = (
-                        watch_list.get('momentum_score', 50) * 0.4 +
-                        watch_list.get('volume_score', 50) * 0.3 +
-                        watch_list.get('position_score', 50) * 0.3
-                    )
+                if len(quality_forming) > 0:
+                    best_forming = quality_forming.nlargest(1, 'vmi').iloc[0]
                     
-                    sort_col = 'breakout_prob' if 'breakout_prob' in watch_list.columns else 'master_score'
-                    top_watch = watch_list.nlargest(min(3, len(watch_list)), sort_col)
+                    st.info(f"**{best_forming['ticker']}**")
                     
-                    for idx, (_, stock) in enumerate(top_watch.iterrows()):
-                        if idx >= 3:
-                            break
-                        
-                        ticker = stock.get('ticker', 'N/A')
-                        score = stock.get('master_score', 0)
-                        prob = stock.get('breakout_prob', 50)
-                        
-                        st.info(f"**{ticker}** (Score: {score:.0f})")
-                        
-                        # ENHANCED: Add trigger level
-                        if 'price' in stock:
-                            trigger = stock['price'] * 1.02  # 2% above current
-                            st.caption(f"↗️ Buy above ₹{trigger:.0f}")
-                        
-                        # Probability indicator
-                        if prob > 70:
-                            st.caption("🔥 High probability")
-                        elif prob > 60:
-                            st.caption("⚡ Good setup")
-                        else:
-                            st.caption("💫 Building")
+                    # VMI indicator
+                    vmi = best_forming.get('vmi', 1)
+                    st.metric("VMI", f"{vmi:.2f}")
+                    
+                    # Trigger price
+                    trigger = best_forming['price'] * 1.02
+                    st.caption(f"Watch: ₹{trigger:.0f}")
                 else:
-                    st.info("📊 No stocks in watch zone")
-                    st.caption("Check back later")
-                    
-            except Exception as e:
-                logger.debug(f"Watch list error: {str(e)}")
-                st.info("📊 Building watch list...")
+                    st.info("No quality formations")
+            else:
+                st.info("No forming waves")
+    
+    with wave_col4:
+        st.markdown("**💥 BREAKING**")
+        st.caption("Losing momentum")
         
-        st.markdown("---")
+        if 'wave_state' in df.columns:
+            breaking = df[df['wave_state'].str.contains('BREAKING', na=False)]
+            
+            if len(breaking) > 0:
+                # Most dangerous breaks
+                dangerous = breaking[breaking['rvol'] > 2]  # High volume breaks
+                
+                if len(dangerous) > 0:
+                    worst = dangerous.nsmallest(1, 'momentum_score').iloc[0]
+                    
+                    st.error(f"**{worst['ticker']}**")
+                    
+                    # Show the damage
+                    if 'ret_1d' in worst:
+                        st.metric("Today", f"{worst['ret_1d']:.1f}%")
+                    
+                    # Position tension
+                    if 'position_tension' in worst:
+                        st.caption(f"Tension: {worst['position_tension']:.0f}")
+                    
+                    st.caption("⚠️ EXIT")
+                else:
+                    # Show any breaking wave
+                    worst = breaking.iloc[0]
+                    st.warning(f"**{worst['ticker']}**")
+                    st.caption("Weakening")
+            else:
+                st.success("✅ No breaks")
+    
+    st.markdown("---")
+    
+    # ====================================
+    # SECTION 2: PATTERN RADAR (Your 25 patterns!)
+    # ====================================
+    st.markdown("### 🎯 PATTERN RADAR")
+    
+    pattern_col1, pattern_col2, pattern_col3, pattern_col4 = st.columns(4)
+    
+    with pattern_col1:
+        st.markdown("**⛈️ PERFECT STORM**")
+        
+        if 'patterns' in df.columns:
+            perfect_storms = df[df['patterns'].str.contains('PERFECT STORM', na=False)]
+            
+            if len(perfect_storms) > 0:
+                for _, storm in perfect_storms.iterrows():
+                    st.error(f"🌀 **{storm['ticker']}**")
+                    st.caption(f"Score: {storm['master_score']:.0f}")
+                    st.caption("All signals aligned!")
+            else:
+                st.info("No perfect storms")
+    
+    with pattern_col2:
+        st.markdown("**🧛 VAMPIRE**")
+        
+        if 'patterns' in df.columns:
+            vampires = df[df['patterns'].str.contains('VAMPIRE', na=False)]
+            
+            if len(vampires) > 0:
+                for _, vamp in vampires.head(2).iterrows():
+                    st.warning(f"🧛 **{vamp['ticker']}**")
+                    if 'rvol' in vamp:
+                        st.caption(f"RVOL: {vamp['rvol']:.1f}x")
+            else:
+                st.info("No vampires active")
+    
+    with pattern_col3:
+        st.markdown("**🤫 STEALTH**")
+        
+        if 'patterns' in df.columns:
+            stealth = df[df['patterns'].str.contains('STEALTH', na=False)]
+            
+            if len(stealth) > 0:
+                for _, s in stealth.head(2).iterrows():
+                    st.info(f"🤫 **{s['ticker']}**")
+                    st.caption("Accumulating quietly")
+            else:
+                st.info("No stealth accumulation")
+    
+    with pattern_col4:
+        st.markdown("**⚡ VOL EXPLOSION**")
+        
+        if 'patterns' in df.columns:
+            explosions = df[df['patterns'].str.contains('VOL EXPLOSION', na=False)]
+            
+            if len(explosions) > 0:
+                biggest = explosions.nlargest(1, 'rvol').iloc[0]
+                st.success(f"💥 **{biggest['ticker']}**")
+                st.metric("RVOL", f"{biggest['rvol']:.1f}x")
+            else:
+                st.info("No explosions")
+    
+    st.markdown("---")
+    
+    # ====================================
+    # SECTION 3: MOMENTUM HARMONY MATRIX
+    # ====================================
+    st.markdown("### 🎵 MOMENTUM HARMONY")
+    
+    harmony_col1, harmony_col2, harmony_col3 = st.columns(3)
+    
+    with harmony_col1:
+        st.markdown("**Perfect Harmony (4/4)**")
+        
+        if 'momentum_harmony' in df.columns:
+            perfect = df[df['momentum_harmony'] == 4]
+            
+            if len(perfect) > 0:
+                st.success(f"🎯 {len(perfect)} stocks")
+                
+                # Top 3
+                for _, stock in perfect.nlargest(3, 'master_score').iterrows():
+                    st.write(f"• **{stock['ticker']}** ({stock['master_score']:.0f})")
+            else:
+                st.info("None in perfect sync")
+    
+    with harmony_col2:
+        st.markdown("**Good Harmony (3/4)**")
+        
+        if 'momentum_harmony' in df.columns:
+            good = df[df['momentum_harmony'] == 3]
+            
+            if len(good) > 0:
+                st.warning(f"⚡ {len(good)} stocks")
+                
+                # Top 3
+                for _, stock in good.nlargest(3, 'master_score').iterrows():
+                    st.write(f"• {stock['ticker']} ({stock['master_score']:.0f})")
+            else:
+                st.info("None")
+    
+    with harmony_col3:
+        st.markdown("**Discord (≤1/4)**")
+        
+        if 'momentum_harmony' in df.columns:
+            discord = df[df['momentum_harmony'] <= 1]
+            
+            if len(discord) > 0:
+                st.error(f"⚠️ {len(discord)} stocks")
+                st.caption("Conflicting timeframes")
+            else:
+                st.success("All harmonious")
+    
+    st.markdown("---")
+    
+    # ====================================
+    # SECTION 4: SMART MONEY FLOW
+    # ====================================
+    st.markdown("### 💰 SMART MONEY FLOW")
+    
+    flow_col1, flow_col2, flow_col3, flow_col4 = st.columns(4)
+    
+    with flow_col1:
+        # Highest money flow
+        if 'money_flow_mm' in df.columns:
+            top_flow = df.nlargest(1, 'money_flow_mm').iloc[0]
+            
+            st.metric(
+                "Max Flow",
+                f"₹{top_flow['money_flow_mm']:.0f}M",
+                top_flow['ticker']
+            )
+    
+    with flow_col2:
+        # Total institutional flow (top 10)
+        if 'money_flow_mm' in df.columns:
+            institutional = df.nlargest(10, 'money_flow_mm')['money_flow_mm'].sum()
+            
+            st.metric(
+                "Top 10 Flow",
+                f"₹{institutional:.0f}M",
+                "Institutional"
+            )
+    
+    with flow_col3:
+        # Highest VMI
+        if 'vmi' in df.columns:
+            max_vmi = df.nlargest(1, 'vmi').iloc[0]
+            
+            st.metric(
+                "Max VMI",
+                f"{max_vmi['vmi']:.2f}",
+                max_vmi['ticker']
+            )
+    
+    with flow_col4:
+        # Position tension leader
+        if 'position_tension' in df.columns:
+            max_tension = df.nlargest(1, 'position_tension').iloc[0]
+            
+            st.metric(
+                "Max Tension",
+                f"{max_tension['position_tension']:.0f}",
+                max_tension['ticker']
+            )
         
         # ====================================
         # 2. MARKET PULSE - KEEP EXISTING STRUCTURE
