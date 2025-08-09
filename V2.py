@@ -4878,63 +4878,456 @@ def main():
         "📊 Summary", "🏆 Rankings", "🌊 Wave Radar", "📊 Analysis", "🔍 Search", "📥 Export", "ℹ️ About"
     ])
     
-    with tabs[0]:
-        st.markdown("### 📊 Executive Summary Dashboard")
-        
-        if not filtered_df.empty:
-            UIComponents.render_summary_section(filtered_df)
-            
-            st.markdown("---")
-            st.markdown("#### 💾 Download Clean Processed Data")
-            
-            download_cols = st.columns(3)
-            
-            with download_cols[0]:
-                st.markdown("**📊 Current View Data**")
-                st.write(f"Includes {len(filtered_df)} stocks matching current filters")
-                
-                csv_filtered = ExportEngine.create_csv_export(filtered_df)
-                st.download_button(
-                    label="📥 Download Filtered Data (CSV)",
-                    data=csv_filtered,
-                    file_name=f"wave_detection_filtered_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                    help="Download currently filtered stocks with all scores and indicators"
-                )
-            
-            with download_cols[1]:
-                st.markdown("**🏆 Top 100 Stocks**")
-                st.write("Elite stocks ranked by Master Score")
-                
-                top_100 = filtered_df.nlargest(100, 'master_score')
-                csv_top100 = ExportEngine.create_csv_export(top_100)
-                st.download_button(
-                    label="📥 Download Top 100 (CSV)",
-                    data=csv_top100,
-                    file_name=f"wave_detection_top100_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                    help="Download top 100 stocks by Master Score"
-                )
-            
-            with download_cols[2]:
-                st.markdown("**🎯 Pattern Stocks Only**")
-                pattern_stocks = filtered_df[filtered_df['patterns'] != '']
-                st.write(f"Includes {len(pattern_stocks)} stocks with patterns")
-                
-                if len(pattern_stocks) > 0:
-                    csv_patterns = ExportEngine.create_csv_export(pattern_stocks)
-                    st.download_button(
-                        label="📥 Download Pattern Stocks (CSV)",
-                        data=csv_patterns,
-                        file_name=f"wave_detection_patterns_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv",
-                        help="Download only stocks showing patterns"
-                    )
-                else:
-                    st.info("No stocks with patterns in current filter")
-        
+    # ============================================
+# COMPLETE SUMMARY TAB FIX FOR V2.PY
+# ============================================
+
+# This goes in your main() function, inside tabs[0]
+with tabs[0]:  # Summary Tab
+    
+    # Header Section
+    st.markdown("""
+    <div style='
+        background: linear-gradient(135deg, #667eea15, #764ba205);
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        border: 1px solid rgba(102, 126, 234, 0.1);
+    '>
+        <h2 style='
+            margin: 0;
+            color: #1e293b;
+            font-size: 1.8rem;
+            font-weight: 700;
+        '>📊 Market Overview Dashboard</h2>
+        <p style='
+            margin: 0.5rem 0 0 0;
+            color: #64748b;
+            font-size: 0.95rem;
+        '>Real-time analysis of {total} stocks • Last updated: {time}</p>
+    </div>
+    """.format(
+        total=f"{len(filtered_df):,}",
+        time=data_timestamp.strftime('%I:%M %p') if data_timestamp else 'N/A'
+    ), unsafe_allow_html=True)
+    
+    # Key Metrics Section
+    st.markdown("### 📈 Key Performance Metrics")
+    
+    metrics_col1, metrics_col2, metrics_col3, metrics_col4, metrics_col5, metrics_col6 = st.columns(6)
+    
+    with metrics_col1:
+        UIComponents.render_metric_card(
+            "Total Stocks",
+            f"{len(filtered_df):,}",
+            f"Filtered from {len(ranked_df):,}" if active_filter_count > 0 else f"Dataset: {len(ranked_df):,}",
+            color="default"
+        )
+    
+    with metrics_col2:
+        if not filtered_df.empty and 'master_score' in filtered_df.columns:
+            avg_score = filtered_df['master_score'].mean()
+            std_score = filtered_df['master_score'].std()
+            color = "green" if avg_score >= 60 else "orange" if avg_score >= 40 else "red"
+            UIComponents.render_metric_card(
+                "Avg Score",
+                f"{avg_score:.1f}",
+                f"σ={std_score:.1f}",
+                color=color
+            )
         else:
-            st.warning("No data available for summary. Please adjust filters.")
+            UIComponents.render_metric_card("Avg Score", "N/A", color="gray")
+    
+    with metrics_col3:
+        if not filtered_df.empty and 'master_score' in filtered_df.columns:
+            min_score = filtered_df['master_score'].min()
+            max_score = filtered_df['master_score'].max()
+            UIComponents.render_metric_card(
+                "Score Range",
+                f"{min_score:.1f}-{max_score:.1f}",
+                f"Spread: {(max_score - min_score):.1f}",
+                color="default"
+            )
+        else:
+            UIComponents.render_metric_card("Score Range", "N/A", color="gray")
+    
+    with metrics_col4:
+        if 'acceleration_score' in filtered_df.columns:
+            accelerating = len(filtered_df[filtered_df['acceleration_score'] >= 70])
+            accel_pct = (accelerating / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
+            UIComponents.render_metric_card(
+                "🚀 Accelerating",
+                f"{accelerating}",
+                f"↑ {accel_pct:.1f}%",
+                color="green" if accel_pct > 20 else "orange"
+            )
+        else:
+            UIComponents.render_metric_card("Accelerating", "N/A", color="gray")
+    
+    with metrics_col5:
+        if 'rvol' in filtered_df.columns:
+            high_rvol = len(filtered_df[filtered_df['rvol'] >= 2])
+            rvol_pct = (high_rvol / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
+            UIComponents.render_metric_card(
+                "🔥 High Volume",
+                f"{high_rvol}",
+                f"RVOL ≥2x ({rvol_pct:.1f}%)",
+                color="orange" if high_rvol > 50 else "default"
+            )
+        else:
+            UIComponents.render_metric_card("High Volume", "N/A", color="gray")
+    
+    with metrics_col6:
+        if 'momentum_score' in filtered_df.columns:
+            strong_momentum = len(filtered_df[filtered_df['momentum_score'] >= 70])
+            momentum_pct = (strong_momentum / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
+            UIComponents.render_metric_card(
+                "⚡ Strong Trends",
+                f"{strong_momentum}",
+                f"↑ {momentum_pct:.1f}%",
+                color="green" if momentum_pct > 15 else "default"
+            )
+        else:
+            UIComponents.render_metric_card("Strong Trends", "N/A", color="gray")
+    
+    st.markdown("---")
+    
+    # Quick Filters Section
+    st.markdown("### 🎯 Quick Filters")
+    
+    quick_col1, quick_col2, quick_col3, quick_col4, quick_col5 = st.columns(5)
+    
+    with quick_col1:
+        if st.button("📈 Top Gainers", key="qf_top_gainers", use_container_width=True):
+            st.session_state.quick_filter = 'top_gainers'
+            st.session_state.quick_filter_applied = True
+            st.rerun()
+    
+    with quick_col2:
+        if st.button("🚀 High Momentum", key="qf_high_momentum", use_container_width=True):
+            st.session_state.quick_filter = 'high_momentum'
+            st.session_state.quick_filter_applied = True
+            st.rerun()
+    
+    with quick_col3:
+        if st.button("🔥 Volume Surge", key="qf_volume_surge", use_container_width=True):
+            st.session_state.quick_filter = 'volume_surges'
+            st.session_state.quick_filter_applied = True
+            st.rerun()
+    
+    with quick_col4:
+        if st.button("⚡ Breakout Ready", key="qf_breakout", use_container_width=True):
+            st.session_state.quick_filter = 'breakout_ready'
+            st.session_state.quick_filter_applied = True
+            st.rerun()
+    
+    with quick_col5:
+        if st.button("💎 Hidden Gems", key="qf_hidden", use_container_width=True):
+            st.session_state.quick_filter = 'hidden_gems'
+            st.session_state.quick_filter_applied = True
+            st.rerun()
+    
+    # Show active quick filter notification
+    if quick_filter_applied:
+        filter_names = {
+            'top_gainers': '📈 Top Gainers',
+            'high_momentum': '🚀 High Momentum',
+            'volume_surges': '🔥 Volume Surges',
+            'breakout_ready': '⚡ Breakout Ready',
+            'hidden_gems': '💎 Hidden Gems'
+        }
+        st.info(f"Quick Filter Active: **{filter_names.get(quick_filter, 'Custom')}** - Showing {len(filtered_df):,} stocks")
+    
+    st.markdown("---")
+    
+    # Market Pulse and Top Opportunities Row
+    pulse_col, opp_col = st.columns([1, 2])
+    
+    with pulse_col:
+        if hasattr(UIComponents, 'render_market_pulse'):
+            UIComponents.render_market_pulse(filtered_df)
+    
+    with opp_col:
+        if hasattr(UIComponents, 'render_top_opportunities'):
+            UIComponents.render_top_opportunities(filtered_df)
+    
+    # Pattern Distribution Section
+    if hasattr(UIComponents, 'render_pattern_distribution'):
+        UIComponents.render_pattern_distribution(filtered_df)
+    
+    # Market Analysis Grid
+    st.markdown("### 📊 Market Analysis")
+    
+    analysis_col1, analysis_col2 = st.columns(2)
+    
+    with analysis_col1:
+        # Sector Rotation
+        if hasattr(UIComponents, 'render_sector_rotation'):
+            UIComponents.render_sector_rotation(filtered_df)
+        
+        # Volume Analysis
+        if hasattr(UIComponents, 'render_volume_analysis'):
+            UIComponents.render_volume_analysis(filtered_df)
+    
+    with analysis_col2:
+        # Momentum Waves
+        if hasattr(UIComponents, 'render_momentum_waves'):
+            UIComponents.render_momentum_waves(filtered_df)
+        
+        # Acceleration Profiles
+        if hasattr(UIComponents, 'render_acceleration_profiles'):
+            UIComponents.render_acceleration_profiles(filtered_df)
+    
+    # Category Flow Section
+    if hasattr(UIComponents, 'render_category_flow'):
+        UIComponents.render_category_flow(filtered_df)
+    
+    st.markdown("---")
+    
+    # Market Statistics Section
+    st.markdown("### 📈 Market Statistics")
+    
+    stats_col1, stats_col2, stats_col3 = st.columns(3)
+    
+    with stats_col1:
+        # Score Distribution
+        st.markdown("""
+        <div style='
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+        '>
+            <h4 style='
+                margin: 0 0 0.75rem 0;
+                font-size: 0.9rem;
+                font-weight: 700;
+                color: #1e293b;
+            '>📊 Score Distribution</h4>
+        """, unsafe_allow_html=True)
+        
+        if not filtered_df.empty and 'master_score' in filtered_df.columns:
+            score_bins = {
+                "Excellent (80-100)": len(filtered_df[filtered_df['master_score'] >= 80]),
+                "Good (60-79)": len(filtered_df[(filtered_df['master_score'] >= 60) & (filtered_df['master_score'] < 80)]),
+                "Average (40-59)": len(filtered_df[(filtered_df['master_score'] >= 40) & (filtered_df['master_score'] < 60)]),
+                "Below Avg (20-39)": len(filtered_df[(filtered_df['master_score'] >= 20) & (filtered_df['master_score'] < 40)]),
+                "Weak (0-19)": len(filtered_df[filtered_df['master_score'] < 20])
+            }
+            
+            for category, count in score_bins.items():
+                pct = (count / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
+                color = "#10B981" if "Excellent" in category else "#3B82F6" if "Good" in category else "#F59E0B" if "Average" in category else "#EF4444"
+                
+                st.markdown(f"""
+                <div style='
+                    display: flex;
+                    justify-content: space-between;
+                    padding: 0.4rem 0;
+                    border-bottom: 1px solid #f1f5f9;
+                '>
+                    <span style='font-size: 0.8rem; color: #64748b;'>{category}</span>
+                    <span style='font-size: 0.8rem; font-weight: 600; color: {color};'>
+                        {count} ({pct:.1f}%)
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.markdown("<p style='color: #94a3b8; font-size: 0.85rem;'>No data available</p>", unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    with stats_col2:
+        # Market Breadth
+        st.markdown("""
+        <div style='
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+        '>
+            <h4 style='
+                margin: 0 0 0.75rem 0;
+                font-size: 0.9rem;
+                font-weight: 700;
+                color: #1e293b;
+            '>📈 Market Breadth</h4>
+        """, unsafe_allow_html=True)
+        
+        if not filtered_df.empty and 'ret_1d' in filtered_df.columns:
+            advancing = len(filtered_df[filtered_df['ret_1d'] > 0])
+            declining = len(filtered_df[filtered_df['ret_1d'] < 0])
+            unchanged = len(filtered_df[filtered_df['ret_1d'] == 0])
+            
+            adv_pct = (advancing / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
+            dec_pct = (declining / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
+            
+            breadth_data = [
+                ("Advancing", advancing, adv_pct, "#10B981"),
+                ("Declining", declining, dec_pct, "#EF4444"),
+                ("Unchanged", unchanged, (unchanged/len(filtered_df)*100) if len(filtered_df) > 0 else 0, "#6B7280")
+            ]
+            
+            for label, count, pct, color in breadth_data:
+                st.markdown(f"""
+                <div style='
+                    display: flex;
+                    justify-content: space-between;
+                    padding: 0.4rem 0;
+                    border-bottom: 1px solid #f1f5f9;
+                '>
+                    <span style='font-size: 0.8rem; color: #64748b;'>{label}</span>
+                    <span style='font-size: 0.8rem; font-weight: 600; color: {color};'>
+                        {count} ({pct:.1f}%)
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # A/D Ratio
+            ad_ratio = (advancing / declining) if declining > 0 else float('inf')
+            ad_display = f"{ad_ratio:.2f}" if ad_ratio != float('inf') else "∞"
+            
+            st.markdown(f"""
+            <div style='
+                margin-top: 0.75rem;
+                padding: 0.5rem;
+                background: linear-gradient(135deg, #10B98110, #10B98105);
+                border-radius: 6px;
+                text-align: center;
+            '>
+                <div style='font-size: 0.75rem; color: #64748b;'>A/D Ratio</div>
+                <div style='font-size: 1.25rem; font-weight: 700; color: #10B981;'>{ad_display}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("<p style='color: #94a3b8; font-size: 0.85rem;'>No data available</p>", unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    with stats_col3:
+        # Top Patterns
+        st.markdown("""
+        <div style='
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+        '>
+            <h4 style='
+                margin: 0 0 0.75rem 0;
+                font-size: 0.9rem;
+                font-weight: 700;
+                color: #1e293b;
+            '>🎯 Top Patterns</h4>
+        """, unsafe_allow_html=True)
+        
+        if 'patterns' in filtered_df.columns:
+            pattern_counts = {}
+            for patterns in filtered_df['patterns'].dropna():
+                if patterns:
+                    for pattern in patterns.split(' | '):
+                        pattern_counts[pattern] = pattern_counts.get(pattern, 0) + 1
+            
+            if pattern_counts:
+                top_patterns = dict(sorted(pattern_counts.items(), key=lambda x: x[1], reverse=True)[:5])
+                
+                for pattern, count in top_patterns.items():
+                    pct = (count / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
+                    
+                    st.markdown(f"""
+                    <div style='
+                        display: flex;
+                        justify-content: space-between;
+                        padding: 0.4rem 0;
+                        border-bottom: 1px solid #f1f5f9;
+                    '>
+                        <span style='font-size: 0.8rem; color: #64748b;'>{pattern[:20]}</span>
+                        <span style='font-size: 0.8rem; font-weight: 600; color: #3B82F6;'>
+                            {count} ({pct:.1f}%)
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.markdown("<p style='color: #94a3b8; font-size: 0.85rem;'>No patterns detected</p>", unsafe_allow_html=True)
+        else:
+            st.markdown("<p style='color: #94a3b8; font-size: 0.85rem;'>Pattern data not available</p>", unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Performance Summary
+    st.markdown("---")
+    st.markdown("### 🏆 Performance Summary")
+    
+    perf_col1, perf_col2, perf_col3, perf_col4 = st.columns(4)
+    
+    with perf_col1:
+        if 'ret_1d' in filtered_df.columns:
+            best_performer = filtered_df.nlargest(1, 'ret_1d')
+            if not best_performer.empty:
+                ticker = best_performer['ticker'].iloc[0]
+                ret = best_performer['ret_1d'].iloc[0]
+                UIComponents.render_info_card(
+                    "📈 Best Performer Today",
+                    [{'ticker': ticker, 'master_score': best_performer['master_score'].iloc[0], 'ret_1d': ret}],
+                    color="green",
+                    max_items=1
+                )
+    
+    with perf_col2:
+        if 'ret_1d' in filtered_df.columns:
+            worst_performer = filtered_df.nsmallest(1, 'ret_1d')
+            if not worst_performer.empty:
+                ticker = worst_performer['ticker'].iloc[0]
+                ret = worst_performer['ret_1d'].iloc[0]
+                UIComponents.render_info_card(
+                    "📉 Worst Performer Today",
+                    [{'ticker': ticker, 'master_score': worst_performer['master_score'].iloc[0], 'ret_1d': ret}],
+                    color="red",
+                    max_items=1
+                )
+    
+    with perf_col3:
+        if 'rvol' in filtered_df.columns:
+            highest_volume = filtered_df.nlargest(1, 'rvol')
+            if not highest_volume.empty:
+                ticker = highest_volume['ticker'].iloc[0]
+                rvol = highest_volume['rvol'].iloc[0]
+                UIComponents.render_info_card(
+                    "🔥 Highest Volume",
+                    [{'ticker': ticker, 'master_score': highest_volume['master_score'].iloc[0], 'ret_1d': rvol}],
+                    color="orange",
+                    max_items=1
+                )
+    
+    with perf_col4:
+        if 'master_score' in filtered_df.columns:
+            top_score = filtered_df.nlargest(1, 'master_score')
+            if not top_score.empty:
+                ticker = top_score['ticker'].iloc[0]
+                score = top_score['master_score'].iloc[0]
+                UIComponents.render_info_card(
+                    "🏆 Top Score",
+                    [{'ticker': ticker, 'master_score': score, 'ret_1d': top_score['ret_1d'].iloc[0] if 'ret_1d' in top_score.columns else 0}],
+                    color="purple",
+                    max_items=1
+                )
+    
+    # Footer
+    st.markdown("---")
+    
+    footer_col1, footer_col2, footer_col3 = st.columns(3)
+    
+    with footer_col1:
+        st.caption(f"📅 Last Updated: {data_timestamp.strftime('%B %d, %Y at %I:%M %p') if data_timestamp else 'N/A'}")
+    
+    with footer_col2:
+        st.caption(f"📊 Data Source: {st.session_state.data_source.upper()}")
+    
+    with footer_col3:
+        st.caption(f"🔍 Active Filters: {active_filter_count}")
     
     # Tab 1: Rankings
     with tabs[1]:
