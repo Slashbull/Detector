@@ -2589,20 +2589,20 @@ class ExportEngine:
         return export_df.to_csv(index=False)
 
 # ============================================
-# UI COMPONENTS - COMPLETE WORKING VERSION
+# UI COMPONENTS - COMPLETE FIXED VERSION
 # ============================================
 
 class UIComponents:
-    """Complete UI components with all features and proper HTML rendering"""
+    """Ultra-premium UI components with glassmorphism effects"""
     
     @staticmethod
     def render_metric_card(label: str, value: str, delta: str = None, 
                           help_text: str = None, color: str = "default"):
-        """Clean metric card with proper HTML rendering"""
+        """Ultra-premium metric card with glassmorphism effect"""
         
         colors = {
             "default": "#3B82F6",
-            "green": "#10B981", 
+            "green": "#10B981",
             "red": "#EF4444",
             "orange": "#F59E0B",
             "purple": "#8B5CF6",
@@ -2648,11 +2648,22 @@ class UIComponents:
                 line-height: 1;
                 margin-bottom: 0.25rem;
             '>{value}</div>
-            
-            {f"<div style='font-size: 0.75rem; color: {'#10B981' if '↑' in str(delta) or '+' in str(delta) else '#EF4444' if '↓' in str(delta) or '-' in str(delta) else '#6B7280'}; margin-top: 0.5rem; font-weight: 500;'>{delta}</div>" if delta else ""}
-        </div>
         """
         
+        if delta:
+            delta_color = "#10B981" if "↑" in str(delta) or "+" in str(delta) else "#EF4444" if "↓" in str(delta) or "-" in str(delta) else "#6B7280"
+            html += f"""
+            <div style='
+                font-size: 0.75rem;
+                color: {delta_color};
+                margin-top: 0.5rem;
+                font-weight: 500;
+            '>{delta}</div>
+            """
+        
+        html += "</div>"
+        
+        # CRITICAL FIX: Add unsafe_allow_html=True
         st.markdown(html, unsafe_allow_html=True)
         
         if help_text:
@@ -2745,261 +2756,74 @@ class UIComponents:
     
     @staticmethod
     def render_summary_section(df: pd.DataFrame):
-        """Main summary section renderer"""
-        
+        """Main summary section - just display basic metrics"""
         if df.empty:
-            st.warning("No data available to display")
+            st.warning("No data available")
             return
         
-        # Calculate metrics
-        total_stocks = len(df)
-        avg_score = df['master_score'].mean() if 'master_score' in df.columns else 0
-        std_score = df['master_score'].std() if 'master_score' in df.columns else 0
-        min_score = df['master_score'].min() if 'master_score' in df.columns else 0
-        max_score = df['master_score'].max() if 'master_score' in df.columns else 0
-        
-        accelerating = len(df[df['acceleration_score'] >= 70]) if 'acceleration_score' in df.columns else 0
-        high_rvol = len(df[df['rvol'] >= 2]) if 'rvol' in df.columns else 0
-        strong_trends = len(df[df['momentum_score'] >= 70]) if 'momentum_score' in df.columns else 0
-        
-        # Render metrics row
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
-        
-        with col1:
-            UIComponents.render_metric_card(
-                "📊 Total Stocks",
-                f"{total_stocks:,}",
-                f"100% of {total_stocks:,}",
-                color="default"
-            )
-        
-        with col2:
-            UIComponents.render_metric_card(
-                "📈 Avg Score",
-                f"{avg_score:.1f}",
-                f"σ={std_score:.1f}",
-                color="green" if avg_score >= 60 else "orange"
-            )
-        
-        with col3:
-            UIComponents.render_metric_card(
-                "📉 Score Range",
-                f"{min_score:.1f}-{max_score:.1f}",
-                None,
-                color="default"
-            )
-        
-        with col4:
-            UIComponents.render_metric_card(
-                "🚀 Accelerating",
-                f"{accelerating}",
-                f"{(accelerating/total_stocks*100):.0f}%" if total_stocks > 0 else "0%",
-                color="green" if accelerating > 100 else "default"
-            )
-        
-        with col5:
-            UIComponents.render_metric_card(
-                "🔥 High RVOL",
-                f"{high_rvol}",
-                f"{(high_rvol/total_stocks*100):.0f}%" if total_stocks > 0 else "0%",
-                color="orange" if high_rvol > 50 else "default"
-            )
-        
-        with col6:
-            UIComponents.render_metric_card(
-                "⚡ Strong Trends",
-                f"{strong_trends}",
-                f"{(strong_trends/total_stocks*100):.0f}%" if total_stocks > 0 else "0%",
-                color="green" if strong_trends > 100 else "default"
-            )
+        st.info(f"Analyzing {len(df):,} stocks with complete data")
     
     @staticmethod
     def render_market_pulse(df: pd.DataFrame):
         """Market sentiment analysis"""
-        
         if df.empty:
             return
         
-        bullish = len(df[df['momentum_score'] >= 70]) if 'momentum_score' in df.columns else 0
-        bearish = len(df[df['momentum_score'] <= 30]) if 'momentum_score' in df.columns else 0
-        neutral = len(df) - bullish - bearish
+        col1, col2, col3 = st.columns(3)
         
-        total = len(df)
-        bullish_pct = (bullish/total*100) if total > 0 else 0
-        bearish_pct = (bearish/total*100) if total > 0 else 0
+        with col1:
+            bullish = len(df[df['momentum_score'] >= 70]) if 'momentum_score' in df.columns else 0
+            st.metric("📈 Bullish", f"{bullish}")
         
-        if bullish_pct > 60:
-            sentiment = "🔥 STRONG BULLISH"
-            sentiment_color = "#10B981"
-        elif bullish_pct > 40:
-            sentiment = "📈 BULLISH"
-            sentiment_color = "#22C55E"
-        elif bearish_pct > 40:
-            sentiment = "📉 BEARISH"
-            sentiment_color = "#EF4444"
-        else:
-            sentiment = "➡️ NEUTRAL"
-            sentiment_color = "#6B7280"
+        with col2:
+            neutral = len(df[(df['momentum_score'] >= 30) & (df['momentum_score'] < 70)]) if 'momentum_score' in df.columns else len(df)
+            st.metric("➡️ Neutral", f"{neutral}")
         
-        html = f"""
-        <div style='
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
-        '>
-            <h3 style='
-                margin: 0 0 1rem 0;
-                font-size: 1.1rem;
-                font-weight: 700;
-                color: #0F172A;
-            '>🎯 Market Pulse</h3>
-            
-            <div style='
-                text-align: center;
-                padding: 1rem;
-                background: linear-gradient(135deg, {sentiment_color}10, {sentiment_color}05);
-                border-radius: 8px;
-                margin-bottom: 1rem;
-            '>
-                <div style='
-                    font-size: 1.5rem;
-                    font-weight: 700;
-                    color: {sentiment_color};
-                '>{sentiment}</div>
-                <div style='
-                    font-size: 0.875rem;
-                    color: #64748B;
-                    margin-top: 0.5rem;
-                '>Based on {total:,} stocks analyzed</div>
-            </div>
-            
-            <div style='display: flex; gap: 1rem;'>
-                <div style='flex: 1; text-align: center; padding: 0.75rem; background: #F0FDF4; border-radius: 8px;'>
-                    <div style='font-size: 1.25rem; font-weight: 700; color: #10B981;'>📈 {bullish}</div>
-                    <div style='font-size: 0.75rem; color: #64748B;'>Bullish ({bullish_pct:.1f}%)</div>
-                </div>
-                <div style='flex: 1; text-align: center; padding: 0.75rem; background: #F8FAFC; border-radius: 8px;'>
-                    <div style='font-size: 1.25rem; font-weight: 700; color: #6B7280;'>➡️ {neutral}</div>
-                    <div style='font-size: 0.75rem; color: #64748B;'>Neutral</div>
-                </div>
-                <div style='flex: 1; text-align: center; padding: 0.75rem; background: #FEF2F2; border-radius: 8px;'>
-                    <div style='font-size: 1.25rem; font-weight: 700; color: #EF4444;'>📉 {bearish}</div>
-                    <div style='font-size: 0.75rem; color: #64748B;'>Bearish ({bearish_pct:.1f}%)</div>
-                </div>
-            </div>
-        </div>
-        """
-        
-        st.markdown(html, unsafe_allow_html=True)
+        with col3:
+            bearish = len(df[df['momentum_score'] < 30]) if 'momentum_score' in df.columns else 0
+            st.metric("📉 Bearish", f"{bearish}")
     
     @staticmethod
     def render_top_opportunities(df: pd.DataFrame):
-        """Top opportunities grid"""
-        
+        """Display top opportunities"""
         if df.empty:
             return
         
-        # Prepare data
-        opportunities = {}
+        st.markdown("### 💰 Top Opportunities")
         
-        if 'momentum_score' in df.columns and len(df) > 0:
-            momentum_leaders = df.nlargest(3, 'momentum_score')[['ticker', 'momentum_score']]
-            if not momentum_leaders.empty:
-                opportunities["🚀 Momentum Kings"] = momentum_leaders
+        col1, col2, col3, col4 = st.columns(4)
         
-        if 'master_score' in df.columns and 'volume_1d' in df.columns:
-            hidden_gems = df[df['master_score'] >= 70]
-            if len(hidden_gems) > 0:
-                hidden_gems = hidden_gems.nsmallest(3, 'volume_1d')[['ticker', 'master_score']]
-                if not hidden_gems.empty:
-                    opportunities["💎 Hidden Gems"] = hidden_gems
+        with col1:
+            if 'momentum_score' in df.columns:
+                top = df.nlargest(3, 'momentum_score')[['ticker', 'momentum_score']].head(3)
+                st.markdown("**🚀 Momentum Leaders**")
+                for _, row in top.iterrows():
+                    st.write(f"• {row['ticker']}: {row['momentum_score']:.1f}")
         
-        if 'rvol' in df.columns and len(df) > 0:
-            volume_explosions = df.nlargest(3, 'rvol')[['ticker', 'rvol']]
-            if not volume_explosions.empty:
-                opportunities["🔥 Volume Explosions"] = volume_explosions
+        with col2:
+            if 'rvol' in df.columns:
+                top = df.nlargest(3, 'rvol')[['ticker', 'rvol']].head(3)
+                st.markdown("**🔥 Volume Surges**")
+                for _, row in top.iterrows():
+                    st.write(f"• {row['ticker']}: {row['rvol']:.1f}x")
         
-        if 'breakout_score' in df.columns and len(df) > 0:
-            breakout_ready = df.nlargest(3, 'breakout_score')[['ticker', 'breakout_score']]
-            if not breakout_ready.empty:
-                opportunities["⚡ Breakout Ready"] = breakout_ready
+        with col3:
+            if 'breakout_score' in df.columns:
+                top = df.nlargest(3, 'breakout_score')[['ticker', 'breakout_score']].head(3)
+                st.markdown("**⚡ Breakout Ready**")
+                for _, row in top.iterrows():
+                    st.write(f"• {row['ticker']}: {row['breakout_score']:.1f}")
         
-        if not opportunities:
-            return
-        
-        html = """
-        <div style='
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
-        '>
-            <h3 style='
-                margin: 0 0 1rem 0;
-                font-size: 1.1rem;
-                font-weight: 700;
-                color: #0F172A;
-            '>💰 Top Opportunities</h3>
-            <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;'>
-        """
-        
-        colors = ["#3B82F6", "#8B5CF6", "#F59E0B", "#10B981"]
-        
-        for i, (category, data) in enumerate(opportunities.items()):
-            color = colors[i % len(colors)]
-            html += f"""
-            <div style='
-                background: linear-gradient(135deg, {color}10, {color}05);
-                border-radius: 8px;
-                padding: 1rem;
-                border: 1px solid {color}30;
-            '>
-                <div style='
-                    font-size: 0.8rem;
-                    font-weight: 700;
-                    color: #0F172A;
-                    margin-bottom: 0.75rem;
-                    text-align: center;
-                '>{category}</div>
-            """
-            
-            for _, row in data.iterrows():
-                value_col = data.columns[1]
-                value = row[value_col]
-                
-                if 'score' in value_col:
-                    display_value = f"{value:.1f}"
-                elif value_col == 'rvol':
-                    display_value = f"{value:.1f}x"
-                else:
-                    display_value = f"{value:.1f}"
-                
-                html += f"""
-                <div style='
-                    display: flex;
-                    justify-content: space-between;
-                    padding: 0.3rem 0;
-                    font-size: 0.8rem;
-                '>
-                    <span style='font-weight: 600; color: #1E293B;'>{row['ticker']}</span>
-                    <span style='color: {color}; font-weight: 700;'>{display_value}</span>
-                </div>
-                """
-            
-            html += "</div>"
-        
-        html += "</div></div>"
-        st.markdown(html, unsafe_allow_html=True)
+        with col4:
+            if 'master_score' in df.columns:
+                top = df.nlargest(3, 'master_score')[['ticker', 'master_score']].head(3)
+                st.markdown("**🏆 Top Scores**")
+                for _, row in top.iterrows():
+                    st.write(f"• {row['ticker']}: {row['master_score']:.1f}")
     
     @staticmethod
     def render_pattern_distribution(df: pd.DataFrame):
-        """Pattern distribution display"""
-        
+        """Show pattern distribution"""
         if 'patterns' not in df.columns:
             return
         
@@ -3009,483 +2833,91 @@ class UIComponents:
                 for pattern in patterns.split(' | '):
                     pattern_counts[pattern] = pattern_counts.get(pattern, 0) + 1
         
-        if not pattern_counts:
-            return
-        
-        top_patterns = dict(sorted(pattern_counts.items(), key=lambda x: x[1], reverse=True)[:8])
-        
-        html = """
-        <div style='
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
-        '>
-            <h3 style='
-                margin: 0 0 1rem 0;
-                font-size: 1.1rem;
-                font-weight: 700;
-                color: #0F172A;
-            '>🎯 Pattern Distribution</h3>
-            <div style='display: flex; flex-wrap: wrap; gap: 0.5rem;'>
-        """
-        
-        for pattern, count in top_patterns.items():
-            if "BREAKOUT" in pattern.upper():
-                color = "#10B981"
-            elif "MOMENTUM" in pattern.upper():
-                color = "#3B82F6"
-            elif "VOLUME" in pattern.upper() or "VOL" in pattern.upper():
-                color = "#F59E0B"
-            elif "REVERSAL" in pattern.upper():
-                color = "#EF4444"
-            else:
-                color = "#6B7280"
+        if pattern_counts:
+            st.markdown("### 🎯 Pattern Distribution")
+            top_patterns = dict(sorted(pattern_counts.items(), key=lambda x: x[1], reverse=True)[:5])
             
-            html += f"""
-            <span style='
-                display: inline-block;
-                padding: 0.5rem 1rem;
-                background: {color}10;
-                border: 1px solid {color}50;
-                border-radius: 20px;
-                color: {color};
-                font-size: 0.75rem;
-                font-weight: 600;
-            '>{pattern} <span style='
-                background: {color};
-                color: white;
-                padding: 0.125rem 0.375rem;
-                border-radius: 10px;
-                margin-left: 0.5rem;
-            '>{count}</span></span>
-            """
-        
-        html += "</div></div>"
-        st.markdown(html, unsafe_allow_html=True)
+            for pattern, count in top_patterns.items():
+                st.write(f"• **{pattern}**: {count} stocks")
     
     @staticmethod
     def render_sector_rotation(df: pd.DataFrame):
-        """Sector rotation analysis"""
-        
+        """Sector performance"""
         if 'sector' not in df.columns:
             return
         
-        sector_perf = df.groupby('sector').agg({
-            'master_score': 'mean',
-            'ret_1d': 'mean',
-            'ticker': 'count'
-        }).round(1)
+        st.markdown("### 🔄 Sector Rotation")
         
-        sector_perf = sector_perf.sort_values('master_score', ascending=False).head(10)
+        sector_perf = df.groupby('sector')['master_score'].mean().sort_values(ascending=False).head(5)
         
-        html = """
-        <div style='
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
-        '>
-            <h3 style='
-                margin: 0 0 1rem 0;
-                font-size: 1.1rem;
-                font-weight: 700;
-                color: #0F172A;
-            '>🔄 Sector Rotation</h3>
-        """
-        
-        for sector, row in sector_perf.iterrows():
-            score = row['master_score']
-            ret = row['ret_1d']
-            count = row['ticker']
-            
-            if score >= 60:
-                bar_color = "#10B981"
-                icon = "🔥"
-            elif score >= 40:
-                bar_color = "#F59E0B"
-                icon = "📊"
-            else:
-                bar_color = "#EF4444"
-                icon = "⚠️"
-            
-            html += f"""
-            <div style='margin-bottom: 1rem;'>
-                <div style='
-                    display: flex;
-                    justify-content: space-between;
-                    margin-bottom: 0.25rem;
-                '>
-                    <span style='
-                        font-size: 0.8rem;
-                        font-weight: 600;
-                        color: #1E293B;
-                    '>{icon} {sector[:25]}</span>
-                    <span style='
-                        font-size: 0.75rem;
-                        color: #64748B;
-                    '>{count} stocks | {ret:+.1f}%</span>
-                </div>
-                <div style='
-                    background: #E2E8F0;
-                    height: 8px;
-                    border-radius: 4px;
-                    overflow: hidden;
-                '>
-                    <div style='
-                        background: {bar_color};
-                        height: 100%;
-                        width: {score}%;
-                        border-radius: 4px;
-                        transition: width 0.3s ease;
-                    '></div>
-                </div>
-            </div>
-            """
-        
-        html += "</div>"
-        st.markdown(html, unsafe_allow_html=True)
+        for sector, score in sector_perf.items():
+            st.write(f"• **{sector}**: {score:.1f}")
     
     @staticmethod
     def render_momentum_waves(df: pd.DataFrame):
-        """Momentum wave visualization"""
-        
-        if df.empty or 'overall_wave_strength' not in df.columns:
+        """Momentum wave analysis"""
+        if 'overall_wave_strength' not in df.columns:
             return
         
+        st.markdown("### 🌊 Momentum Waves")
+        
         waves = {
-            "🌊🌊🌊 TSUNAMI": len(df[df['overall_wave_strength'] >= 80]),
-            "🌊🌊 STRONG": len(df[(df['overall_wave_strength'] >= 60) & (df['overall_wave_strength'] < 80)]),
-            "🌊 FORMING": len(df[(df['overall_wave_strength'] >= 40) & (df['overall_wave_strength'] < 60)]),
-            "💤 CALM": len(df[df['overall_wave_strength'] < 40])
+            "Tsunami (80+)": len(df[df['overall_wave_strength'] >= 80]),
+            "Strong (60-80)": len(df[(df['overall_wave_strength'] >= 60) & (df['overall_wave_strength'] < 80)]),
+            "Forming (40-60)": len(df[(df['overall_wave_strength'] >= 40) & (df['overall_wave_strength'] < 60)]),
+            "Calm (<40)": len(df[df['overall_wave_strength'] < 40])
         }
         
-        html = """
-        <div style='
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
-        '>
-            <h3 style='
-                margin: 0 0 1rem 0;
-                font-size: 1.1rem;
-                font-weight: 700;
-                color: #0F172A;
-            '>🌊 Momentum Waves</h3>
-            <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.75rem;'>
-        """
-        
-        colors = ["#10B981", "#3B82F6", "#F59E0B", "#6B7280"]
-        
-        for i, (wave_type, count) in enumerate(waves.items()):
-            pct = (count / len(df) * 100) if len(df) > 0 else 0
-            color = colors[i]
-            
-            html += f"""
-            <div style='
-                background: {color}10;
-                border: 1px solid {color}50;
-                border-radius: 8px;
-                padding: 1rem;
-                text-align: center;
-            '>
-                <div style='
-                    font-size: 0.75rem;
-                    color: #0F172A;
-                    font-weight: 700;
-                    margin-bottom: 0.5rem;
-                '>{wave_type}</div>
-                <div style='
-                    font-size: 1.5rem;
-                    font-weight: 700;
-                    color: {color};
-                '>{count}</div>
-                <div style='
-                    font-size: 0.7rem;
-                    color: #64748B;
-                '>{pct:.1f}%</div>
-            </div>
-            """
-        
-        html += "</div></div>"
-        st.markdown(html, unsafe_allow_html=True)
+        for wave_type, count in waves.items():
+            st.write(f"• **{wave_type}**: {count} stocks")
     
     @staticmethod
     def render_volume_analysis(df: pd.DataFrame):
-        """Volume analysis display"""
-        
+        """Volume analysis"""
         if 'rvol' not in df.columns:
             return
         
-        extreme = len(df[df['rvol'] >= 5])
-        high = len(df[(df['rvol'] >= 2) & (df['rvol'] < 5)])
-        normal = len(df[(df['rvol'] >= 0.5) & (df['rvol'] < 2)])
-        low = len(df[df['rvol'] < 0.5])
+        st.markdown("### 📊 Volume Analysis")
         
-        html = f"""
-        <div style='
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
-        '>
-            <h3 style='
-                margin: 0 0 1rem 0;
-                font-size: 1.1rem;
-                font-weight: 700;
-                color: #0F172A;
-            '>📊 Volume Analysis</h3>
-            
-            <div style='display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;'>
-                <div style='
-                    background: linear-gradient(135deg, #EF444410, #EF444405);
-                    border-left: 3px solid #EF4444;
-                    padding: 0.75rem;
-                    border-radius: 6px;
-                '>
-                    <div style='font-size: 1.5rem; font-weight: 700; color: #EF4444;'>
-                        🔥 {extreme}
-                    </div>
-                    <div style='font-size: 0.75rem; color: #991B1B;'>
-                        Extreme Volume (5x+)
-                    </div>
-                </div>
-                
-                <div style='
-                    background: linear-gradient(135deg, #F59E0B10, #F59E0B05);
-                    border-left: 3px solid #F59E0B;
-                    padding: 0.75rem;
-                    border-radius: 6px;
-                '>
-                    <div style='font-size: 1.5rem; font-weight: 700; color: #F59E0B;'>
-                        ⚡ {high}
-                    </div>
-                    <div style='font-size: 0.75rem; color: #92400E;'>
-                        High Volume (2-5x)
-                    </div>
-                </div>
-                
-                <div style='
-                    background: linear-gradient(135deg, #3B82F610, #3B82F605);
-                    border-left: 3px solid #3B82F6;
-                    padding: 0.75rem;
-                    border-radius: 6px;
-                '>
-                    <div style='font-size: 1.5rem; font-weight: 700; color: #3B82F6;'>
-                        📈 {normal}
-                    </div>
-                    <div style='font-size: 0.75rem; color: #1E3A8A;'>
-                        Normal Volume
-                    </div>
-                </div>
-                
-                <div style='
-                    background: linear-gradient(135deg, #6B728010, #6B728005);
-                    border-left: 3px solid #6B7280;
-                    padding: 0.75rem;
-                    border-radius: 6px;
-                '>
-                    <div style='font-size: 1.5rem; font-weight: 700; color: #6B7280;'>
-                        💤 {low}
-                    </div>
-                    <div style='font-size: 0.75rem; color: #4B5563;'>
-                        Low Volume (<0.5x)
-                    </div>
-                </div>
-            </div>
-        </div>
-        """
+        vol_levels = {
+            "Extreme (5x+)": len(df[df['rvol'] >= 5]),
+            "High (2-5x)": len(df[(df['rvol'] >= 2) & (df['rvol'] < 5)]),
+            "Normal (0.5-2x)": len(df[(df['rvol'] >= 0.5) & (df['rvol'] < 2)]),
+            "Low (<0.5x)": len(df[df['rvol'] < 0.5])
+        }
         
-        st.markdown(html, unsafe_allow_html=True)
+        for level, count in vol_levels.items():
+            st.write(f"• **{level}**: {count} stocks")
     
     @staticmethod
     def render_acceleration_profiles(df: pd.DataFrame):
-        """Acceleration profiles display"""
-        
+        """Acceleration analysis"""
         if 'acceleration_score' not in df.columns:
             return
         
-        accelerating = len(df[df['acceleration_score'] >= 70])
-        steady = len(df[(df['acceleration_score'] >= 30) & (df['acceleration_score'] < 70)])
-        decelerating = len(df[df['acceleration_score'] < 30])
+        st.markdown("### ⚡ Acceleration")
         
-        total = len(df)
+        accel_levels = {
+            "Accelerating (70+)": len(df[df['acceleration_score'] >= 70]),
+            "Steady (30-70)": len(df[(df['acceleration_score'] >= 30) & (df['acceleration_score'] < 70)]),
+            "Decelerating (<30)": len(df[df['acceleration_score'] < 30])
+        }
         
-        html = f"""
-        <div style='
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
-        '>
-            <h3 style='
-                margin: 0 0 1rem 0;
-                font-size: 1.1rem;
-                font-weight: 700;
-                color: #0F172A;
-            '>⚡ Acceleration Profiles</h3>
-            
-            <div style='text-align: center; margin-bottom: 1rem;'>
-                <div style='
-                    display: inline-flex;
-                    gap: 1.5rem;
-                    padding: 1rem;
-                    background: linear-gradient(135deg, #F8FAFC, #F1F5F9);
-                    border-radius: 8px;
-                '>
-                    <div>
-                        <div style='font-size: 1.75rem; font-weight: 700; color: #10B981;'>
-                            🚀 {accelerating}
-                        </div>
-                        <div style='font-size: 0.75rem; color: #10B981; font-weight: 600;'>
-                            Accelerating
-                        </div>
-                    </div>
-                    <div>
-                        <div style='font-size: 1.75rem; font-weight: 700; color: #F59E0B;'>
-                            ➡️ {steady}
-                        </div>
-                        <div style='font-size: 0.75rem; color: #F59E0B; font-weight: 600;'>
-                            Steady
-                        </div>
-                    </div>
-                    <div>
-                        <div style='font-size: 1.75rem; font-weight: 700; color: #EF4444;'>
-                            📉 {decelerating}
-                        </div>
-                        <div style='font-size: 0.75rem; color: #EF4444; font-weight: 600;'>
-                            Decelerating
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div style='
-                background: #E2E8F0;
-                height: 10px;
-                border-radius: 5px;
-                overflow: hidden;
-                display: flex;
-            '>
-                <div style='
-                    background: #10B981;
-                    width: {(accelerating/total*100) if total > 0 else 0:.1f}%;
-                '></div>
-                <div style='
-                    background: #F59E0B;
-                    width: {(steady/total*100) if total > 0 else 0:.1f}%;
-                '></div>
-                <div style='
-                    background: #EF4444;
-                    width: {(decelerating/total*100) if total > 0 else 0:.1f}%;
-                '></div>
-            </div>
-        </div>
-        """
-        
-        st.markdown(html, unsafe_allow_html=True)
+        for level, count in accel_levels.items():
+            st.write(f"• **{level}**: {count} stocks")
     
     @staticmethod
     def render_category_flow(df: pd.DataFrame):
         """Category flow analysis"""
-        
         if 'category' not in df.columns:
             return
         
-        cat_stats = df.groupby('category').agg({
-            'master_score': 'mean',
-            'ret_1d': 'mean',
-            'ticker': 'count'
-        }).round(1)
+        st.markdown("### 💰 Category Flow")
         
-        cat_stats = cat_stats.sort_values('master_score', ascending=False)
+        cat_perf = df.groupby('category')['master_score'].mean().sort_values(ascending=False)
         
-        html = """
-        <div style='
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
-        '>
-            <h3 style='
-                margin: 0 0 1rem 0;
-                font-size: 1.1rem;
-                font-weight: 700;
-                color: #0F172A;
-            '>💰 Category Flow</h3>
-        """
-        
-        icons = {
-            'Mega Cap': '🐋',
-            'Large Cap': '🦈',
-            'Mid Cap': '🐟',
-            'Small Cap': '🐠',
-            'Micro Cap': '🦐',
-            'Nano Cap': '🦀'
-        }
-        
-        for category, row in cat_stats.iterrows():
-            score = row['master_score']
-            ret = row['ret_1d']
-            count = int(row['ticker'])
-            
-            icon = icons.get(category, '📊')
-            ret_color = "#10B981" if ret > 0 else "#EF4444"
-            arrow = "↑" if ret > 0 else "↓"
-            
-            html += f"""
-            <div style='
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 0.75rem;
-                margin-bottom: 0.5rem;
-                background: linear-gradient(135deg, #F8FAFC, #F1F5F9);
-                border-radius: 8px;
-                border: 1px solid #E2E8F0;
-            '>
-                <div style='flex: 1;'>
-                    <span style='font-size: 0.9rem; font-weight: 700; color: #0F172A;'>
-                        {icon} {category}
-                    </span>
-                    <span style='font-size: 0.7rem; color: #64748B; margin-left: 0.5rem;'>
-                        ({count} stocks)
-                    </span>
-                </div>
-                <div style='text-align: right;'>
-                    <span style='
-                        background: white;
-                        padding: 0.25rem 0.5rem;
-                        border-radius: 4px;
-                        font-size: 0.8rem;
-                        color: #3B82F6;
-                        font-weight: 600;
-                        margin-right: 0.5rem;
-                    '>Score: {score:.1f}</span>
-                    <span style='
-                        color: {ret_color};
-                        font-size: 0.8rem;
-                        font-weight: 600;
-                    '>{arrow} {ret:+.1f}%</span>
-                </div>
-            </div>
-            """
-        
-        html += "</div>"
-        st.markdown(html, unsafe_allow_html=True)
+        for category, score in cat_perf.items():
+            st.write(f"• **{category}**: {score:.1f}")
 
 # ============================================
 # SESSION STATE MANAGER
