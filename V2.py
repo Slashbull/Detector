@@ -2611,7 +2611,7 @@ class UIComponents:
     
     @staticmethod
     def render_summary_section(df: pd.DataFrame) -> None:
-        """Render enhanced summary dashboard - SIMPLIFIED & ACTIONABLE"""
+        """Render enhanced summary dashboard - OPTIMIZED FOR STREAMLIT"""
         
         if df.empty:
             st.warning("No data available for summary")
