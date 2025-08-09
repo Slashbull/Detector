@@ -2589,67 +2589,70 @@ class ExportEngine:
         return export_df.to_csv(index=False)
 
 # ============================================
-# UI COMPONENTS - COMPLETE CLEAN VERSION WITH ALL FEATURES
+# UI COMPONENTS - COMPLETE WORKING VERSION
 # ============================================
 
 class UIComponents:
-    """Complete UI components with all V2 features but cleaner styling"""
+    """Complete UI components with all features and proper HTML rendering"""
     
     @staticmethod
     def render_metric_card(label: str, value: str, delta: str = None, 
-                          help_text: str = None, color: str = "default",
-                          icon: str = None):
-        """Clean metric card with strategic emoji"""
+                          help_text: str = None, color: str = "default"):
+        """Clean metric card with proper HTML rendering"""
         
         colors = {
-            "default": "#2563eb",
-            "green": "#16a34a",
-            "red": "#dc2626",
-            "orange": "#ea580c",
-            "purple": "#7c3aed",
-            "gray": "#6b7280"
+            "default": "#3B82F6",
+            "green": "#10B981", 
+            "red": "#EF4444",
+            "orange": "#F59E0B",
+            "purple": "#8B5CF6",
+            "gray": "#6B7280"
         }
         
-        accent = colors.get(color, colors["default"])
+        color_hex = colors.get(color, colors["default"])
         
         html = f"""
         <div style='
-            padding: 1rem;
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-left: 3px solid {accent};
-            border-radius: 6px;
+            padding: 1.25rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
             margin-bottom: 0.75rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            position: relative;
+            overflow: hidden;
         '>
             <div style='
-                font-size: 0.75rem;
-                color: #6b7280;
-                margin-bottom: 0.25rem;
-                font-weight: 500;
-                text-transform: uppercase;
-                letter-spacing: 0.025em;
-            '>{icon + " " if icon else ""}{label}</div>
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 3px;
+                background: linear-gradient(90deg, {color_hex}, {color_hex}DD);
+            '></div>
+            
             <div style='
-                font-size: 1.875rem;
+                font-size: 0.75rem;
+                color: #64748B;
+                margin-bottom: 0.5rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            '>{label}</div>
+            
+            <div style='
+                font-size: 2rem;
                 font-weight: 700;
-                color: #111827;
+                color: #0F172A;
                 line-height: 1;
+                margin-bottom: 0.25rem;
             '>{value}</div>
+            
+            {f"<div style='font-size: 0.75rem; color: {'#10B981' if '↑' in str(delta) or '+' in str(delta) else '#EF4444' if '↓' in str(delta) or '-' in str(delta) else '#6B7280'}; margin-top: 0.5rem; font-weight: 500;'>{delta}</div>" if delta else ""}
+        </div>
         """
         
-        if delta:
-            delta_color = "#16a34a" if "↑" in str(delta) or "+" in str(delta) else "#dc2626" if "↓" in str(delta) or "-" in str(delta) else "#6b7280"
-            html += f"""
-            <div style='
-                font-size: 0.75rem;
-                color: {delta_color};
-                margin-top: 0.5rem;
-                font-weight: 500;
-            '>{delta}</div>
-            """
-        
-        html += "</div>"
         st.markdown(html, unsafe_allow_html=True)
         
         if help_text:
@@ -2657,49 +2660,39 @@ class UIComponents:
     
     @staticmethod
     def render_info_card(title: str, items: List[Dict[str, Any]], 
-                        color: str = "blue", max_items: int = 5,
-                        icon: str = None):
-        """Clean info card with data display"""
+                        color: str = "blue", max_items: int = 5):
+        """Premium info card with glassmorphism"""
         
         color_map = {
-            "blue": "#eff6ff",
-            "green": "#f0fdf4",
-            "red": "#fef2f2",
-            "orange": "#fff7ed",
-            "purple": "#f3e8ff",
-            "gray": "#f9fafb"
+            "blue": ("#3B82F6", "rgba(59, 130, 246, 0.1)"),
+            "green": ("#10B981", "rgba(16, 185, 129, 0.1)"),
+            "red": ("#EF4444", "rgba(239, 68, 68, 0.1)"),
+            "orange": ("#F59E0B", "rgba(245, 158, 11, 0.1)"),
+            "purple": ("#8B5CF6", "rgba(139, 92, 246, 0.1)"),
+            "gray": ("#6B7280", "rgba(107, 114, 128, 0.1)")
         }
         
-        accent_map = {
-            "blue": "#2563eb",
-            "green": "#16a34a",
-            "red": "#dc2626",
-            "orange": "#ea580c",
-            "purple": "#7c3aed",
-            "gray": "#6b7280"
-        }
+        accent_color, bg_color = color_map.get(color, color_map["blue"])
         
-        bg = color_map.get(color, "#f9fafb")
-        accent = accent_map.get(color, "#2563eb")
-        
-        st.markdown(f"""
+        html = f"""
         <div style='
-            background: {bg};
-            border-radius: 6px;
-            padding: 1rem;
+            background: {bg_color};
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.25rem;
             margin-bottom: 1rem;
-            border: 1px solid #e5e7eb;
-            border-left: 3px solid {accent};
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
         '>
             <div style='
-                font-size: 0.875rem;
-                color: #111827;
-                font-weight: 600;
-                margin-bottom: 0.75rem;
-                text-transform: uppercase;
-                letter-spacing: 0.025em;
-            '>{icon + " " if icon else ""}{title}</div>
-        """, unsafe_allow_html=True)
+                font-size: 0.9rem;
+                color: #0F172A;
+                font-weight: 700;
+                margin-bottom: 1rem;
+                padding-bottom: 0.5rem;
+                border-bottom: 2px solid {accent_color};
+            '>{title}</div>
+        """
         
         if items:
             for item in items[:max_items]:
@@ -2708,9 +2701,9 @@ class UIComponents:
                 change = item.get('ret_1d', 0)
                 
                 change_str = f"{change:+.1f}%"
-                change_color = "#16a34a" if change > 0 else "#dc2626" if change < 0 else "#6b7280"
+                change_color = "#10B981" if change > 0 else "#EF4444" if change < 0 else "#6B7280"
                 
-                st.markdown(f"""
+                html += f"""
                 <div style='
                     display: flex;
                     justify-content: space-between;
@@ -2720,7 +2713,7 @@ class UIComponents:
                 '>
                     <div style='
                         font-weight: 600;
-                        color: #111827;
+                        color: #1E293B;
                         font-size: 0.875rem;
                     '>{ticker}</div>
                     <div style='
@@ -2729,13 +2722,12 @@ class UIComponents:
                         gap: 0.75rem;
                     '>
                         <span style='
-                            background: #ffffff;
+                            background: white;
                             padding: 0.125rem 0.5rem;
                             border-radius: 4px;
                             font-size: 0.75rem;
-                            color: {accent};
+                            color: {accent_color};
                             font-weight: 600;
-                            border: 1px solid #e5e7eb;
                         '>{score:.1f}</span>
                         <span style='
                             color: {change_color};
@@ -2744,206 +2736,273 @@ class UIComponents:
                         '>{change_str}</span>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
+                """
         else:
-            st.markdown("<div style='color: #9ca3af; font-size: 0.875rem; text-align: center;'>No data available</div>", unsafe_allow_html=True)
+            html += "<div style='color: #94A3B8; font-size: 0.875rem; text-align: center; padding: 1rem 0;'>No data available</div>"
         
-        st.markdown("</div>", unsafe_allow_html=True)
+        html += "</div>"
+        st.markdown(html, unsafe_allow_html=True)
+    
+    @staticmethod
+    def render_summary_section(df: pd.DataFrame):
+        """Main summary section renderer"""
+        
+        if df.empty:
+            st.warning("No data available to display")
+            return
+        
+        # Calculate metrics
+        total_stocks = len(df)
+        avg_score = df['master_score'].mean() if 'master_score' in df.columns else 0
+        std_score = df['master_score'].std() if 'master_score' in df.columns else 0
+        min_score = df['master_score'].min() if 'master_score' in df.columns else 0
+        max_score = df['master_score'].max() if 'master_score' in df.columns else 0
+        
+        accelerating = len(df[df['acceleration_score'] >= 70]) if 'acceleration_score' in df.columns else 0
+        high_rvol = len(df[df['rvol'] >= 2]) if 'rvol' in df.columns else 0
+        strong_trends = len(df[df['momentum_score'] >= 70]) if 'momentum_score' in df.columns else 0
+        
+        # Render metrics row
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
+        
+        with col1:
+            UIComponents.render_metric_card(
+                "📊 Total Stocks",
+                f"{total_stocks:,}",
+                f"100% of {total_stocks:,}",
+                color="default"
+            )
+        
+        with col2:
+            UIComponents.render_metric_card(
+                "📈 Avg Score",
+                f"{avg_score:.1f}",
+                f"σ={std_score:.1f}",
+                color="green" if avg_score >= 60 else "orange"
+            )
+        
+        with col3:
+            UIComponents.render_metric_card(
+                "📉 Score Range",
+                f"{min_score:.1f}-{max_score:.1f}",
+                None,
+                color="default"
+            )
+        
+        with col4:
+            UIComponents.render_metric_card(
+                "🚀 Accelerating",
+                f"{accelerating}",
+                f"{(accelerating/total_stocks*100):.0f}%" if total_stocks > 0 else "0%",
+                color="green" if accelerating > 100 else "default"
+            )
+        
+        with col5:
+            UIComponents.render_metric_card(
+                "🔥 High RVOL",
+                f"{high_rvol}",
+                f"{(high_rvol/total_stocks*100):.0f}%" if total_stocks > 0 else "0%",
+                color="orange" if high_rvol > 50 else "default"
+            )
+        
+        with col6:
+            UIComponents.render_metric_card(
+                "⚡ Strong Trends",
+                f"{strong_trends}",
+                f"{(strong_trends/total_stocks*100):.0f}%" if total_stocks > 0 else "0%",
+                color="green" if strong_trends > 100 else "default"
+            )
     
     @staticmethod
     def render_market_pulse(df: pd.DataFrame):
-        """Clean market pulse analysis with emojis"""
+        """Market sentiment analysis"""
         
         if df.empty:
             return
         
-        # Calculate market metrics
-        bullish = len(df[df['momentum_score'] >= 70])
-        bearish = len(df[df['momentum_score'] <= 30])
+        bullish = len(df[df['momentum_score'] >= 70]) if 'momentum_score' in df.columns else 0
+        bearish = len(df[df['momentum_score'] <= 30]) if 'momentum_score' in df.columns else 0
         neutral = len(df) - bullish - bearish
         
         total = len(df)
         bullish_pct = (bullish/total*100) if total > 0 else 0
         bearish_pct = (bearish/total*100) if total > 0 else 0
         
-        # Market sentiment
         if bullish_pct > 60:
             sentiment = "🔥 STRONG BULLISH"
-            sentiment_color = "#16a34a"
+            sentiment_color = "#10B981"
         elif bullish_pct > 40:
             sentiment = "📈 BULLISH"
-            sentiment_color = "#22c55e"
+            sentiment_color = "#22C55E"
         elif bearish_pct > 40:
             sentiment = "📉 BEARISH"
-            sentiment_color = "#dc2626"
+            sentiment_color = "#EF4444"
         else:
             sentiment = "➡️ NEUTRAL"
-            sentiment_color = "#6b7280"
+            sentiment_color = "#6B7280"
         
-        # Clean display
-        st.markdown(f"""
+        html = f"""
         <div style='
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 1.25rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
             margin-bottom: 1rem;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
         '>
             <h3 style='
                 margin: 0 0 1rem 0;
-                font-size: 1rem;
-                font-weight: 600;
-                color: #111827;
-                text-transform: uppercase;
-                letter-spacing: 0.025em;
-            '>🎯 MARKET PULSE</h3>
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #0F172A;
+            '>🎯 Market Pulse</h3>
             
             <div style='
                 text-align: center;
                 padding: 1rem;
-                background: #f9fafb;
-                border-radius: 6px;
+                background: linear-gradient(135deg, {sentiment_color}10, {sentiment_color}05);
+                border-radius: 8px;
                 margin-bottom: 1rem;
             '>
                 <div style='
                     font-size: 1.5rem;
                     font-weight: 700;
                     color: {sentiment_color};
-                    margin-bottom: 0.5rem;
                 '>{sentiment}</div>
                 <div style='
                     font-size: 0.875rem;
-                    color: #6b7280;
+                    color: #64748B;
+                    margin-top: 0.5rem;
                 '>Based on {total:,} stocks analyzed</div>
             </div>
             
             <div style='display: flex; gap: 1rem;'>
-                <div style='flex: 1; text-align: center;'>
-                    <div style='font-size: 1.25rem; font-weight: 700; color: #16a34a;'>
-                        📈 {bullish}
-                    </div>
-                    <div style='font-size: 0.75rem; color: #6b7280;'>
-                        Bullish ({bullish_pct:.1f}%)
-                    </div>
+                <div style='flex: 1; text-align: center; padding: 0.75rem; background: #F0FDF4; border-radius: 8px;'>
+                    <div style='font-size: 1.25rem; font-weight: 700; color: #10B981;'>📈 {bullish}</div>
+                    <div style='font-size: 0.75rem; color: #64748B;'>Bullish ({bullish_pct:.1f}%)</div>
                 </div>
-                <div style='flex: 1; text-align: center;'>
-                    <div style='font-size: 1.25rem; font-weight: 700; color: #6b7280;'>
-                        ➡️ {neutral}
-                    </div>
-                    <div style='font-size: 0.75rem; color: #6b7280;'>
-                        Neutral
-                    </div>
+                <div style='flex: 1; text-align: center; padding: 0.75rem; background: #F8FAFC; border-radius: 8px;'>
+                    <div style='font-size: 1.25rem; font-weight: 700; color: #6B7280;'>➡️ {neutral}</div>
+                    <div style='font-size: 0.75rem; color: #64748B;'>Neutral</div>
                 </div>
-                <div style='flex: 1; text-align: center;'>
-                    <div style='font-size: 1.25rem; font-weight: 700; color: #dc2626;'>
-                        📉 {bearish}
-                    </div>
-                    <div style='font-size: 0.75rem; color: #6b7280;'>
-                        Bearish ({bearish_pct:.1f}%)
-                    </div>
+                <div style='flex: 1; text-align: center; padding: 0.75rem; background: #FEF2F2; border-radius: 8px;'>
+                    <div style='font-size: 1.25rem; font-weight: 700; color: #EF4444;'>📉 {bearish}</div>
+                    <div style='font-size: 0.75rem; color: #64748B;'>Bearish ({bearish_pct:.1f}%)</div>
                 </div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """
+        
+        st.markdown(html, unsafe_allow_html=True)
     
     @staticmethod
     def render_top_opportunities(df: pd.DataFrame):
-        """Clean top opportunities grid with emojis"""
+        """Top opportunities grid"""
         
         if df.empty:
             return
         
-        opportunities = {
-            "🚀 Momentum Kings": df.nlargest(3, 'momentum_score')[['ticker', 'momentum_score']],
-            "💎 Hidden Gems": df[df['master_score'] >= 70].nsmallest(3, 'volume_1d')[['ticker', 'master_score']],
-            "🔥 Volume Explosions": df.nlargest(3, 'rvol')[['ticker', 'rvol']],
-            "⚡ Breakout Ready": df.nlargest(3, 'breakout_score')[['ticker', 'breakout_score']]
-        }
+        # Prepare data
+        opportunities = {}
         
-        st.markdown("""
+        if 'momentum_score' in df.columns and len(df) > 0:
+            momentum_leaders = df.nlargest(3, 'momentum_score')[['ticker', 'momentum_score']]
+            if not momentum_leaders.empty:
+                opportunities["🚀 Momentum Kings"] = momentum_leaders
+        
+        if 'master_score' in df.columns and 'volume_1d' in df.columns:
+            hidden_gems = df[df['master_score'] >= 70]
+            if len(hidden_gems) > 0:
+                hidden_gems = hidden_gems.nsmallest(3, 'volume_1d')[['ticker', 'master_score']]
+                if not hidden_gems.empty:
+                    opportunities["💎 Hidden Gems"] = hidden_gems
+        
+        if 'rvol' in df.columns and len(df) > 0:
+            volume_explosions = df.nlargest(3, 'rvol')[['ticker', 'rvol']]
+            if not volume_explosions.empty:
+                opportunities["🔥 Volume Explosions"] = volume_explosions
+        
+        if 'breakout_score' in df.columns and len(df) > 0:
+            breakout_ready = df.nlargest(3, 'breakout_score')[['ticker', 'breakout_score']]
+            if not breakout_ready.empty:
+                opportunities["⚡ Breakout Ready"] = breakout_ready
+        
+        if not opportunities:
+            return
+        
+        html = """
         <div style='
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 1.25rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
             margin-bottom: 1rem;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
         '>
             <h3 style='
                 margin: 0 0 1rem 0;
-                font-size: 1rem;
-                font-weight: 600;
-                color: #111827;
-                text-transform: uppercase;
-                letter-spacing: 0.025em;
-            '>💰 TOP OPPORTUNITIES</h3>
-        """, unsafe_allow_html=True)
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #0F172A;
+            '>💰 Top Opportunities</h3>
+            <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;'>
+        """
         
-        cols = st.columns(4)
-        colors = ["green", "purple", "orange", "blue"]
+        colors = ["#3B82F6", "#8B5CF6", "#F59E0B", "#10B981"]
         
         for i, (category, data) in enumerate(opportunities.items()):
-            with cols[i]:
-                if not data.empty:
-                    items = []
-                    for _, row in data.iterrows():
-                        value_col = data.columns[1]
-                        value = row[value_col]
-                        
-                        # Format value based on column
-                        if 'score' in value_col:
-                            display_value = f"{value:.1f}"
-                        elif value_col == 'rvol':
-                            display_value = f"{value:.1f}x"
-                        else:
-                            display_value = f"{value:.1f}"
-                        
-                        items.append({
-                            'ticker': row['ticker'],
-                            'value': display_value
-                        })
-                    
-                    # Clean card for each opportunity
-                    st.markdown(f"""
-                    <div style='
-                        background: #f9fafb;
-                        border-radius: 6px;
-                        padding: 0.75rem;
-                        border: 1px solid #e5e7eb;
-                    '>
-                        <div style='
-                            font-size: 0.8rem;
-                            font-weight: 600;
-                            color: #111827;
-                            margin-bottom: 0.5rem;
-                            text-align: center;
-                        '>{category}</div>
-                    """, unsafe_allow_html=True)
-                    
-                    for item in items:
-                        st.markdown(f"""
-                        <div style='
-                            display: flex;
-                            justify-content: space-between;
-                            padding: 0.25rem 0;
-                            font-size: 0.75rem;
-                        '>
-                            <span style='font-weight: 600; color: #111827;'>{item['ticker']}</span>
-                            <span style='color: #2563eb;'>{item['value']}</span>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    st.markdown("</div>", unsafe_allow_html=True)
+            color = colors[i % len(colors)]
+            html += f"""
+            <div style='
+                background: linear-gradient(135deg, {color}10, {color}05);
+                border-radius: 8px;
+                padding: 1rem;
+                border: 1px solid {color}30;
+            '>
+                <div style='
+                    font-size: 0.8rem;
+                    font-weight: 700;
+                    color: #0F172A;
+                    margin-bottom: 0.75rem;
+                    text-align: center;
+                '>{category}</div>
+            """
+            
+            for _, row in data.iterrows():
+                value_col = data.columns[1]
+                value = row[value_col]
+                
+                if 'score' in value_col:
+                    display_value = f"{value:.1f}"
+                elif value_col == 'rvol':
+                    display_value = f"{value:.1f}x"
+                else:
+                    display_value = f"{value:.1f}"
+                
+                html += f"""
+                <div style='
+                    display: flex;
+                    justify-content: space-between;
+                    padding: 0.3rem 0;
+                    font-size: 0.8rem;
+                '>
+                    <span style='font-weight: 600; color: #1E293B;'>{row['ticker']}</span>
+                    <span style='color: {color}; font-weight: 700;'>{display_value}</span>
+                </div>
+                """
+            
+            html += "</div>"
         
-        st.markdown("</div>", unsafe_allow_html=True)
+        html += "</div></div>"
+        st.markdown(html, unsafe_allow_html=True)
     
     @staticmethod
     def render_pattern_distribution(df: pd.DataFrame):
-        """Clean pattern distribution with emojis"""
+        """Pattern distribution display"""
         
         if 'patterns' not in df.columns:
             return
         
-        # Count patterns
         pattern_counts = {}
         for patterns in df['patterns'].dropna():
             if patterns:
@@ -2953,78 +3012,67 @@ class UIComponents:
         if not pattern_counts:
             return
         
-        # Top patterns
         top_patterns = dict(sorted(pattern_counts.items(), key=lambda x: x[1], reverse=True)[:8])
         
-        st.markdown("""
+        html = """
         <div style='
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 1.25rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
             margin-bottom: 1rem;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
         '>
             <h3 style='
                 margin: 0 0 1rem 0;
-                font-size: 1rem;
-                font-weight: 600;
-                color: #111827;
-                text-transform: uppercase;
-                letter-spacing: 0.025em;
-            '>🎯 PATTERN DISTRIBUTION</h3>
-        """, unsafe_allow_html=True)
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #0F172A;
+            '>🎯 Pattern Distribution</h3>
+            <div style='display: flex; flex-wrap: wrap; gap: 0.5rem;'>
+        """
         
-        # Clean pattern badges
         for pattern, count in top_patterns.items():
-            pct = (count / len(df) * 100)
-            
-            # Determine color based on pattern
-            if "BREAKOUT" in pattern:
-                color = "#16a34a"
-            elif "MOMENTUM" in pattern:
-                color = "#2563eb"
-            elif "VOLUME" in pattern or "VOL" in pattern:
-                color = "#ea580c"
-            elif "REVERSAL" in pattern:
-                color = "#dc2626"
+            if "BREAKOUT" in pattern.upper():
+                color = "#10B981"
+            elif "MOMENTUM" in pattern.upper():
+                color = "#3B82F6"
+            elif "VOLUME" in pattern.upper() or "VOL" in pattern.upper():
+                color = "#F59E0B"
+            elif "REVERSAL" in pattern.upper():
+                color = "#EF4444"
             else:
-                color = "#6b7280"
+                color = "#6B7280"
             
-            st.markdown(f"""
-            <div style='
+            html += f"""
+            <span style='
                 display: inline-block;
-                margin: 0.25rem;
-                padding: 0.5rem 0.75rem;
-                background: #f9fafb;
-                border: 1px solid {color};
+                padding: 0.5rem 1rem;
+                background: {color}10;
+                border: 1px solid {color}50;
                 border-radius: 20px;
-            '>
-                <span style='
-                    color: {color};
-                    font-size: 0.75rem;
-                    font-weight: 600;
-                '>{pattern}</span>
-                <span style='
-                    background: {color};
-                    color: white;
-                    padding: 0.125rem 0.375rem;
-                    border-radius: 10px;
-                    font-size: 0.7rem;
-                    margin-left: 0.5rem;
-                '>{count}</span>
-            </div>
-            """, unsafe_allow_html=True)
+                color: {color};
+                font-size: 0.75rem;
+                font-weight: 600;
+            '>{pattern} <span style='
+                background: {color};
+                color: white;
+                padding: 0.125rem 0.375rem;
+                border-radius: 10px;
+                margin-left: 0.5rem;
+            '>{count}</span></span>
+            """
         
-        st.markdown("</div>", unsafe_allow_html=True)
+        html += "</div></div>"
+        st.markdown(html, unsafe_allow_html=True)
     
     @staticmethod
     def render_sector_rotation(df: pd.DataFrame):
-        """Clean sector rotation display with emojis"""
+        """Sector rotation analysis"""
         
         if 'sector' not in df.columns:
             return
         
-        # Sector performance
         sector_perf = df.groupby('sector').agg({
             'master_score': 'mean',
             'ret_1d': 'mean',
@@ -3033,42 +3081,40 @@ class UIComponents:
         
         sector_perf = sector_perf.sort_values('master_score', ascending=False).head(10)
         
-        st.markdown("""
+        html = """
         <div style='
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 1.25rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
             margin-bottom: 1rem;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
         '>
             <h3 style='
                 margin: 0 0 1rem 0;
-                font-size: 1rem;
-                font-weight: 600;
-                color: #111827;
-                text-transform: uppercase;
-                letter-spacing: 0.025em;
-            '>🔄 SECTOR ROTATION</h3>
-        """, unsafe_allow_html=True)
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #0F172A;
+            '>🔄 Sector Rotation</h3>
+        """
         
         for sector, row in sector_perf.iterrows():
             score = row['master_score']
             ret = row['ret_1d']
             count = row['ticker']
             
-            # Color based on performance
             if score >= 60:
-                bar_color = "#16a34a"
+                bar_color = "#10B981"
                 icon = "🔥"
             elif score >= 40:
-                bar_color = "#ea580c"
+                bar_color = "#F59E0B"
                 icon = "📊"
             else:
-                bar_color = "#dc2626"
+                bar_color = "#EF4444"
                 icon = "⚠️"
             
-            st.markdown(f"""
-            <div style='margin-bottom: 0.75rem;'>
+            html += f"""
+            <div style='margin-bottom: 1rem;'>
                 <div style='
                     display: flex;
                     justify-content: space-between;
@@ -3077,39 +3123,40 @@ class UIComponents:
                     <span style='
                         font-size: 0.8rem;
                         font-weight: 600;
-                        color: #111827;
-                    '>{icon} {sector[:20]}</span>
+                        color: #1E293B;
+                    '>{icon} {sector[:25]}</span>
                     <span style='
                         font-size: 0.75rem;
-                        color: #6b7280;
+                        color: #64748B;
                     '>{count} stocks | {ret:+.1f}%</span>
                 </div>
                 <div style='
-                    background: #e5e7eb;
-                    height: 6px;
-                    border-radius: 3px;
+                    background: #E2E8F0;
+                    height: 8px;
+                    border-radius: 4px;
                     overflow: hidden;
                 '>
                     <div style='
                         background: {bar_color};
                         height: 100%;
                         width: {score}%;
-                        border-radius: 3px;
+                        border-radius: 4px;
+                        transition: width 0.3s ease;
                     '></div>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            """
         
-        st.markdown("</div>", unsafe_allow_html=True)
+        html += "</div>"
+        st.markdown(html, unsafe_allow_html=True)
     
     @staticmethod
     def render_momentum_waves(df: pd.DataFrame):
-        """Clean momentum wave visualization with emojis"""
+        """Momentum wave visualization"""
         
-        if df.empty:
+        if df.empty or 'overall_wave_strength' not in df.columns:
             return
         
-        # Wave categories
         waves = {
             "🌊🌊🌊 TSUNAMI": len(df[df['overall_wave_strength'] >= 80]),
             "🌊🌊 STRONG": len(df[(df['overall_wave_strength'] >= 60) & (df['overall_wave_strength'] < 80)]),
@@ -3117,209 +3164,207 @@ class UIComponents:
             "💤 CALM": len(df[df['overall_wave_strength'] < 40])
         }
         
-        st.markdown("""
+        html = """
         <div style='
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 1.25rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
             margin-bottom: 1rem;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
         '>
             <h3 style='
                 margin: 0 0 1rem 0;
-                font-size: 1rem;
-                font-weight: 600;
-                color: #111827;
-                text-transform: uppercase;
-                letter-spacing: 0.025em;
-            '>🌊 MOMENTUM WAVES</h3>
-            <div style='display: flex; gap: 0.5rem;'>
-        """, unsafe_allow_html=True)
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #0F172A;
+            '>🌊 Momentum Waves</h3>
+            <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.75rem;'>
+        """
         
-        colors = ["#16a34a", "#2563eb", "#ea580c", "#6b7280"]
+        colors = ["#10B981", "#3B82F6", "#F59E0B", "#6B7280"]
         
         for i, (wave_type, count) in enumerate(waves.items()):
             pct = (count / len(df) * 100) if len(df) > 0 else 0
+            color = colors[i]
             
-            st.markdown(f"""
+            html += f"""
             <div style='
-                flex: 1;
-                background: #f9fafb;
-                border: 1px solid {colors[i]};
-                border-radius: 6px;
-                padding: 0.75rem;
+                background: {color}10;
+                border: 1px solid {color}50;
+                border-radius: 8px;
+                padding: 1rem;
                 text-align: center;
             '>
                 <div style='
                     font-size: 0.75rem;
-                    color: #111827;
-                    font-weight: 600;
-                    margin-bottom: 0.25rem;
+                    color: #0F172A;
+                    font-weight: 700;
+                    margin-bottom: 0.5rem;
                 '>{wave_type}</div>
                 <div style='
-                    font-size: 1.25rem;
+                    font-size: 1.5rem;
                     font-weight: 700;
-                    color: {colors[i]};
+                    color: {color};
                 '>{count}</div>
                 <div style='
                     font-size: 0.7rem;
-                    color: #6b7280;
+                    color: #64748B;
                 '>{pct:.1f}%</div>
             </div>
-            """, unsafe_allow_html=True)
+            """
         
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        html += "</div></div>"
+        st.markdown(html, unsafe_allow_html=True)
     
     @staticmethod
     def render_volume_analysis(df: pd.DataFrame):
-        """Clean volume analysis with emojis"""
+        """Volume analysis display"""
         
         if 'rvol' not in df.columns:
             return
         
-        # Volume categories
         extreme = len(df[df['rvol'] >= 5])
         high = len(df[(df['rvol'] >= 2) & (df['rvol'] < 5)])
         normal = len(df[(df['rvol'] >= 0.5) & (df['rvol'] < 2)])
         low = len(df[df['rvol'] < 0.5])
         
-        st.markdown(f"""
+        html = f"""
         <div style='
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 1.25rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
             margin-bottom: 1rem;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
         '>
             <h3 style='
                 margin: 0 0 1rem 0;
-                font-size: 1rem;
-                font-weight: 600;
-                color: #111827;
-                text-transform: uppercase;
-                letter-spacing: 0.025em;
-            '>📊 VOLUME ANALYSIS</h3>
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #0F172A;
+            '>📊 Volume Analysis</h3>
             
             <div style='display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;'>
                 <div style='
-                    background: #fef2f2;
-                    border-left: 3px solid #dc2626;
+                    background: linear-gradient(135deg, #EF444410, #EF444405);
+                    border-left: 3px solid #EF4444;
                     padding: 0.75rem;
-                    border-radius: 4px;
+                    border-radius: 6px;
                 '>
-                    <div style='font-size: 1.5rem; font-weight: 700; color: #dc2626;'>
+                    <div style='font-size: 1.5rem; font-weight: 700; color: #EF4444;'>
                         🔥 {extreme}
                     </div>
-                    <div style='font-size: 0.75rem; color: #991b1b;'>
+                    <div style='font-size: 0.75rem; color: #991B1B;'>
                         Extreme Volume (5x+)
                     </div>
                 </div>
                 
                 <div style='
-                    background: #fff7ed;
-                    border-left: 3px solid #ea580c;
+                    background: linear-gradient(135deg, #F59E0B10, #F59E0B05);
+                    border-left: 3px solid #F59E0B;
                     padding: 0.75rem;
-                    border-radius: 4px;
+                    border-radius: 6px;
                 '>
-                    <div style='font-size: 1.5rem; font-weight: 700; color: #ea580c;'>
+                    <div style='font-size: 1.5rem; font-weight: 700; color: #F59E0B;'>
                         ⚡ {high}
                     </div>
-                    <div style='font-size: 0.75rem; color: #9a3412;'>
+                    <div style='font-size: 0.75rem; color: #92400E;'>
                         High Volume (2-5x)
                     </div>
                 </div>
                 
                 <div style='
-                    background: #eff6ff;
-                    border-left: 3px solid #2563eb;
+                    background: linear-gradient(135deg, #3B82F610, #3B82F605);
+                    border-left: 3px solid #3B82F6;
                     padding: 0.75rem;
-                    border-radius: 4px;
+                    border-radius: 6px;
                 '>
-                    <div style='font-size: 1.5rem; font-weight: 700; color: #2563eb;'>
+                    <div style='font-size: 1.5rem; font-weight: 700; color: #3B82F6;'>
                         📈 {normal}
                     </div>
-                    <div style='font-size: 0.75rem; color: #1e3a8a;'>
+                    <div style='font-size: 0.75rem; color: #1E3A8A;'>
                         Normal Volume
                     </div>
                 </div>
                 
                 <div style='
-                    background: #f9fafb;
-                    border-left: 3px solid #6b7280;
+                    background: linear-gradient(135deg, #6B728010, #6B728005);
+                    border-left: 3px solid #6B7280;
                     padding: 0.75rem;
-                    border-radius: 4px;
+                    border-radius: 6px;
                 '>
-                    <div style='font-size: 1.5rem; font-weight: 700; color: #6b7280;'>
+                    <div style='font-size: 1.5rem; font-weight: 700; color: #6B7280;'>
                         💤 {low}
                     </div>
-                    <div style='font-size: 0.75rem; color: #4b5563;'>
+                    <div style='font-size: 0.75rem; color: #4B5563;'>
                         Low Volume (<0.5x)
                     </div>
                 </div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """
+        
+        st.markdown(html, unsafe_allow_html=True)
     
     @staticmethod
     def render_acceleration_profiles(df: pd.DataFrame):
-        """Clean acceleration profiles with emojis"""
+        """Acceleration profiles display"""
         
         if 'acceleration_score' not in df.columns:
             return
         
-        # Acceleration categories
         accelerating = len(df[df['acceleration_score'] >= 70])
         steady = len(df[(df['acceleration_score'] >= 30) & (df['acceleration_score'] < 70)])
         decelerating = len(df[df['acceleration_score'] < 30])
         
         total = len(df)
         
-        st.markdown(f"""
+        html = f"""
         <div style='
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 1.25rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
             margin-bottom: 1rem;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
         '>
             <h3 style='
                 margin: 0 0 1rem 0;
-                font-size: 1rem;
-                font-weight: 600;
-                color: #111827;
-                text-transform: uppercase;
-                letter-spacing: 0.025em;
-            '>⚡ ACCELERATION PROFILES</h3>
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #0F172A;
+            '>⚡ Acceleration Profiles</h3>
             
             <div style='text-align: center; margin-bottom: 1rem;'>
                 <div style='
                     display: inline-flex;
-                    gap: 1rem;
-                    padding: 0.75rem;
-                    background: #f9fafb;
-                    border-radius: 6px;
+                    gap: 1.5rem;
+                    padding: 1rem;
+                    background: linear-gradient(135deg, #F8FAFC, #F1F5F9);
+                    border-radius: 8px;
                 '>
                     <div>
-                        <div style='font-size: 1.5rem; font-weight: 700; color: #16a34a;'>
+                        <div style='font-size: 1.75rem; font-weight: 700; color: #10B981;'>
                             🚀 {accelerating}
                         </div>
-                        <div style='font-size: 0.7rem; color: #16a34a;'>
+                        <div style='font-size: 0.75rem; color: #10B981; font-weight: 600;'>
                             Accelerating
                         </div>
                     </div>
                     <div>
-                        <div style='font-size: 1.5rem; font-weight: 700; color: #ea580c;'>
+                        <div style='font-size: 1.75rem; font-weight: 700; color: #F59E0B;'>
                             ➡️ {steady}
                         </div>
-                        <div style='font-size: 0.7rem; color: #ea580c;'>
+                        <div style='font-size: 0.75rem; color: #F59E0B; font-weight: 600;'>
                             Steady
                         </div>
                     </div>
                     <div>
-                        <div style='font-size: 1.5rem; font-weight: 700; color: #dc2626;'>
+                        <div style='font-size: 1.75rem; font-weight: 700; color: #EF4444;'>
                             📉 {decelerating}
                         </div>
-                        <div style='font-size: 0.7rem; color: #dc2626;'>
+                        <div style='font-size: 0.75rem; color: #EF4444; font-weight: 600;'>
                             Decelerating
                         </div>
                     </div>
@@ -3327,36 +3372,37 @@ class UIComponents:
             </div>
             
             <div style='
-                background: #e5e7eb;
-                height: 8px;
-                border-radius: 4px;
+                background: #E2E8F0;
+                height: 10px;
+                border-radius: 5px;
                 overflow: hidden;
                 display: flex;
             '>
                 <div style='
-                    background: #16a34a;
-                    width: {(accelerating/total*100):.1f}%;
+                    background: #10B981;
+                    width: {(accelerating/total*100) if total > 0 else 0:.1f}%;
                 '></div>
                 <div style='
-                    background: #ea580c;
-                    width: {(steady/total*100):.1f}%;
+                    background: #F59E0B;
+                    width: {(steady/total*100) if total > 0 else 0:.1f}%;
                 '></div>
                 <div style='
-                    background: #dc2626;
-                    width: {(decelerating/total*100):.1f}%;
+                    background: #EF4444;
+                    width: {(decelerating/total*100) if total > 0 else 0:.1f}%;
                 '></div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """
+        
+        st.markdown(html, unsafe_allow_html=True)
     
     @staticmethod
     def render_category_flow(df: pd.DataFrame):
-        """Clean category flow analysis with emojis"""
+        """Category flow analysis"""
         
         if 'category' not in df.columns:
             return
         
-        # Category performance
         cat_stats = df.groupby('category').agg({
             'master_score': 'mean',
             'ret_1d': 'mean',
@@ -3365,74 +3411,67 @@ class UIComponents:
         
         cat_stats = cat_stats.sort_values('master_score', ascending=False)
         
-        st.markdown("""
+        html = """
         <div style='
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 1.25rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
             margin-bottom: 1rem;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
         '>
             <h3 style='
                 margin: 0 0 1rem 0;
-                font-size: 1rem;
-                font-weight: 600;
-                color: #111827;
-                text-transform: uppercase;
-                letter-spacing: 0.025em;
-            '>💰 CATEGORY FLOW</h3>
-        """, unsafe_allow_html=True)
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #0F172A;
+            '>💰 Category Flow</h3>
+        """
+        
+        icons = {
+            'Mega Cap': '🐋',
+            'Large Cap': '🦈',
+            'Mid Cap': '🐟',
+            'Small Cap': '🐠',
+            'Micro Cap': '🦐',
+            'Nano Cap': '🦀'
+        }
         
         for category, row in cat_stats.iterrows():
             score = row['master_score']
             ret = row['ret_1d']
-            count = row['ticker']
+            count = int(row['ticker'])
             
-            # Icon based on category
-            icons = {
-                'Mega Cap': '🐋',
-                'Large Cap': '🦈',
-                'Mid Cap': '🐟',
-                'Small Cap': '🐠',
-                'Micro Cap': '🦐',
-                'Nano Cap': '🦀'
-            }
             icon = icons.get(category, '📊')
+            ret_color = "#10B981" if ret > 0 else "#EF4444"
+            arrow = "↑" if ret > 0 else "↓"
             
-            # Color based on return
-            if ret > 0:
-                ret_color = "#16a34a"
-                arrow = "↑"
-            else:
-                ret_color = "#dc2626"
-                arrow = "↓"
-            
-            st.markdown(f"""
+            html += f"""
             <div style='
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                padding: 0.5rem;
+                padding: 0.75rem;
                 margin-bottom: 0.5rem;
-                background: #f9fafb;
-                border-radius: 4px;
-                border: 1px solid #e5e7eb;
+                background: linear-gradient(135deg, #F8FAFC, #F1F5F9);
+                border-radius: 8px;
+                border: 1px solid #E2E8F0;
             '>
                 <div style='flex: 1;'>
-                    <span style='font-size: 0.9rem; font-weight: 600; color: #111827;'>
+                    <span style='font-size: 0.9rem; font-weight: 700; color: #0F172A;'>
                         {icon} {category}
                     </span>
-                    <span style='font-size: 0.7rem; color: #6b7280; margin-left: 0.5rem;'>
+                    <span style='font-size: 0.7rem; color: #64748B; margin-left: 0.5rem;'>
                         ({count} stocks)
                     </span>
                 </div>
                 <div style='text-align: right;'>
                     <span style='
-                        background: #ffffff;
+                        background: white;
                         padding: 0.25rem 0.5rem;
                         border-radius: 4px;
                         font-size: 0.8rem;
-                        color: #2563eb;
+                        color: #3B82F6;
                         font-weight: 600;
                         margin-right: 0.5rem;
                     '>Score: {score:.1f}</span>
@@ -3443,95 +3482,10 @@ class UIComponents:
                     '>{arrow} {ret:+.1f}%</span>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            """
         
-        st.markdown("</div>", unsafe_allow_html=True)
-
-@staticmethod
-def render_summary_section(df: pd.DataFrame):
-    """Render the complete summary section with all metrics"""
-    
-    if df.empty:
-        st.warning("No data available to display")
-        return
-    
-    # Calculate key metrics
-    total_stocks = len(df)
-    avg_score = df['master_score'].mean() if 'master_score' in df.columns else 0
-    std_score = df['master_score'].std() if 'master_score' in df.columns else 0
-    min_score = df['master_score'].min() if 'master_score' in df.columns else 0
-    max_score = df['master_score'].max() if 'master_score' in df.columns else 0
-    
-    # Additional metrics
-    accelerating = len(df[df['acceleration_score'] >= 70]) if 'acceleration_score' in df.columns else 0
-    high_rvol = len(df[df['rvol'] >= 2]) if 'rvol' in df.columns else 0
-    strong_trends = len(df[df['momentum_score'] >= 70]) if 'momentum_score' in df.columns else 0
-    
-    # Top row metrics
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    
-    with col1:
-        UIComponents.render_metric_card(
-            "Total Stocks",
-            f"{total_stocks:,}",
-            f"100% of {total_stocks:,}",
-            color="default"
-        )
-    
-    with col2:
-        UIComponents.render_metric_card(
-            "Avg Score",
-            f"{avg_score:.1f}",
-            f"σ={std_score:.1f}",
-            color="green" if avg_score >= 60 else "orange"
-        )
-    
-    with col3:
-        UIComponents.render_metric_card(
-            "Score Range",
-            f"{min_score:.1f}-{max_score:.1f}",
-            None,
-            color="default"
-        )
-    
-    with col4:
-        UIComponents.render_metric_card(
-            "Accelerating",
-            f"{accelerating}",
-            f"{(accelerating/total_stocks*100):.0f}%" if total_stocks > 0 else "0%",
-            color="green" if accelerating > 100 else "default"
-        )
-    
-    with col5:
-        UIComponents.render_metric_card(
-            "High RVOL",
-            f"{high_rvol}",
-            f"{(high_rvol/total_stocks*100):.0f}%" if total_stocks > 0 else "0%",
-            color="orange" if high_rvol > 50 else "default"
-        )
-    
-    with col6:
-        UIComponents.render_metric_card(
-            "Strong Trends",
-            f"{strong_trends}",
-            f"{(strong_trends/total_stocks*100):.0f}%" if total_stocks > 0 else "0%",
-            color="green" if strong_trends > 100 else "default"
-        )
-    
-    # Additional sections
-    st.markdown("---")
-    
-    # Market Pulse
-    UIComponents.render_market_pulse(df)
-    
-    # Top Opportunities
-    UIComponents.render_top_opportunities(df)
-    
-    # Pattern Distribution
-    UIComponents.render_pattern_distribution(df)
-    
-    # Sector Rotation
-    UIComponents.render_sector_rotation(df)
+        html += "</div>"
+        st.markdown(html, unsafe_allow_html=True)
 
 # ============================================
 # SESSION STATE MANAGER
