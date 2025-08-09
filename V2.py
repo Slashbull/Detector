@@ -5536,28 +5536,317 @@ def main():
         else:
             st.warning(f"No data available for Wave Radar analysis with {wave_timeframe} timeframe.")
     
-    with tabs[3]:
-        st.markdown("### 📊 Market Analysis")
+# Tab 3: Analysis
+with tabs[3]:
+    st.markdown("### 📊 Market Analysis Dashboard")
+    
+    if not filtered_df.empty:
+        # ADD SUB-TABS FOR BETTER ORGANIZATION
+        analysis_subtabs = st.tabs([
+            "🎯 Quick Insights",
+            "📈 Technical Analysis", 
+            "🏢 Sector Analysis",
+            "🏭 Industry Analysis",
+            "🎨 Pattern Analysis",
+            "📊 Category Breakdown"
+        ])
         
-        if not filtered_df.empty:
+        # ==========================================
+        # QUICK INSIGHTS TAB (NEW - MOST IMPORTANT!)
+        # ==========================================
+        with analysis_subtabs[0]:
+            st.markdown("#### 🔍 Market Overview at a Glance")
+            
+            # Key Metrics Row
+            metric_cols = st.columns(5)
+            
+            with metric_cols[0]:
+                avg_score = filtered_df['master_score'].mean()
+                score_color = "🟢" if avg_score > 60 else "🟡" if avg_score > 40 else "🔴"
+                st.metric(
+                    "Market Strength",
+                    f"{score_color} {avg_score:.1f}",
+                    f"Top: {filtered_df['master_score'].max():.0f}"
+                )
+            
+            with metric_cols[1]:
+                bullish = len(filtered_df[filtered_df['ret_30d'] > 0])
+                bearish = len(filtered_df[filtered_df['ret_30d'] <= 0])
+                st.metric(
+                    "Market Breadth",
+                    f"{bullish}/{bearish}",
+                    f"{bullish/(bullish+bearish)*100:.0f}% Bullish" if (bullish+bearish) > 0 else "N/A"
+                )
+            
+            with metric_cols[2]:
+                high_rvol = len(filtered_df[filtered_df['rvol'] > 2])
+                st.metric(
+                    "Active Stocks",
+                    f"{high_rvol}",
+                    "RVOL > 2x"
+                )
+            
+            with metric_cols[3]:
+                patterns_count = (filtered_df['patterns'] != '').sum()
+                st.metric(
+                    "Pattern Signals",
+                    f"{patterns_count}",
+                    f"{patterns_count/len(filtered_df)*100:.0f}% have patterns" if len(filtered_df) > 0 else "N/A"
+                )
+            
+            with metric_cols[4]:
+                top_category = filtered_df.groupby('category')['master_score'].mean().idxmax() if 'category' in filtered_df.columns else "N/A"
+                st.metric(
+                    "Leading Category",
+                    top_category,
+                    "By avg score"
+                )
+            
+            st.markdown("---")
+            
+            # Quick Winners and Losers
             col1, col2 = st.columns(2)
             
             with col1:
+                st.markdown("##### 🏆 Top 5 Performers")
+                top_5 = filtered_df.nlargest(5, 'master_score')[['ticker', 'company_name', 'master_score', 'ret_30d', 'patterns']]
+                
+                for idx, row in top_5.iterrows():
+                    with st.container():
+                        subcol1, subcol2, subcol3 = st.columns([2, 1, 2])
+                        with subcol1:
+                            st.write(f"**{row['ticker']}**")
+                            st.caption(f"{row['company_name'][:25]}...")
+                        with subcol2:
+                            st.write(f"Score: **{row['master_score']:.0f}**")
+                            st.caption(f"30D: {row['ret_30d']:.1f}%")
+                        with subcol3:
+                            if row['patterns']:
+                                patterns_list = row['patterns'].split(' | ')[:2]  # Show first 2
+                                st.caption(' | '.join(patterns_list))
+            
+            with col2:
+                st.markdown("##### 📉 Bottom 5 Performers")
+                bottom_5 = filtered_df.nsmallest(5, 'master_score')[['ticker', 'company_name', 'master_score', 'ret_30d', 'wave_state']]
+                
+                for idx, row in bottom_5.iterrows():
+                    with st.container():
+                        subcol1, subcol2, subcol3 = st.columns([2, 1, 2])
+                        with subcol1:
+                            st.write(f"**{row['ticker']}**")
+                            st.caption(f"{row['company_name'][:25]}...")
+                        with subcol2:
+                            st.write(f"Score: **{row['master_score']:.0f}**")
+                            st.caption(f"30D: {row['ret_30d']:.1f}%")
+                        with subcol3:
+                            st.caption(row['wave_state'])
+            
+            # Market Signals Summary
+            st.markdown("---")
+            st.markdown("##### 📡 Key Market Signals")
+            
+            signal_cols = st.columns(4)
+            
+            with signal_cols[0]:
+                momentum_leaders = len(filtered_df[filtered_df['momentum_score'] > 70])
+                st.info(f"**{momentum_leaders}** Momentum Leaders")
+                st.caption("Score > 70")
+            
+            with signal_cols[1]:
+                breakout_ready = len(filtered_df[filtered_df['breakout_score'] > 80])
+                st.success(f"**{breakout_ready}** Breakout Ready")
+                st.caption("Breakout > 80")
+            
+            with signal_cols[2]:
+                vol_explosions = len(filtered_df[filtered_df['patterns'].str.contains('VOL EXPLOSION', na=False)])
+                st.warning(f"**{vol_explosions}** Volume Explosions")
+                st.caption("Extreme activity")
+            
+            with signal_cols[3]:
+                perfect_storms = len(filtered_df[filtered_df['patterns'].str.contains('PERFECT STORM', na=False)])
+                st.error(f"**{perfect_storms}** Perfect Storms")
+                st.caption("All signals aligned")
+        
+        # ==========================================
+        # TECHNICAL ANALYSIS TAB
+        # ==========================================
+        with analysis_subtabs[1]:
+            st.markdown("#### 📈 Technical Indicators Distribution")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Score Distribution Chart
                 fig_dist = Visualizer.create_score_distribution(filtered_df)
                 st.plotly_chart(fig_dist, use_container_width=True, theme="streamlit")
             
             with col2:
-                pattern_counts = {}
-                for patterns in filtered_df['patterns'].dropna():
-                    if patterns:
-                        for p in patterns.split(' | '):
-                            pattern_counts[p] = pattern_counts.get(p, 0) + 1
+                # Trend Quality Distribution
+                if 'trend_quality' in filtered_df.columns:
+                    fig_trend = go.Figure()
+                    
+                    trend_bins = [0, 20, 40, 60, 80, 100]
+                    trend_labels = ['Very Weak', 'Weak', 'Neutral', 'Strong', 'Very Strong']
+                    trend_counts = pd.cut(filtered_df['trend_quality'], bins=trend_bins, labels=trend_labels).value_counts()
+                    
+                    colors = ['#e74c3c', '#f39c12', '#95a5a6', '#2ecc71', '#27ae60']
+                    
+                    fig_trend.add_trace(go.Bar(
+                        x=trend_counts.index,
+                        y=trend_counts.values,
+                        marker_color=colors,
+                        text=trend_counts.values,
+                        textposition='outside'
+                    ))
+                    
+                    fig_trend.update_layout(
+                        title="Trend Quality Distribution",
+                        xaxis_title="Trend Strength",
+                        yaxis_title="Number of Stocks",
+                        template='plotly_white',
+                        height=400
+                    )
+                    
+                    st.plotly_chart(fig_trend, use_container_width=True, theme="streamlit")
+            
+            # Wave State Analysis
+            st.markdown("---")
+            st.markdown("##### 🌊 Wave State Analysis")
+            
+            if 'wave_state' in filtered_df.columns:
+                wave_analysis = filtered_df.groupby('wave_state').agg({
+                    'ticker': 'count',
+                    'master_score': 'mean',
+                    'momentum_score': 'mean',
+                    'rvol': 'mean',
+                    'ret_30d': 'mean'
+                }).round(2)
                 
-                if pattern_counts:
+                wave_analysis.columns = ['Count', 'Avg Score', 'Avg Momentum', 'Avg RVOL', 'Avg 30D Return']
+                wave_analysis = wave_analysis.sort_values('Count', ascending=False)
+                
+                # Display with custom styling
+                st.dataframe(
+                    wave_analysis.style.background_gradient(subset=['Avg Score', 'Avg Momentum']),
+                    use_container_width=True
+                )
+        
+        # ==========================================
+        # SECTOR ANALYSIS TAB
+        # ==========================================
+        with analysis_subtabs[2]:
+            st.markdown("#### 🏢 Sector Performance & Rotation")
+            
+            sector_rotation = MarketIntelligence.detect_sector_rotation(filtered_df)
+            
+            if not sector_rotation.empty:
+                # Sector Performance Chart
+                fig_sector = go.Figure()
+                
+                top_sectors = sector_rotation.head(10)
+                
+                fig_sector.add_trace(go.Bar(
+                    x=top_sectors.index,
+                    y=top_sectors['flow_score'],
+                    text=[f"{val:.1f}" for val in top_sectors['flow_score']],
+                    textposition='outside',
+                    marker_color=['#2ecc71' if score > 60 else '#e74c3c' if score < 40 else '#f39c12' 
+                                 for score in top_sectors['flow_score']],
+                    hovertemplate=(
+                        'Sector: %{x}<br>'
+                        'Flow Score: %{y:.1f}<br>'
+                        'Stocks Analyzed: %{customdata[0]}<br>'
+                        'Total Stocks: %{customdata[1]}<br>'
+                        '<extra></extra>'
+                    ),
+                    customdata=np.column_stack((
+                        top_sectors['analyzed_stocks'],
+                        top_sectors['total_stocks']
+                    ))
+                ))
+                
+                fig_sector.update_layout(
+                    title="Sector Rotation Map - Smart Money Flow",
+                    xaxis_title="Sector",
+                    yaxis_title="Flow Score",
+                    height=400,
+                    template='plotly_white'
+                )
+                
+                st.plotly_chart(fig_sector, use_container_width=True, theme="streamlit")
+                
+                # Sector Details Table
+                st.markdown("##### 📊 Detailed Sector Metrics")
+                
+                display_cols = ['flow_score', 'avg_score', 'median_score', 'avg_momentum', 
+                               'avg_volume', 'avg_rvol', 'avg_ret_30d', 'analyzed_stocks', 'total_stocks']
+                
+                sector_display = sector_rotation[display_cols].copy()
+                sector_display.columns = ['Flow Score', 'Avg Score', 'Median', 'Momentum', 
+                                         'Volume', 'RVOL', '30D Ret', 'Analyzed', 'Total']
+                
+                st.dataframe(
+                    sector_display.style.background_gradient(subset=['Flow Score', 'Avg Score']),
+                    use_container_width=True
+                )
+                
+                st.info("📊 **Note**: Analysis based on dynamically sampled top performers per sector for fair comparison")
+            else:
+                st.warning("No sector data available in the filtered dataset")
+        
+        # ==========================================
+        # INDUSTRY ANALYSIS TAB
+        # ==========================================
+        with analysis_subtabs[3]:
+            st.markdown("#### 🏭 Industry Performance & Trends")
+            
+            industry_rotation = MarketIntelligence.detect_industry_rotation(filtered_df)
+            
+            if not industry_rotation.empty:
+                # Top/Bottom Industries
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("##### 🔥 Top 10 Industries")
+                    top_industries = industry_rotation.head(10)[['flow_score', 'avg_score', 'analyzed_stocks', 'total_stocks']]
+                    top_industries.columns = ['Flow', 'Avg Score', 'Sample', 'Total']
+                    st.dataframe(top_industries, use_container_width=True)
+                
+                with col2:
+                    st.markdown("##### ❄️ Bottom 10 Industries")
+                    bottom_industries = industry_rotation.tail(10)[['flow_score', 'avg_score', 'analyzed_stocks', 'total_stocks']]
+                    bottom_industries.columns = ['Flow', 'Avg Score', 'Sample', 'Total']
+                    st.dataframe(bottom_industries, use_container_width=True)
+                
+                # Quality Warnings
+                low_quality = industry_rotation[industry_rotation['quality_flag'] != '']
+                if len(low_quality) > 0:
+                    st.warning(f"⚠️ {len(low_quality)} industries have low sampling quality")
+            else:
+                st.warning("No industry data available")
+        
+        # ==========================================
+        # PATTERN ANALYSIS TAB
+        # ==========================================
+        with analysis_subtabs[4]:
+            st.markdown("#### 🎨 Pattern Detection Analysis")
+            
+            # Pattern Frequency
+            pattern_counts = {}
+            for patterns in filtered_df['patterns'].dropna():
+                if patterns:
+                    for p in patterns.split(' | '):
+                        pattern_counts[p] = pattern_counts.get(p, 0) + 1
+            
+            if pattern_counts:
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    # Pattern Bar Chart
                     pattern_df = pd.DataFrame(
                         list(pattern_counts.items()),
                         columns=['Pattern', 'Count']
-                    ).sort_values('Count', ascending=True).tail(15)
+                    ).sort_values('Count', ascending=False).head(15)
                     
                     fig_patterns = go.Figure([
                         go.Bar(
@@ -5571,114 +5860,116 @@ def main():
                     ])
                     
                     fig_patterns.update_layout(
-                        title="Pattern Frequency Analysis",
+                        title="Top 15 Pattern Frequencies",
                         xaxis_title="Number of Stocks",
                         yaxis_title="Pattern",
                         template='plotly_white',
-                        height=400,
+                        height=500,
                         margin=dict(l=150)
                     )
                     
                     st.plotly_chart(fig_patterns, use_container_width=True, theme="streamlit")
-                else:
-                    st.info("No patterns detected in current selection")
-            
-            st.markdown("---")
-            
-            st.markdown("#### 🏢 Sector Performance")
-            sector_overview_df_local = MarketIntelligence.detect_sector_rotation(filtered_df)
-            
-            if not sector_overview_df_local.empty:
-                display_cols_overview = ['flow_score', 'avg_score', 'median_score', 'avg_momentum', 
-                                         'avg_volume', 'avg_rvol', 'avg_ret_30d', 'analyzed_stocks', 'total_stocks']
                 
-                available_overview_cols = [col for col in display_cols_overview if col in sector_overview_df_local.columns]
-                
-                sector_overview_display = sector_overview_df_local[available_overview_cols].copy()
-                
-                sector_overview_display.columns = [
-                    'Flow Score', 'Avg Score', 'Median Score', 'Avg Momentum', 
-                    'Avg Volume', 'Avg RVOL', 'Avg 30D Ret', 'Analyzed Stocks', 'Total Stocks'
-                ]
-                
-                sector_overview_display['Coverage %'] = (
-                    (sector_overview_display['Analyzed Stocks'] / sector_overview_display['Total Stocks'] * 100)
-                    .replace([np.inf, -np.inf], np.nan)
-                    .fillna(0)
-                    .round(1)
-                    .apply(lambda x: f"{x}%")
-                )
-
-                st.dataframe(
-                    sector_overview_display.style.background_gradient(subset=['Flow Score', 'Avg Score']),
-                    use_container_width=True
-                )
-                st.info("📊 **Normalized Analysis**: Shows metrics for dynamically sampled stocks per sector (by Master Score) to ensure fair comparison across sectors of different sizes.")
-
+                with col2:
+                    st.markdown("##### 🎯 Pattern Performance")
+                    
+                    # Calculate average score per pattern
+                    pattern_performance = {}
+                    for pattern in pattern_counts.keys():
+                        stocks_with_pattern = filtered_df[filtered_df['patterns'].str.contains(pattern, na=False, regex=False)]
+                        if len(stocks_with_pattern) > 0:
+                            pattern_performance[pattern] = {
+                                'Avg Score': stocks_with_pattern['master_score'].mean(),
+                                'Avg 30D': stocks_with_pattern['ret_30d'].mean() if 'ret_30d' in stocks_with_pattern.columns else 0,
+                                'Count': len(stocks_with_pattern)
+                            }
+                    
+                    if pattern_performance:
+                        perf_df = pd.DataFrame(pattern_performance).T
+                        perf_df = perf_df.sort_values('Avg Score', ascending=False).head(10)
+                        perf_df['Avg Score'] = perf_df['Avg Score'].round(1)
+                        perf_df['Avg 30D'] = perf_df['Avg 30D'].round(1)
+                        perf_df['Count'] = perf_df['Count'].astype(int)
+                        
+                        st.dataframe(
+                            perf_df.style.background_gradient(subset=['Avg Score']),
+                            use_container_width=True
+                        )
             else:
-                st.info("No sector data available in the filtered dataset for analysis. Please check your filters.")
+                st.info("No patterns detected in current selection")
+        
+        # ==========================================
+        # CATEGORY BREAKDOWN TAB
+        # ==========================================
+        with analysis_subtabs[5]:
+            st.markdown("#### 📊 Market Cap Category Analysis")
             
-            st.markdown("---")
-            
-            st.markdown("#### 🏭 Industry Performance")
-            industry_rotation = MarketIntelligence.detect_industry_rotation(filtered_df)
-            
-            if not industry_rotation.empty:
-                industry_display = industry_rotation[['flow_score', 'avg_score', 'analyzed_stocks', 
-                                                     'total_stocks', 'sampling_pct', 'quality_flag']].head(15)
-                
-                rename_dict = {
-                    'flow_score': 'Flow Score',
-                    'avg_score': 'Avg Score',
-                    'analyzed_stocks': 'Analyzed',
-                    'total_stocks': 'Total',
-                    'sampling_pct': 'Sample %',
-                    'quality_flag': 'Quality'
-                }
-                
-                industry_display = industry_display.rename(columns=rename_dict)
-                
-                st.dataframe(
-                    industry_display.style.background_gradient(subset=['Flow Score', 'Avg Score']),
-                    use_container_width=True
-                )
-                
-                low_sample = industry_rotation[industry_rotation['quality_flag'] != '']
-                if len(low_sample) > 0:
-                    st.warning(f"⚠️ {len(low_sample)} industries have low sampling quality. Interpret with caution.")
-            
-            else:
-                st.info("No industry data available for analysis.")
-            
-            st.markdown("---")
-            
-            st.markdown("#### 📊 Category Performance")
             if 'category' in filtered_df.columns:
-                category_df = filtered_df.groupby('category').agg({
-                    'master_score': ['mean', 'count'],
-                    'category_percentile': 'mean',
+                # Category Performance Metrics
+                cat_analysis = filtered_df.groupby('category').agg({
+                    'ticker': 'count',
+                    'master_score': ['mean', 'std'],
+                    'ret_30d': 'mean',
+                    'rvol': 'mean',
                     'money_flow_mm': 'sum' if 'money_flow_mm' in filtered_df.columns else lambda x: 0
                 }).round(2)
                 
-                if 'money_flow_mm' in filtered_df.columns:
-                    category_df.columns = ['Avg Score', 'Count', 'Avg Cat %ile', 'Total Money Flow']
-                else:
-                    category_df.columns = ['Avg Score', 'Count', 'Avg Cat %ile', 'Dummy Flow']
-                    category_df = category_df.drop('Dummy Flow', axis=1)
+                # Flatten columns
+                cat_analysis.columns = ['Count', 'Avg Score', 'Score Std', 'Avg 30D Ret', 'Avg RVOL', 'Total Money Flow']
                 
-                category_df = category_df.sort_values('Avg Score', ascending=False)
+                # Sort by average score
+                cat_analysis = cat_analysis.sort_values('Avg Score', ascending=False)
                 
-                st.dataframe(
-                    category_df.style.background_gradient(subset=['Avg Score']),
-                    use_container_width=True
-                )
+                # Pie chart of distribution
+                col1, col2 = st.columns([1, 2])
+                
+                with col1:
+                    fig_pie = go.Figure(data=[go.Pie(
+                        labels=cat_analysis.index,
+                        values=cat_analysis['Count'],
+                        hole=.3
+                    )])
+                    
+                    fig_pie.update_layout(
+                        title="Distribution by Category",
+                        height=300
+                    )
+                    
+                    st.plotly_chart(fig_pie, use_container_width=True, theme="streamlit")
+                
+                with col2:
+                    st.dataframe(
+                        cat_analysis.style.background_gradient(subset=['Avg Score', 'Avg 30D Ret']),
+                        use_container_width=True
+                    )
+                
+                # Category-wise top stocks
+                st.markdown("---")
+                st.markdown("##### 🏆 Top Stock per Category")
+                
+                category_tops = []
+                for category in filtered_df['category'].unique():
+                    cat_df = filtered_df[filtered_df['category'] == category]
+                    if not cat_df.empty:
+                        top_stock = cat_df.nlargest(1, 'master_score').iloc[0]
+                        category_tops.append({
+                            'Category': category,
+                            'Top Stock': top_stock['ticker'],
+                            'Company': top_stock['company_name'][:30],
+                            'Score': top_stock['master_score'],
+                            'Patterns': top_stock['patterns'][:50] if top_stock['patterns'] else 'None'
+                        })
+                
+                if category_tops:
+                    tops_df = pd.DataFrame(category_tops)
+                    tops_df = tops_df.sort_values('Score', ascending=False)
+                    st.dataframe(tops_df, use_container_width=True, hide_index=True)
             else:
-                st.info("Category column not available in data.")
-        
-        else:
-            st.info("No data available for analysis.")
+                st.info("Category data not available")
     
-    # Tab 4: Search
+    else:
+        st.warning("No data available for analysis. Please adjust your filters.")
+    
     # Tab 4: Search
     with tabs[4]:
         st.markdown("### 🔍 Advanced Stock Search")
