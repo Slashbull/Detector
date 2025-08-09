@@ -2589,335 +2589,816 @@ class ExportEngine:
         return export_df.to_csv(index=False)
 
 # ============================================
-# UI COMPONENTS - COMPLETE FIXED VERSION
+# UI COMPONENTS - ULTRA PREMIUM VERSION
 # ============================================
 
 class UIComponents:
-    """Ultra-premium UI components with glassmorphism effects"""
+    """Premium UI components with Bloomberg Terminal quality design"""
     
     @staticmethod
-    def render_metric_card(label: str, value: str, delta: str = None, 
-                          help_text: str = None, color: str = "default"):
-        """Ultra-premium metric card with glassmorphism effect"""
+    def render_metric_card(label: str, value: Any, delta: Optional[str] = None, 
+                          help_text: Optional[str] = None, 
+                          color_scheme: str = "default") -> None:
+        """
+        Render a premium styled metric card with advanced tooltips
         
+        Args:
+            label: Metric label
+            value: Metric value
+            delta: Change indicator
+            help_text: Tooltip text
+            color_scheme: Color theme (default/success/warning/danger/info)
+        """
+        # Color schemes
         colors = {
-            "default": "#3B82F6",
-            "green": "#10B981",
-            "red": "#EF4444",
-            "orange": "#F59E0B",
-            "purple": "#8B5CF6",
-            "gray": "#6B7280"
+            "default": {"bg": "#f8f9fa", "border": "#dee2e6", "text": "#495057"},
+            "success": {"bg": "#d4edda", "border": "#28a745", "text": "#155724"},
+            "warning": {"bg": "#fff3cd", "border": "#ffc107", "text": "#856404"},
+            "danger": {"bg": "#f8d7da", "border": "#dc3545", "text": "#721c24"},
+            "info": {"bg": "#d1ecf1", "border": "#17a2b8", "text": "#0c5460"}
         }
         
-        color_hex = colors.get(color, colors["default"])
+        scheme = colors.get(color_scheme, colors["default"])
         
-        html = f"""
+        # Add tooltip from CONFIG if available
+        metric_key = label.lower().replace(' ', '_')
+        if not help_text and hasattr(CONFIG, 'METRIC_TOOLTIPS') and metric_key in CONFIG.METRIC_TOOLTIPS:
+            help_text = CONFIG.METRIC_TOOLTIPS[metric_key]
+        
+        # Create premium metric display
+        st.markdown(f"""
         <div style='
-            padding: 1.25rem;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
-            margin-bottom: 0.75rem;
-            position: relative;
-            overflow: hidden;
+            background: {scheme["bg"]};
+            border-left: 4px solid {scheme["border"]};
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
         '>
-            <div style='
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 3px;
-                background: linear-gradient(90deg, {color_hex}, {color_hex}DD);
-            '></div>
-            
-            <div style='
-                font-size: 0.75rem;
-                color: #64748B;
-                margin-bottom: 0.5rem;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-            '>{label}</div>
-            
-            <div style='
-                font-size: 2rem;
-                font-weight: 700;
-                color: #0F172A;
-                line-height: 1;
-                margin-bottom: 0.25rem;
-            '>{value}</div>
-        """
-        
-        if delta:
-            delta_color = "#10B981" if "↑" in str(delta) or "+" in str(delta) else "#EF4444" if "↓" in str(delta) or "-" in str(delta) else "#6B7280"
-            html += f"""
-            <div style='
-                font-size: 0.75rem;
-                color: {delta_color};
-                margin-top: 0.5rem;
-                font-weight: 500;
-            '>{delta}</div>
-            """
-        
-        html += "</div>"
-        
-        # CRITICAL FIX: Add unsafe_allow_html=True
-        st.markdown(html, unsafe_allow_html=True)
-        
-        if help_text:
-            st.caption(help_text)
+            <div style='color: {scheme["text"]}; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;'>
+                {label}
+            </div>
+            <div style='color: {scheme["border"]}; font-size: 24px; font-weight: bold; margin: 5px 0;'>
+                {value}
+            </div>
+            {f'<div style="color: {scheme["text"]}; font-size: 11px; opacity: 0.8;">{delta}</div>' if delta else ''}
+            {f'<div style="color: #6c757d; font-size: 10px; margin-top: 5px; font-style: italic;">{help_text}</div>' if help_text else ''}
+        </div>
+        """, unsafe_allow_html=True)
     
     @staticmethod
-    def render_info_card(title: str, items: List[Dict[str, Any]], 
-                        color: str = "blue", max_items: int = 5):
-        """Premium info card with glassmorphism"""
+    def render_summary_section(df: pd.DataFrame) -> None:
+        """Render ULTRA-PREMIUM summary dashboard with STUNNING UI/UX"""
         
-        color_map = {
-            "blue": ("#3B82F6", "rgba(59, 130, 246, 0.1)"),
-            "green": ("#10B981", "rgba(16, 185, 129, 0.1)"),
-            "red": ("#EF4444", "rgba(239, 68, 68, 0.1)"),
-            "orange": ("#F59E0B", "rgba(245, 158, 11, 0.1)"),
-            "purple": ("#8B5CF6", "rgba(139, 92, 246, 0.1)"),
-            "gray": ("#6B7280", "rgba(107, 114, 128, 0.1)")
+        if df.empty:
+            st.markdown("""
+            <div style='
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 40px;
+                border-radius: 15px;
+                text-align: center;
+                color: white;
+            '>
+                <h2>📊 No Data Available</h2>
+                <p>Please load data or adjust filters to see market analysis</p>
+            </div>
+            """, unsafe_allow_html=True)
+            return
+        
+        # ====================================
+        # LIVE MARKET STATUS HEADER
+        # ====================================
+        UIComponents._render_market_status_header(df)
+        
+        # ====================================
+        # 1. TRADING SIGNALS DASHBOARD
+        # ====================================
+        st.markdown("### 🎯 **REAL-TIME TRADING SIGNALS**")
+        
+        signal_col1, signal_col2, signal_col3 = st.columns(3)
+        
+        with signal_col1:
+            UIComponents._render_buy_signals(df)
+        
+        with signal_col2:
+            UIComponents._render_danger_signals(df)
+        
+        with signal_col3:
+            UIComponents._render_watch_list(df)
+        
+        st.markdown("---")
+        
+        # ====================================
+        # 2. MARKET PULSE METRICS
+        # ====================================
+        st.markdown("### 📈 **MARKET PULSE**")
+        UIComponents._render_market_pulse(df)
+        
+        st.markdown("---")
+        
+        # ====================================
+        # 3. TOP OPPORTUNITIES
+        # ====================================
+        st.markdown("### 💎 **TOP OPPORTUNITIES**")
+        UIComponents._render_opportunities(df)
+        
+        st.markdown("---")
+        
+        # ====================================
+        # 4. MARKET INTELLIGENCE
+        # ====================================
+        st.markdown("### 🧠 **MARKET INTELLIGENCE**")
+        UIComponents._render_market_intelligence(df)
+    
+    @staticmethod
+    def _render_market_status_header(df: pd.DataFrame) -> None:
+        """Render live market status header"""
+        header_col1, header_col2, header_col3, header_col4 = st.columns([2, 1, 1, 1])
+        
+        with header_col1:
+            st.markdown("""
+            <div style='
+                background: linear-gradient(90deg, #11998e, #38ef7d);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                font-size: 24px;
+                font-weight: bold;
+            '>
+                📡 MARKET ANALYSIS DASHBOARD
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with header_col2:
+            current_time = datetime.now().strftime("%H:%M:%S")
+            st.markdown(f"""
+            <div style='
+                background: #d4edda;
+                color: #155724;
+                padding: 5px 10px;
+                border-radius: 20px;
+                text-align: center;
+                font-family: monospace;
+                font-size: 12px;
+                font-weight: bold;
+            '>
+                🟢 LIVE • {current_time}
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with header_col3:
+            total_signals = len(df[df['master_score'] > 70]) if 'master_score' in df.columns else 0
+            st.markdown(f"""
+            <div style='
+                background: #cce5ff;
+                color: #004085;
+                padding: 5px 10px;
+                border-radius: 20px;
+                text-align: center;
+                font-size: 12px;
+                font-weight: bold;
+            '>
+                📊 {total_signals} SIGNALS
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with header_col4:
+            active_patterns = (df['patterns'] != '').sum() if 'patterns' in df.columns else 0
+            st.markdown(f"""
+            <div style='
+                background: #e2d5f1;
+                color: #6f42c1;
+                padding: 5px 10px;
+                border-radius: 20px;
+                text-align: center;
+                font-size: 12px;
+                font-weight: bold;
+            '>
+                🎯 {active_patterns} PATTERNS
+            </div>
+            """, unsafe_allow_html=True)
+    
+    @staticmethod
+    def _render_buy_signals(df: pd.DataFrame) -> None:
+        """Render premium buy signals section"""
+        st.markdown("""
+        <div style='
+            background: linear-gradient(135deg, #11998e, #38ef7d);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        '>
+            <h4 style='color: white; margin: 0; text-align: center; font-size: 16px;'>
+                🎯 BUY ZONE
+            </h4>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        try:
+            # Build buy conditions
+            buy_conditions = pd.Series(False, index=df.index)
+            
+            if 'master_score' in df.columns:
+                buy_conditions = df['master_score'] > 80
+            
+            if 'momentum_score' in df.columns:
+                buy_conditions &= df['momentum_score'] > 70
+            
+            if 'acceleration_score' in df.columns:
+                buy_conditions &= df['acceleration_score'] > 70
+            
+            if 'rvol' in df.columns:
+                buy_conditions &= df['rvol'] >= 1.5
+            
+            buy_candidates = df[buy_conditions]
+            
+            if len(buy_candidates) > 0:
+                top_buys = buy_candidates.nlargest(3, 'master_score')
+                
+                for idx, (_, stock) in enumerate(top_buys.iterrows()):
+                    UIComponents._render_signal_card(
+                        stock=stock,
+                        signal_type="buy",
+                        rank=idx + 1
+                    )
+            else:
+                UIComponents._render_empty_state(
+                    icon="🔍",
+                    title="No Strong Buy Signals",
+                    subtitle="Market conditions not optimal"
+                )
+                
+        except Exception as e:
+            logger.debug(f"Buy signals error: {str(e)}")
+            UIComponents._render_error_state("Error analyzing buy signals")
+    
+    @staticmethod
+    def _render_danger_signals(df: pd.DataFrame) -> None:
+        """Render premium danger signals section"""
+        st.markdown("""
+        <div style='
+            background: linear-gradient(135deg, #eb3349, #f45c43);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        '>
+            <h4 style='color: white; margin: 0; text-align: center; font-size: 16px;'>
+                ⚠️ DANGER ZONE
+            </h4>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        try:
+            danger_conditions = pd.Series(False, index=df.index)
+            
+            if 'patterns' in df.columns:
+                danger_conditions |= df['patterns'].str.contains('HIGH PE|⚠️', na=False, regex=True)
+            
+            if 'wave_state' in df.columns:
+                danger_conditions |= df['wave_state'] == '💥 BREAKING'
+            
+            if 'rvol' in df.columns and 'master_score' in df.columns:
+                danger_conditions |= (df['rvol'] > 5) & (df['master_score'] < 50)
+            
+            if 'pe' in df.columns:
+                valid_pe = df['pe'].notna()
+                danger_conditions |= (valid_pe & (df['pe'] > 100))
+            
+            danger_stocks = df[danger_conditions]
+            
+            if len(danger_stocks) > 0:
+                top_dangers = danger_stocks.nsmallest(3, 'master_score')
+                
+                for idx, (_, stock) in enumerate(top_dangers.iterrows()):
+                    UIComponents._render_signal_card(
+                        stock=stock,
+                        signal_type="danger",
+                        rank=idx + 1
+                    )
+            else:
+                UIComponents._render_empty_state(
+                    icon="✅",
+                    title="All Clear",
+                    subtitle="No dangerous stocks detected",
+                    color="#27ae60"
+                )
+                
+        except Exception as e:
+            logger.debug(f"Danger signals error: {str(e)}")
+            UIComponents._render_error_state("Error analyzing risks")
+    
+    @staticmethod
+    def _render_watch_list(df: pd.DataFrame) -> None:
+        """Render premium watch list section"""
+        st.markdown("""
+        <div style='
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        '>
+            <h4 style='color: white; margin: 0; text-align: center; font-size: 16px;'>
+                👀 WATCH ZONE
+            </h4>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        try:
+            watch_conditions = pd.Series(False, index=df.index)
+            
+            if 'master_score' in df.columns:
+                watch_conditions = df['master_score'].between(70, 80)
+            
+            if 'momentum_score' in df.columns:
+                watch_conditions &= df['momentum_score'] > 60
+            
+            watch_list = df[watch_conditions]
+            
+            if len(watch_list) > 0:
+                top_watch = watch_list.nlargest(3, 'momentum_score')
+                
+                for idx, (_, stock) in enumerate(top_watch.iterrows()):
+                    UIComponents._render_signal_card(
+                        stock=stock,
+                        signal_type="watch",
+                        rank=idx + 1
+                    )
+            else:
+                UIComponents._render_empty_state(
+                    icon="⏳",
+                    title="No Stocks Building",
+                    subtitle="Check back soon"
+                )
+                
+        except Exception as e:
+            logger.debug(f"Watch list error: {str(e)}")
+            UIComponents._render_error_state("Error building watch list")
+    
+    @staticmethod
+    def _render_signal_card(stock: pd.Series, signal_type: str, rank: int) -> None:
+        """Render individual signal card with premium styling"""
+        
+        ticker = stock.get('ticker', 'N/A')
+        score = stock.get('master_score', 0)
+        price = stock.get('price', 0)
+        rvol = stock.get('rvol', 1)
+        momentum = stock.get('momentum_score', 0)
+        
+        # Signal type configurations
+        configs = {
+            "buy": {
+                "colors": ["#00ff00", "#90EE90", "#98FB98"],
+                "labels": ["STRONG BUY", "BUY", "CONSIDER"],
+                "icons": ["🔥", "✅", "👍"],
+                "gradient": "linear-gradient(135deg, #00ff0015, #00ff0005)"
+            },
+            "danger": {
+                "colors": ["#ff0000", "#ff4444", "#ff8888"],
+                "labels": ["EXTREME RISK", "HIGH RISK", "RISKY"],
+                "icons": ["🚫", "⛔", "⚠️"],
+                "gradient": "linear-gradient(135deg, #ff000015, #ff000005)"
+            },
+            "watch": {
+                "colors": ["#764ba2", "#8e5fb5", "#a679d2"],
+                "labels": ["READY SOON", "BUILDING", "MONITORING"],
+                "icons": ["🎯", "📈", "👀"],
+                "gradient": "linear-gradient(135deg, #764ba215, #764ba205)"
+            }
         }
         
-        accent_color, bg_color = color_map.get(color, color_map["blue"])
+        config = configs.get(signal_type, configs["watch"])
+        color = config["colors"][min(rank - 1, 2)]
+        label = config["labels"][min(rank - 1, 2)]
+        icon = config["icons"][min(rank - 1, 2)]
         
-        html = f"""
+        # Premium card HTML
+        st.markdown(f"""
         <div style='
-            background: {bg_color};
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 1.25rem;
-            margin-bottom: 1rem;
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
+            background: {config["gradient"]};
+            border-left: 4px solid {color};
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
         '>
-            <div style='
-                font-size: 0.9rem;
-                color: #0F172A;
-                font-weight: 700;
-                margin-bottom: 1rem;
-                padding-bottom: 0.5rem;
-                border-bottom: 2px solid {accent_color};
-            '>{title}</div>
-        """
-        
-        if items:
-            for item in items[:max_items]:
-                ticker = item.get('ticker', 'N/A')
-                score = item.get('master_score', 0)
-                change = item.get('ret_1d', 0)
-                
-                change_str = f"{change:+.1f}%"
-                change_color = "#10B981" if change > 0 else "#EF4444" if change < 0 else "#6B7280"
-                
-                html += f"""
+            <div style='display: flex; justify-content: space-between; align-items: center;'>
+                <div>
+                    <span style='font-size: 18px; font-weight: bold;'>{icon} {ticker}</span><br>
+                    <span style='
+                        background: {color}20;
+                        color: {color};
+                        padding: 2px 8px;
+                        border-radius: 12px;
+                        font-size: 10px;
+                        font-weight: bold;
+                    '>{label}</span>
+                </div>
+                <div style='text-align: right;'>
+                    <span style='font-size: 24px; font-weight: bold; color: #2c3e50;'>{score:.0f}</span><br>
+                    <span style='font-size: 10px; color: #95a5a6; text-transform: uppercase;'>Score</span>
+                </div>
+            </div>
+            
+            <div style='margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;'>
                 <div style='
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 0.5rem 0;
-                    border-bottom: 1px solid rgba(0,0,0,0.05);
+                    background: white;
+                    padding: 8px;
+                    border-radius: 6px;
+                    text-align: center;
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
                 '>
+                    <div style='font-size: 10px; color: #95a5a6;'>PRICE</div>
+                    <div style='font-size: 14px; font-weight: bold; color: #27ae60;'>₹{price:.0f}</div>
+                </div>
+                <div style='
+                    background: white;
+                    padding: 8px;
+                    border-radius: 6px;
+                    text-align: center;
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                '>
+                    <div style='font-size: 10px; color: #95a5a6;'>RVOL</div>
+                    <div style='font-size: 14px; font-weight: bold; color: #e67e22;'>{rvol:.1f}x</div>
+                </div>
+                <div style='
+                    background: white;
+                    padding: 8px;
+                    border-radius: 6px;
+                    text-align: center;
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                '>
+                    <div style='font-size: 10px; color: #95a5a6;'>MOM</div>
+                    <div style='font-size: 14px; font-weight: bold; color: #3498db;'>{momentum:.0f}</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    @staticmethod
+    def _render_empty_state(icon: str, title: str, subtitle: str, color: str = "#7f8c8d") -> None:
+        """Render empty state with premium styling"""
+        st.markdown(f"""
+        <div style='
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px dashed #dee2e6;
+        '>
+            <span style='font-size: 40px;'>{icon}</span><br>
+            <b style='color: #2c3e50; font-size: 14px;'>{title}</b><br>
+            <span style='color: {color}; font-size: 12px;'>{subtitle}</span>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    @staticmethod
+    def _render_error_state(message: str) -> None:
+        """Render error state with premium styling"""
+        st.markdown(f"""
+        <div style='
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #dc3545;
+        '>
+            ⚠️ {message}
+        </div>
+        """, unsafe_allow_html=True)
+    
+    @staticmethod
+    def _render_market_pulse(df: pd.DataFrame) -> None:
+        """Render market pulse metrics with premium cards"""
+        pulse_cols = st.columns(5)
+        
+        # Market Health Score
+        with pulse_cols[0]:
+            try:
+                health_score = 50
+                if 'master_score' in df.columns:
+                    avg_score = df['master_score'].mean()
+                    health_score = min(100, avg_score * 1.2)
+                
+                color = "#00ff00" if health_score > 70 else "#ffa500" if health_score > 40 else "#ff0000"
+                
+                UIComponents._render_pulse_card(
+                    value=f"{health_score:.0f}%",
+                    label="MARKET HEALTH",
+                    color=color,
+                    icon="💪"
+                )
+            except:
+                pass
+        
+        # Bull/Bear Ratio
+        with pulse_cols[1]:
+            try:
+                if 'master_score' in df.columns:
+                    bullish = len(df[df['master_score'] > 70])
+                    bearish = len(df[df['master_score'] < 40])
+                    
+                    UIComponents._render_pulse_card(
+                        value=f"{bullish}/{bearish}",
+                        label="BULL/BEAR",
+                        color="#3498db",
+                        icon="📊"
+                    )
+            except:
+                pass
+        
+        # Volume Activity
+        with pulse_cols[2]:
+            try:
+                if 'rvol' in df.columns:
+                    active = len(df[df['rvol'] > 2])
+                    extreme = len(df[df['rvol'] > 5])
+                    
+                    activity = "🌋" if extreme > 5 else "🔥" if active > 10 else "💤"
+                    
+                    UIComponents._render_pulse_card(
+                        value=f"{active}",
+                        label="VOL SURGES",
+                        color="#e67e22",
+                        icon=activity
+                    )
+            except:
+                pass
+        
+        # Top Gainer
+        with pulse_cols[3]:
+            try:
+                if 'ret_1d' in df.columns and not df.empty:
+                    top_gainer = df.nlargest(1, 'ret_1d').iloc[0]
+                    ticker = top_gainer.get('ticker', 'N/A')
+                    gain = top_gainer.get('ret_1d', 0)
+                    
+                    UIComponents._render_pulse_card(
+                        value=f"{ticker}",
+                        label=f"+{gain:.1f}% TODAY",
+                        color="#27ae60",
+                        icon="🚀"
+                    )
+            except:
+                pass
+        
+        # Pattern Count
+        with pulse_cols[4]:
+            try:
+                if 'patterns' in df.columns:
+                    pattern_count = (df['patterns'] != '').sum()
+                    
+                    UIComponents._render_pulse_card(
+                        value=f"{pattern_count}",
+                        label="PATTERNS",
+                        color="#9b59b6",
+                        icon="🎯"
+                    )
+            except:
+                pass
+    
+    @staticmethod
+    def _render_pulse_card(value: str, label: str, color: str, icon: str) -> None:
+        """Render individual pulse metric card"""
+        st.markdown(f"""
+        <div style='
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            border: 2px solid {color};
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+        '>
+            <div style='font-size: 28px;'>{icon}</div>
+            <div style='font-size: 20px; font-weight: bold; color: {color}; margin: 5px 0;'>{value}</div>
+            <div style='font-size: 10px; color: #95a5a6; text-transform: uppercase; letter-spacing: 0.5px;'>{label}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    @staticmethod
+    def _render_opportunities(df: pd.DataFrame) -> None:
+        """Render top opportunities section"""
+        opp_col1, opp_col2, opp_col3 = st.columns(3)
+        
+        with opp_col1:
+            UIComponents._render_opportunity_list(
+                df=df,
+                title="🚀 Ready to Run",
+                filter_fn=lambda x: (x['momentum_score'] >= 70) & (x['acceleration_score'] >= 70) & (x['rvol'] >= 2),
+                sort_col='master_score',
+                color="#00b894"
+            )
+        
+        with opp_col2:
+            UIComponents._render_opportunity_list(
+                df=df,
+                title="💎 Hidden Gems",
+                filter_fn=lambda x: x['patterns'].str.contains('HIDDEN GEM', na=False, regex=False),
+                sort_col='master_score',
+                color="#6c5ce7"
+            )
+        
+        with opp_col3:
+            UIComponents._render_opportunity_list(
+                df=df,
+                title="⚡ Volume Alerts",
+                filter_fn=lambda x: x['rvol'] > 3,
+                sort_col='rvol',
+                color="#fdcb6e"
+            )
+    
+    @staticmethod
+    def _render_opportunity_list(df: pd.DataFrame, title: str, filter_fn, sort_col: str, color: str) -> None:
+        """Render individual opportunity list"""
+        st.markdown(f"""
+        <div style='
+            background: {color}15;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid {color};
+        '>
+            <b style='color: {color};'>{title}</b>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        try:
+            filtered = df[filter_fn(df)] if callable(filter_fn) else df
+            
+            if len(filtered) > 0:
+                top_items = filtered.nlargest(5, sort_col)
+                
+                for _, stock in top_items.iterrows():
+                    ticker = stock.get('ticker', 'N/A')
+                    company = str(stock.get('company_name', 'N/A'))[:25]
+                    score = stock.get('master_score', 0)
+                    metric = stock.get(sort_col, 0)
+                    
+                    st.markdown(f"""
                     <div style='
-                        font-weight: 600;
-                        color: #1E293B;
-                        font-size: 0.875rem;
-                    '>{ticker}</div>
-                    <div style='
+                        background: white;
+                        padding: 8px;
+                        margin-bottom: 5px;
+                        border-radius: 6px;
+                        border-left: 3px solid {color};
                         display: flex;
+                        justify-content: space-between;
                         align-items: center;
-                        gap: 0.75rem;
                     '>
-                        <span style='
-                            background: white;
-                            padding: 0.125rem 0.5rem;
-                            border-radius: 4px;
-                            font-size: 0.75rem;
-                            color: {accent_color};
-                            font-weight: 600;
-                        '>{score:.1f}</span>
-                        <span style='
-                            color: {change_color};
-                            font-size: 0.75rem;
-                            font-weight: 600;
-                        '>{change_str}</span>
+                        <div>
+                            <b style='font-size: 12px;'>{ticker}</b><br>
+                            <span style='font-size: 10px; color: #7f8c8d;'>{company}</span>
+                        </div>
+                        <div style='text-align: right;'>
+                            <span style='font-size: 14px; font-weight: bold; color: {color};'>{score:.0f}</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("No stocks match criteria")
+                
+        except Exception as e:
+            logger.debug(f"Opportunity list error: {str(e)}")
+            st.info("Analyzing...")
+    
+    @staticmethod
+    def _render_market_intelligence(df: pd.DataFrame) -> None:
+        """Render market intelligence section"""
+        intel_col1, intel_col2 = st.columns([2, 1])
+        
+        with intel_col1:
+            try:
+                if 'sector' in df.columns:
+                    sector_rotation = MarketIntelligence.detect_sector_rotation(df)
+                    
+                    if not sector_rotation.empty:
+                        fig = go.Figure()
+                        
+                        top_10 = sector_rotation.head(10)
+                        
+                        # Create gradient colors
+                        colors = ['#00b894' if score > 60 else '#e74c3c' if score < 40 else '#fdcb6e' 
+                                 for score in top_10.get('flow_score', [])]
+                        
+                        fig.add_trace(go.Bar(
+                            x=top_10.index,
+                            y=top_10.get('flow_score', []),
+                            text=[f"{val:.1f}" for val in top_10.get('flow_score', [])],
+                            textposition='outside',
+                            marker_color=colors,
+                            marker_line_color='rgba(0,0,0,0.1)',
+                            marker_line_width=1
+                        ))
+                        
+                        fig.update_layout(
+                            title="🔄 Sector Rotation Map",
+                            xaxis_title="Sector",
+                            yaxis_title="Flow Score",
+                            height=400,
+                            template='plotly_white',
+                            showlegend=False,
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            font=dict(family="Arial, sans-serif")
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+                    else:
+                        st.info("No sector data available")
+                else:
+                    st.info("Sector analysis not available")
+                    
+            except Exception as e:
+                logger.debug(f"Sector rotation error: {str(e)}")
+                st.info("Analyzing sectors...")
+        
+        with intel_col2:
+            try:
+                regime, regime_metrics = MarketIntelligence.detect_market_regime(df)
+                
+                # Regime card
+                regime_color = "#00b894" if "BULL" in regime else "#e74c3c" if "DEFENSIVE" in regime else "#fdcb6e"
+                
+                st.markdown(f"""
+                <div style='
+                    background: linear-gradient(135deg, {regime_color}20, {regime_color}10);
+                    padding: 20px;
+                    border-radius: 12px;
+                    border: 2px solid {regime_color};
+                    text-align: center;
+                    margin-bottom: 15px;
+                '>
+                    <div style='font-size: 14px; color: #7f8c8d; margin-bottom: 5px;'>MARKET REGIME</div>
+                    <div style='font-size: 20px; font-weight: bold; color: {regime_color};'>{regime}</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Key signals
+                st.markdown("**📡 Key Signals**")
+                
+                breadth = regime_metrics.get('breadth', 0.5)
+                breadth_icon = "✅" if breadth > 0.6 else "⚠️" if breadth < 0.4 else "➡️"
+                breadth_text = "Strong" if breadth > 0.6 else "Weak" if breadth < 0.4 else "Neutral"
+                
+                st.markdown(f"""
+                <div style='
+                    background: white;
+                    padding: 10px;
+                    border-radius: 8px;
+                    margin-bottom: 10px;
+                    border-left: 3px solid #3498db;
+                '>
+                    <div style='display: flex; justify-content: space-between;'>
+                        <span>{breadth_icon} Market Breadth</span>
+                        <b style='color: #3498db;'>{breadth_text}</b>
                     </div>
                 </div>
-                """
-        else:
-            html += "<div style='color: #94A3B8; font-size: 0.875rem; text-align: center; padding: 1rem 0;'>No data available</div>"
-        
-        html += "</div>"
-        st.markdown(html, unsafe_allow_html=True)
-    
-    @staticmethod
-    def render_summary_section(df: pd.DataFrame):
-        """Main summary section - just display basic metrics"""
-        if df.empty:
-            st.warning("No data available")
-            return
-        
-        st.info(f"Analyzing {len(df):,} stocks with complete data")
-    
-    @staticmethod
-    def render_market_pulse(df: pd.DataFrame):
-        """Market sentiment analysis"""
-        if df.empty:
-            return
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            bullish = len(df[df['momentum_score'] >= 70]) if 'momentum_score' in df.columns else 0
-            st.metric("📈 Bullish", f"{bullish}")
-        
-        with col2:
-            neutral = len(df[(df['momentum_score'] >= 30) & (df['momentum_score'] < 70)]) if 'momentum_score' in df.columns else len(df)
-            st.metric("➡️ Neutral", f"{neutral}")
-        
-        with col3:
-            bearish = len(df[df['momentum_score'] < 30]) if 'momentum_score' in df.columns else 0
-            st.metric("📉 Bearish", f"{bearish}")
-    
-    @staticmethod
-    def render_top_opportunities(df: pd.DataFrame):
-        """Display top opportunities"""
-        if df.empty:
-            return
-        
-        st.markdown("### 💰 Top Opportunities")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            if 'momentum_score' in df.columns:
-                top = df.nlargest(3, 'momentum_score')[['ticker', 'momentum_score']].head(3)
-                st.markdown("**🚀 Momentum Leaders**")
-                for _, row in top.iterrows():
-                    st.write(f"• {row['ticker']}: {row['momentum_score']:.1f}")
-        
-        with col2:
-            if 'rvol' in df.columns:
-                top = df.nlargest(3, 'rvol')[['ticker', 'rvol']].head(3)
-                st.markdown("**🔥 Volume Surges**")
-                for _, row in top.iterrows():
-                    st.write(f"• {row['ticker']}: {row['rvol']:.1f}x")
-        
-        with col3:
-            if 'breakout_score' in df.columns:
-                top = df.nlargest(3, 'breakout_score')[['ticker', 'breakout_score']].head(3)
-                st.markdown("**⚡ Breakout Ready**")
-                for _, row in top.iterrows():
-                    st.write(f"• {row['ticker']}: {row['breakout_score']:.1f}")
-        
-        with col4:
-            if 'master_score' in df.columns:
-                top = df.nlargest(3, 'master_score')[['ticker', 'master_score']].head(3)
-                st.markdown("**🏆 Top Scores**")
-                for _, row in top.iterrows():
-                    st.write(f"• {row['ticker']}: {row['master_score']:.1f}")
-    
-    @staticmethod
-    def render_pattern_distribution(df: pd.DataFrame):
-        """Show pattern distribution"""
-        if 'patterns' not in df.columns:
-            return
-        
-        pattern_counts = {}
-        for patterns in df['patterns'].dropna():
-            if patterns:
-                for pattern in patterns.split(' | '):
-                    pattern_counts[pattern] = pattern_counts.get(pattern, 0) + 1
-        
-        if pattern_counts:
-            st.markdown("### 🎯 Pattern Distribution")
-            top_patterns = dict(sorted(pattern_counts.items(), key=lambda x: x[1], reverse=True)[:5])
-            
-            for pattern, count in top_patterns.items():
-                st.write(f"• **{pattern}**: {count} stocks")
-    
-    @staticmethod
-    def render_sector_rotation(df: pd.DataFrame):
-        """Sector performance"""
-        if 'sector' not in df.columns:
-            return
-        
-        st.markdown("### 🔄 Sector Rotation")
-        
-        sector_perf = df.groupby('sector')['master_score'].mean().sort_values(ascending=False).head(5)
-        
-        for sector, score in sector_perf.items():
-            st.write(f"• **{sector}**: {score:.1f}")
-    
-    @staticmethod
-    def render_momentum_waves(df: pd.DataFrame):
-        """Momentum wave analysis"""
-        if 'overall_wave_strength' not in df.columns:
-            return
-        
-        st.markdown("### 🌊 Momentum Waves")
-        
-        waves = {
-            "Tsunami (80+)": len(df[df['overall_wave_strength'] >= 80]),
-            "Strong (60-80)": len(df[(df['overall_wave_strength'] >= 60) & (df['overall_wave_strength'] < 80)]),
-            "Forming (40-60)": len(df[(df['overall_wave_strength'] >= 40) & (df['overall_wave_strength'] < 60)]),
-            "Calm (<40)": len(df[df['overall_wave_strength'] < 40])
-        }
-        
-        for wave_type, count in waves.items():
-            st.write(f"• **{wave_type}**: {count} stocks")
-    
-    @staticmethod
-    def render_volume_analysis(df: pd.DataFrame):
-        """Volume analysis"""
-        if 'rvol' not in df.columns:
-            return
-        
-        st.markdown("### 📊 Volume Analysis")
-        
-        vol_levels = {
-            "Extreme (5x+)": len(df[df['rvol'] >= 5]),
-            "High (2-5x)": len(df[(df['rvol'] >= 2) & (df['rvol'] < 5)]),
-            "Normal (0.5-2x)": len(df[(df['rvol'] >= 0.5) & (df['rvol'] < 2)]),
-            "Low (<0.5x)": len(df[df['rvol'] < 0.5])
-        }
-        
-        for level, count in vol_levels.items():
-            st.write(f"• **{level}**: {count} stocks")
-    
-    @staticmethod
-    def render_acceleration_profiles(df: pd.DataFrame):
-        """Acceleration analysis"""
-        if 'acceleration_score' not in df.columns:
-            return
-        
-        st.markdown("### ⚡ Acceleration")
-        
-        accel_levels = {
-            "Accelerating (70+)": len(df[df['acceleration_score'] >= 70]),
-            "Steady (30-70)": len(df[(df['acceleration_score'] >= 30) & (df['acceleration_score'] < 70)]),
-            "Decelerating (<30)": len(df[df['acceleration_score'] < 30])
-        }
-        
-        for level, count in accel_levels.items():
-            st.write(f"• **{level}**: {count} stocks")
-    
-    @staticmethod
-    def render_category_flow(df: pd.DataFrame):
-        """Category flow analysis"""
-        if 'category' not in df.columns:
-            return
-        
-        st.markdown("### 💰 Category Flow")
-        
-        cat_perf = df.groupby('category')['master_score'].mean().sort_values(ascending=False)
-        
-        for category, score in cat_perf.items():
-            st.write(f"• **{category}**: {score:.1f}")
+                """, unsafe_allow_html=True)
+                
+                # Market strength meter
+                pattern_count = (df['patterns'] != '').sum() if 'patterns' in df.columns else 0
+                avg_rvol = regime_metrics.get('avg_rvol', 1.0)
+                
+                strength_score = min(100, (
+                    (breadth * 50) +
+                    (min(avg_rvol, 2) * 25) +
+                    ((pattern_count / len(df)) * 25 if len(df) > 0 else 0)
+                ))
+                
+                st.markdown("**💪 Market Strength**")
+                
+                # Visual strength meter
+                strength_color = "#00b894" if strength_score > 70 else "#fdcb6e" if strength_score > 30 else "#e74c3c"
+                
+                st.markdown(f"""
+                <div style='
+                    background: #ecf0f1;
+                    height: 30px;
+                    border-radius: 15px;
+                    overflow: hidden;
+                    position: relative;
+                '>
+                    <div style='
+                        background: linear-gradient(90deg, {strength_color}, {strength_color}dd);
+                        height: 100%;
+                        width: {strength_score}%;
+                        border-radius: 15px;
+                        transition: width 0.5s ease;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    '>
+                        <span style='color: white; font-weight: bold; font-size: 12px;'>{strength_score:.0f}%</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            except Exception as e:
+                logger.debug(f"Market regime error: {str(e)}")
+                st.info("Detecting market regime...")
 
 # ============================================
 # SESSION STATE MANAGER
@@ -4310,522 +4791,63 @@ def main():
         "📊 Summary", "🏆 Rankings", "🌊 Wave Radar", "📊 Analysis", "🔍 Search", "📥 Export", "ℹ️ About"
     ])
     
-# ============================================
-    # COMPLETE SUMMARY TAB - WORKING VERSION
-    # ============================================
-    
-    with tabs[0]:  # Summary Tab
+    with tabs[0]:
+        st.markdown("### 📊 Executive Summary Dashboard")
         
-        # Header Section with gradient
-        st.markdown(f"""
-        <div style='
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.05));
-            padding: 1.5rem;
-            border-radius: 12px;
-            margin-bottom: 1.5rem;
-            border: 1px solid rgba(102, 126, 234, 0.1);
-        '>
-            <h2 style='
-                margin: 0;
-                color: #1e293b;
-                font-size: 1.8rem;
-                font-weight: 700;
-            '>📊 Executive Dashboard</h2>
-            <p style='
-                margin: 0.5rem 0 0 0;
-                color: #64748b;
-                font-size: 0.95rem;
-            '>Analyzing {len(filtered_df):,} stocks • Last updated: {data_timestamp.strftime('%I:%M %p') if data_timestamp else 'N/A'}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # ========== KEY METRICS ROW ==========
-        st.markdown("### 📈 Key Performance Indicators")
-        
-        kpi_col1, kpi_col2, kpi_col3, kpi_col4, kpi_col5, kpi_col6 = st.columns(6)
-        
-        with kpi_col1:
-            total_stocks = len(filtered_df)
-            original_stocks = len(ranked_df)
-            filter_pct = (total_stocks / original_stocks * 100) if original_stocks > 0 else 100
+        if not filtered_df.empty:
+            UIComponents.render_summary_section(filtered_df)
             
-            UIComponents.render_metric_card(
-                "📊 STOCKS",
-                f"{total_stocks:,}",
-                f"{filter_pct:.0f}% of {original_stocks:,}",
-                color="default"
-            )
-        
-        with kpi_col2:
-            if 'master_score' in filtered_df.columns and not filtered_df.empty:
-                avg_score = filtered_df['master_score'].mean()
-                std_score = filtered_df['master_score'].std()
-                color = "green" if avg_score >= 60 else "orange" if avg_score >= 40 else "red"
-                UIComponents.render_metric_card(
-                    "📈 AVG SCORE",
-                    f"{avg_score:.1f}",
-                    f"σ={std_score:.1f}",
-                    color=color
-                )
-            else:
-                UIComponents.render_metric_card("AVG SCORE", "N/A", color="gray")
-        
-        with kpi_col3:
-            if 'momentum_score' in filtered_df.columns:
-                high_momentum = len(filtered_df[filtered_df['momentum_score'] >= 70])
-                momentum_pct = (high_momentum / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
-                UIComponents.render_metric_card(
-                    "🚀 MOMENTUM",
-                    f"{high_momentum}",
-                    f"↑ {momentum_pct:.0f}%",
-                    color="green" if momentum_pct > 20 else "default"
-                )
-            else:
-                UIComponents.render_metric_card("MOMENTUM", "N/A", color="gray")
-        
-        with kpi_col4:
-            if 'rvol' in filtered_df.columns:
-                volume_surges = len(filtered_df[filtered_df['rvol'] >= 2])
-                surge_pct = (volume_surges / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
-                UIComponents.render_metric_card(
-                    "🔥 VOLUME",
-                    f"{volume_surges}",
-                    f"RVOL≥2x ({surge_pct:.0f}%)",
-                    color="orange" if volume_surges > 50 else "default"
-                )
-            else:
-                UIComponents.render_metric_card("VOLUME", "N/A", color="gray")
-        
-        with kpi_col5:
-            if 'acceleration_score' in filtered_df.columns:
-                accelerating = len(filtered_df[filtered_df['acceleration_score'] >= 70])
-                accel_pct = (accelerating / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
-                UIComponents.render_metric_card(
-                    "⚡ ACCELERATING",
-                    f"{accelerating}",
-                    f"↑ {accel_pct:.0f}%",
-                    color="purple" if accel_pct > 15 else "default"
-                )
-            else:
-                UIComponents.render_metric_card("ACCELERATING", "N/A", color="gray")
-        
-        with kpi_col6:
-            if 'patterns' in filtered_df.columns:
-                with_patterns = len(filtered_df[filtered_df['patterns'] != ''])
-                pattern_pct = (with_patterns / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
-                UIComponents.render_metric_card(
-                    "🎯 PATTERNS",
-                    f"{with_patterns}",
-                    f"{pattern_pct:.0f}% have patterns",
-                    color="green" if pattern_pct > 30 else "default"
-                )
-            else:
-                UIComponents.render_metric_card("PATTERNS", "N/A", color="gray")
-        
-        st.markdown("---")
-        
-        # ========== MARKET PULSE SECTION ==========
-        st.markdown("### 🎯 Market Intelligence")
-        
-        intel_col1, intel_col2, intel_col3 = st.columns([1, 1, 1])
-        
-        with intel_col1:
-            # Market Sentiment Box
-            st.markdown("""
-            <div style='
-                background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
-                border-radius: 12px;
-                padding: 1.25rem;
-                border: 1px solid rgba(16, 185, 129, 0.2);
-            '>
-                <h4 style='
-                    margin: 0 0 1rem 0;
-                    color: #0F172A;
-                    font-size: 0.95rem;
-                    font-weight: 700;
-                '>📊 MARKET SENTIMENT</h4>
-            """, unsafe_allow_html=True)
+            st.markdown("---")
+            st.markdown("#### 💾 Download Clean Processed Data")
             
-            if 'momentum_score' in filtered_df.columns:
-                bullish = len(filtered_df[filtered_df['momentum_score'] >= 70])
-                bearish = len(filtered_df[filtered_df['momentum_score'] <= 30])
-                neutral = len(filtered_df) - bullish - bearish
+            download_cols = st.columns(3)
+            
+            with download_cols[0]:
+                st.markdown("**📊 Current View Data**")
+                st.write(f"Includes {len(filtered_df)} stocks matching current filters")
                 
-                total = len(filtered_df)
-                bullish_pct = (bullish/total*100) if total > 0 else 0
+                csv_filtered = ExportEngine.create_csv_export(filtered_df)
+                st.download_button(
+                    label="📥 Download Filtered Data (CSV)",
+                    data=csv_filtered,
+                    file_name=f"wave_detection_filtered_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    help="Download currently filtered stocks with all scores and indicators"
+                )
+            
+            with download_cols[1]:
+                st.markdown("**🏆 Top 100 Stocks**")
+                st.write("Elite stocks ranked by Master Score")
                 
-                if bullish_pct > 60:
-                    sentiment = "🔥 STRONG BULLISH"
-                    sentiment_color = "#10B981"
-                elif bullish_pct > 40:
-                    sentiment = "📈 BULLISH"
-                    sentiment_color = "#3B82F6"
-                elif bullish_pct < 30:
-                    sentiment = "📉 BEARISH"
-                    sentiment_color = "#EF4444"
+                top_100 = filtered_df.nlargest(100, 'master_score')
+                csv_top100 = ExportEngine.create_csv_export(top_100)
+                st.download_button(
+                    label="📥 Download Top 100 (CSV)",
+                    data=csv_top100,
+                    file_name=f"wave_detection_top100_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    help="Download top 100 stocks by Master Score"
+                )
+            
+            with download_cols[2]:
+                st.markdown("**🎯 Pattern Stocks Only**")
+                pattern_stocks = filtered_df[filtered_df['patterns'] != '']
+                st.write(f"Includes {len(pattern_stocks)} stocks with patterns")
+                
+                if len(pattern_stocks) > 0:
+                    csv_patterns = ExportEngine.create_csv_export(pattern_stocks)
+                    st.download_button(
+                        label="📥 Download Pattern Stocks (CSV)",
+                        data=csv_patterns,
+                        file_name=f"wave_detection_patterns_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        help="Download only stocks showing patterns"
+                    )
                 else:
-                    sentiment = "➡️ NEUTRAL"
-                    sentiment_color = "#6B7280"
-                
-                st.markdown(f"""
-                <div style='
-                    text-align: center;
-                    padding: 1rem;
-                    background: white;
-                    border-radius: 8px;
-                    margin-bottom: 1rem;
-                '>
-                    <div style='font-size: 1.25rem; font-weight: 700; color: {sentiment_color};'>
-                        {sentiment}
-                    </div>
-                    <div style='font-size: 0.75rem; color: #64748B; margin-top: 0.5rem;'>
-                        {total:,} stocks analyzed
-                    </div>
-                </div>
-                
-                <div style='display: flex; gap: 0.5rem; text-align: center;'>
-                    <div style='flex: 1; padding: 0.5rem; background: #F0FDF4; border-radius: 6px;'>
-                        <div style='font-size: 1rem; font-weight: 700; color: #10B981;'>📈 {bullish}</div>
-                        <div style='font-size: 0.7rem; color: #64748B;'>Bullish</div>
-                    </div>
-                    <div style='flex: 1; padding: 0.5rem; background: #F8FAFC; border-radius: 6px;'>
-                        <div style='font-size: 1rem; font-weight: 700; color: #6B7280;'>➡️ {neutral}</div>
-                        <div style='font-size: 0.7rem; color: #64748B;'>Neutral</div>
-                    </div>
-                    <div style='flex: 1; padding: 0.5rem; background: #FEF2F2; border-radius: 6px;'>
-                        <div style='font-size: 1rem; font-weight: 700; color: #EF4444;'>📉 {bearish}</div>
-                        <div style='font-size: 0.7rem; color: #64748B;'>Bearish</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.info("Momentum data not available")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
+                    st.info("No stocks with patterns in current filter")
         
-        with intel_col2:
-            # Market Breadth Box
-            st.markdown("""
-            <div style='
-                background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
-                border-radius: 12px;
-                padding: 1.25rem;
-                border: 1px solid rgba(59, 130, 246, 0.2);
-            '>
-                <h4 style='
-                    margin: 0 0 1rem 0;
-                    color: #0F172A;
-                    font-size: 0.95rem;
-                    font-weight: 700;
-                '>📈 MARKET BREADTH</h4>
-            """, unsafe_allow_html=True)
-            
-            if 'ret_1d' in filtered_df.columns:
-                advancing = len(filtered_df[filtered_df['ret_1d'] > 0])
-                declining = len(filtered_df[filtered_df['ret_1d'] < 0])
-                unchanged = len(filtered_df[filtered_df['ret_1d'] == 0])
-                
-                ad_ratio = (advancing / declining) if declining > 0 else float('inf')
-                ad_display = f"{ad_ratio:.2f}" if ad_ratio != float('inf') else "∞"
-                
-                st.markdown(f"""
-                <div style='
-                    text-align: center;
-                    padding: 1rem;
-                    background: white;
-                    border-radius: 8px;
-                    margin-bottom: 1rem;
-                '>
-                    <div style='font-size: 0.75rem; color: #64748B;'>A/D RATIO</div>
-                    <div style='font-size: 1.5rem; font-weight: 700; color: #3B82F6;'>{ad_display}</div>
-                </div>
-                
-                <div style='display: flex; gap: 0.5rem; text-align: center;'>
-                    <div style='flex: 1; padding: 0.5rem; background: #F0FDF4; border-radius: 6px;'>
-                        <div style='font-size: 1rem; font-weight: 700; color: #10B981;'>↑ {advancing}</div>
-                        <div style='font-size: 0.7rem; color: #64748B;'>Advancing</div>
-                    </div>
-                    <div style='flex: 1; padding: 0.5rem; background: #FEF2F2; border-radius: 6px;'>
-                        <div style='font-size: 1rem; font-weight: 700; color: #EF4444;'>↓ {declining}</div>
-                        <div style='font-size: 0.7rem; color: #64748B;'>Declining</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.info("Return data not available")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        with intel_col3:
-            # Volume Analysis Box
-            st.markdown("""
-            <div style='
-                background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05));
-                border-radius: 12px;
-                padding: 1.25rem;
-                border: 1px solid rgba(245, 158, 11, 0.2);
-            '>
-                <h4 style='
-                    margin: 0 0 1rem 0;
-                    color: #0F172A;
-                    font-size: 0.95rem;
-                    font-weight: 700;
-                '>🔥 VOLUME ANALYSIS</h4>
-            """, unsafe_allow_html=True)
-            
-            if 'rvol' in filtered_df.columns:
-                extreme = len(filtered_df[filtered_df['rvol'] >= 5])
-                high = len(filtered_df[(filtered_df['rvol'] >= 2) & (filtered_df['rvol'] < 5)])
-                normal = len(filtered_df[(filtered_df['rvol'] >= 0.5) & (filtered_df['rvol'] < 2)])
-                low = len(filtered_df[filtered_df['rvol'] < 0.5])
-                
-                avg_rvol = filtered_df['rvol'].median()
-                
-                st.markdown(f"""
-                <div style='
-                    text-align: center;
-                    padding: 1rem;
-                    background: white;
-                    border-radius: 8px;
-                    margin-bottom: 1rem;
-                '>
-                    <div style='font-size: 0.75rem; color: #64748B;'>MEDIAN RVOL</div>
-                    <div style='font-size: 1.5rem; font-weight: 700; color: #F59E0B;'>{avg_rvol:.2f}x</div>
-                </div>
-                
-                <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;'>
-                    <div style='padding: 0.4rem; background: #FEF2F2; border-radius: 6px; text-align: center;'>
-                        <div style='font-size: 0.9rem; font-weight: 700; color: #EF4444;'>🔥 {extreme}</div>
-                        <div style='font-size: 0.65rem; color: #64748B;'>Extreme</div>
-                    </div>
-                    <div style='padding: 0.4rem; background: #FFF7ED; border-radius: 6px; text-align: center;'>
-                        <div style='font-size: 0.9rem; font-weight: 700; color: #F59E0B;'>⚡ {high}</div>
-                        <div style='font-size: 0.65rem; color: #64748B;'>High</div>
-                    </div>
-                    <div style='padding: 0.4rem; background: #EFF6FF; border-radius: 6px; text-align: center;'>
-                        <div style='font-size: 0.9rem; font-weight: 700; color: #3B82F6;'>📊 {normal}</div>
-                        <div style='font-size: 0.65rem; color: #64748B;'>Normal</div>
-                    </div>
-                    <div style='padding: 0.4rem; background: #F8FAFC; border-radius: 6px; text-align: center;'>
-                        <div style='font-size: 0.9rem; font-weight: 700; color: #6B7280;'>💤 {low}</div>
-                        <div style='font-size: 0.65rem; color: #64748B;'>Low</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.info("Volume data not available")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        st.markdown("---")
-        
-        # ========== TOP OPPORTUNITIES SECTION ==========
-        st.markdown("### 💎 Top Opportunities")
-        
-        opp_col1, opp_col2, opp_col3, opp_col4 = st.columns(4)
-        
-        with opp_col1:
-            if 'momentum_score' in filtered_df.columns and len(filtered_df) > 0:
-                top_momentum = filtered_df.nlargest(5, 'momentum_score')[['ticker', 'master_score', 'momentum_score']]
-                UIComponents.render_info_card(
-                    "🚀 MOMENTUM LEADERS",
-                    [{'ticker': row['ticker'], 'master_score': row['master_score'], 'ret_1d': row['momentum_score']/10} 
-                     for _, row in top_momentum.iterrows()],
-                    color="blue",
-                    max_items=5
-                )
-            else:
-                UIComponents.render_info_card("🚀 MOMENTUM LEADERS", [], color="blue")
-        
-        with opp_col2:
-            if 'rvol' in filtered_df.columns and len(filtered_df) > 0:
-                volume_surges = filtered_df.nlargest(5, 'rvol')[['ticker', 'master_score', 'rvol']]
-                UIComponents.render_info_card(
-                    "🔥 VOLUME EXPLOSIONS",
-                    [{'ticker': row['ticker'], 'master_score': row['master_score'], 'ret_1d': row['rvol']*10} 
-                     for _, row in volume_surges.iterrows()],
-                    color="orange",
-                    max_items=5
-                )
-            else:
-                UIComponents.render_info_card("🔥 VOLUME EXPLOSIONS", [], color="orange")
-        
-        with opp_col3:
-            if 'breakout_score' in filtered_df.columns and len(filtered_df) > 0:
-                breakout_ready = filtered_df.nlargest(5, 'breakout_score')[['ticker', 'master_score', 'breakout_score']]
-                UIComponents.render_info_card(
-                    "⚡ BREAKOUT READY",
-                    [{'ticker': row['ticker'], 'master_score': row['master_score'], 'ret_1d': row['breakout_score']/10} 
-                     for _, row in breakout_ready.iterrows()],
-                    color="green",
-                    max_items=5
-                )
-            else:
-                UIComponents.render_info_card("⚡ BREAKOUT READY", [], color="green")
-        
-        with opp_col4:
-            if 'acceleration_score' in filtered_df.columns and len(filtered_df) > 0:
-                accelerating = filtered_df.nlargest(5, 'acceleration_score')[['ticker', 'master_score', 'acceleration_score']]
-                UIComponents.render_info_card(
-                    "🎯 ACCELERATING",
-                    [{'ticker': row['ticker'], 'master_score': row['master_score'], 'ret_1d': row['acceleration_score']/10} 
-                     for _, row in accelerating.iterrows()],
-                    color="purple",
-                    max_items=5
-                )
-            else:
-                UIComponents.render_info_card("🎯 ACCELERATING", [], color="purple")
-        
-        st.markdown("---")
-        
-        # ========== PATTERN & SECTOR ANALYSIS ==========
-        st.markdown("### 📊 Market Analysis")
-        
-        analysis_col1, analysis_col2 = st.columns(2)
-        
-        with analysis_col1:
-            # Top Patterns
-            st.markdown("""
-            <div style='
-                background: rgba(255, 255, 255, 0.95);
-                border-radius: 12px;
-                padding: 1.25rem;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-            '>
-                <h4 style='
-                    margin: 0 0 1rem 0;
-                    color: #0F172A;
-                    font-size: 0.95rem;
-                    font-weight: 700;
-                '>🎯 TOP PATTERNS DETECTED</h4>
-            """, unsafe_allow_html=True)
-            
-            if 'patterns' in filtered_df.columns:
-                pattern_counts = {}
-                for patterns in filtered_df['patterns'].dropna():
-                    if patterns:
-                        for pattern in patterns.split(' | '):
-                            pattern_counts[pattern] = pattern_counts.get(pattern, 0) + 1
-                
-                if pattern_counts:
-                    top_patterns = dict(sorted(pattern_counts.items(), key=lambda x: x[1], reverse=True)[:8])
-                    
-                    for pattern, count in top_patterns.items():
-                        pct = (count / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
-                        
-                        # Determine color
-                        if "BREAKOUT" in pattern:
-                            color = "#10B981"
-                        elif "MOMENTUM" in pattern:
-                            color = "#3B82F6"
-                        elif "VOLUME" in pattern or "VOL" in pattern:
-                            color = "#F59E0B"
-                        else:
-                            color = "#6B7280"
-                        
-                        st.markdown(f"""
-                        <div style='
-                            display: inline-block;
-                            margin: 0.25rem;
-                            padding: 0.4rem 0.8rem;
-                            background: {color}15;
-                            border: 1px solid {color}40;
-                            border-radius: 20px;
-                        '>
-                            <span style='color: {color}; font-size: 0.75rem; font-weight: 600;'>
-                                {pattern} ({count})
-                            </span>
-                        </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.info("No patterns detected")
-            else:
-                st.info("Pattern data not available")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        with analysis_col2:
-            # Sector Performance
-            st.markdown("""
-            <div style='
-                background: rgba(255, 255, 255, 0.95);
-                border-radius: 12px;
-                padding: 1.25rem;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-            '>
-                <h4 style='
-                    margin: 0 0 1rem 0;
-                    color: #0F172A;
-                    font-size: 0.95rem;
-                    font-weight: 700;
-                '>🔄 TOP SECTORS</h4>
-            """, unsafe_allow_html=True)
-            
-            if 'sector' in filtered_df.columns:
-                sector_perf = filtered_df.groupby('sector').agg({
-                    'master_score': 'mean',
-                    'ticker': 'count'
-                }).round(1)
-                
-                sector_perf = sector_perf.sort_values('master_score', ascending=False).head(5)
-                
-                for sector, row in sector_perf.iterrows():
-                    score = row['master_score']
-                    count = int(row['ticker'])
-                    
-                    # Color based on score
-                    if score >= 60:
-                        bar_color = "#10B981"
-                        icon = "🔥"
-                    elif score >= 40:
-                        bar_color = "#F59E0B"
-                        icon = "📊"
-                    else:
-                        bar_color = "#EF4444"
-                        icon = "⚠️"
-                    
-                    st.markdown(f"""
-                    <div style='margin-bottom: 0.75rem;'>
-                        <div style='display: flex; justify-content: space-between; margin-bottom: 0.25rem;'>
-                            <span style='font-size: 0.8rem; font-weight: 600; color: #1E293B;'>
-                                {icon} {sector[:25]}
-                            </span>
-                            <span style='font-size: 0.75rem; color: #64748B;'>
-                                {count} stocks
-                            </span>
-                        </div>
-                        <div style='background: #E2E8F0; height: 6px; border-radius: 3px; overflow: hidden;'>
-                            <div style='
-                                background: {bar_color};
-                                height: 100%;
-                                width: {score}%;
-                                border-radius: 3px;
-                            '></div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.info("Sector data not available")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        # ========== FOOTER ==========
-        st.markdown("---")
-        
-        footer_col1, footer_col2, footer_col3, footer_col4 = st.columns(4)
-        
-        with footer_col1:
-            st.caption(f"📅 **Last Updated:** {data_timestamp.strftime('%I:%M %p, %B %d') if data_timestamp else 'N/A'}")
-        
-        with footer_col2:
-            st.caption(f"📊 **Data Source:** {st.session_state.data_source.upper()}")
-        
-        with footer_col3:
-            st.caption(f"🔍 **Active Filters:** {active_filter_count}")
-        
-        with footer_col4:
-            refresh_time = (datetime.now(timezone.utc) - st.session_state.last_refresh).total_seconds() / 60
-            st.caption(f"🔄 **Cache Age:** {refresh_time:.0f} min")
+        else:
+            st.warning("No data available for summary. Please adjust filters.")
     
     # Tab 1: Rankings
     with tabs[1]:
