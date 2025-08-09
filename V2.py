@@ -2610,324 +2610,324 @@ class UIComponents:
             st.metric(label, value, delta)
     
     @staticmethod
-def render_summary_section(df: pd.DataFrame) -> None:
-    """Render WAVE COMMAND CENTER - Perfectly aligned with Wave Detection Ultimate"""
-    
-    if df.empty:
-        st.warning("No data available for wave analysis")
-        return
-    
-    # ====================================
-    # 🌊 WAVE COMMAND CENTER
-    # ====================================
-    st.markdown("### 🌊 WAVE COMMAND CENTER")
-    st.caption("Real-Time Wave Detection • Momentum Harmony Analysis • Smart Money Flow")
-    
-    # ====================================
-    # SECTION 1: ACTIVE WAVES (Using your wave_state!)
-    # ====================================
-    wave_col1, wave_col2, wave_col3, wave_col4 = st.columns(4)
-    
-    with wave_col1:
-        st.markdown("**🌊🌊🌊 CRESTING**")
-        st.caption("Peak momentum NOW")
+    def render_summary_section(df: pd.DataFrame) -> None:
+        """Render WAVE COMMAND CENTER - Perfectly aligned with Wave Detection Ultimate"""
         
-        # Find stocks in CRESTING state
-        if 'wave_state' in df.columns:
-            cresting = df[df['wave_state'].str.contains('CRESTING', na=False)]
-            
-            if len(cresting) > 0:
-                # Best cresting stock
-                best_crest = cresting.nlargest(1, 'master_score').iloc[0]
-                
-                st.success(f"**{best_crest['ticker']}**")
-                
-                # Show why it's cresting
-                if best_crest.get('momentum_harmony', 0) == 4:
-                    st.caption("✅ Perfect harmony (4/4)")
-                
-                # Trading levels
-                entry = best_crest['price']
-                target = entry * 1.08  # Quick 8% on cresting waves
-                stop = entry * 0.97   # Tight 3% stop
-                
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.metric("Entry", f"₹{entry:.0f}")
-                with col_b:
-                    st.metric("Target", f"₹{target:.0f}")
-                
-                # Show momentum harmony
-                harmony = best_crest.get('momentum_harmony', 0)
-                harmony_bar = "🟢" * harmony + "⚪" * (4 - harmony)
-                st.caption(f"Harmony: {harmony_bar}")
-                
-                # Money flow
-                if 'money_flow_mm' in best_crest:
-                    st.caption(f"💰 Flow: ₹{best_crest['money_flow_mm']:.1f}M")
-            else:
-                st.info("No cresting waves")
-                st.caption("Market calm")
-    
-    with wave_col2:
-        st.markdown("**🌊🌊 BUILDING**")
-        st.caption("Gaining strength")
+        if df.empty:
+            st.warning("No data available for wave analysis")
+            return
         
-        if 'wave_state' in df.columns:
-            building = df[df['wave_state'].str.contains('BUILDING', na=False)]
+        # ====================================
+        # 🌊 WAVE COMMAND CENTER
+        # ====================================
+        st.markdown("### 🌊 WAVE COMMAND CENTER")
+        st.caption("Real-Time Wave Detection • Momentum Harmony Analysis • Smart Money Flow")
+        
+        # ====================================
+        # SECTION 1: ACTIVE WAVES (Using your wave_state!)
+        # ====================================
+        wave_col1, wave_col2, wave_col3, wave_col4 = st.columns(4)
+        
+        with wave_col1:
+            st.markdown("**🌊🌊🌊 CRESTING**")
+            st.caption("Peak momentum NOW")
             
-            if len(building) > 0:
-                # Top 2 building waves
-                top_building = building.nlargest(2, 'overall_wave_strength')
+            # Find stocks in CRESTING state
+            if 'wave_state' in df.columns:
+                cresting = df[df['wave_state'].str.contains('CRESTING', na=False)]
                 
-                for _, wave in top_building.iterrows():
-                    ticker = wave['ticker']
-                    strength = wave.get('overall_wave_strength', 0)
+                if len(cresting) > 0:
+                    # Best cresting stock
+                    best_crest = cresting.nlargest(1, 'master_score').iloc[0]
                     
-                    st.warning(f"**{ticker}**")
+                    st.success(f"**{best_crest['ticker']}**")
                     
-                    # Wave strength meter
-                    if strength > 80:
-                        st.progress(strength/100, f"💪 {strength:.0f}%")
+                    # Show why it's cresting
+                    if best_crest.get('momentum_harmony', 0) == 4:
+                        st.caption("✅ Perfect harmony (4/4)")
+                    
+                    # Trading levels
+                    entry = best_crest['price']
+                    target = entry * 1.08  # Quick 8% on cresting waves
+                    stop = entry * 0.97   # Tight 3% stop
+                    
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        st.metric("Entry", f"₹{entry:.0f}")
+                    with col_b:
+                        st.metric("Target", f"₹{target:.0f}")
+                    
+                    # Show momentum harmony
+                    harmony = best_crest.get('momentum_harmony', 0)
+                    harmony_bar = "🟢" * harmony + "⚪" * (4 - harmony)
+                    st.caption(f"Harmony: {harmony_bar}")
+                    
+                    # Money flow
+                    if 'money_flow_mm' in best_crest:
+                        st.caption(f"💰 Flow: ₹{best_crest['money_flow_mm']:.1f}M")
+                else:
+                    st.info("No cresting waves")
+                    st.caption("Market calm")
+        
+        with wave_col2:
+            st.markdown("**🌊🌊 BUILDING**")
+            st.caption("Gaining strength")
+            
+            if 'wave_state' in df.columns:
+                building = df[df['wave_state'].str.contains('BUILDING', na=False)]
+                
+                if len(building) > 0:
+                    # Top 2 building waves
+                    top_building = building.nlargest(2, 'overall_wave_strength')
+                    
+                    for _, wave in top_building.iterrows():
+                        ticker = wave['ticker']
+                        strength = wave.get('overall_wave_strength', 0)
+                        
+                        st.warning(f"**{ticker}**")
+                        
+                        # Wave strength meter
+                        if strength > 80:
+                            st.progress(strength/100, f"💪 {strength:.0f}%")
+                        else:
+                            st.progress(strength/100, f"{strength:.0f}%")
+                        
+                        # Position in range
+                        if 'from_low_pct' in wave:
+                            st.caption(f"📍 {wave['from_low_pct']:.0f}% from low")
+                else:
+                    st.info("No building waves")
+        
+        with wave_col3:
+            st.markdown("**🌊 FORMING**")
+            st.caption("Early stage")
+            
+            if 'wave_state' in df.columns:
+                forming = df[df['wave_state'].str.contains('FORMING', na=False)]
+                
+                if len(forming) > 0:
+                    # Filter for quality forming waves
+                    quality_forming = forming[
+                        (forming['master_score'] > 60) &
+                        (forming.get('vmi', 0) > 1)  # Volume building
+                    ]
+                    
+                    if len(quality_forming) > 0:
+                        best_forming = quality_forming.nlargest(1, 'vmi').iloc[0]
+                        
+                        st.info(f"**{best_forming['ticker']}**")
+                        
+                        # VMI indicator
+                        vmi = best_forming.get('vmi', 1)
+                        st.metric("VMI", f"{vmi:.2f}")
+                        
+                        # Trigger price
+                        trigger = best_forming['price'] * 1.02
+                        st.caption(f"Watch: ₹{trigger:.0f}")
                     else:
-                        st.progress(strength/100, f"{strength:.0f}%")
-                    
-                    # Position in range
-                    if 'from_low_pct' in wave:
-                        st.caption(f"📍 {wave['from_low_pct']:.0f}% from low")
-            else:
-                st.info("No building waves")
-    
-    with wave_col3:
-        st.markdown("**🌊 FORMING**")
-        st.caption("Early stage")
-        
-        if 'wave_state' in df.columns:
-            forming = df[df['wave_state'].str.contains('FORMING', na=False)]
-            
-            if len(forming) > 0:
-                # Filter for quality forming waves
-                quality_forming = forming[
-                    (forming['master_score'] > 60) &
-                    (forming.get('vmi', 0) > 1)  # Volume building
-                ]
-                
-                if len(quality_forming) > 0:
-                    best_forming = quality_forming.nlargest(1, 'vmi').iloc[0]
-                    
-                    st.info(f"**{best_forming['ticker']}**")
-                    
-                    # VMI indicator
-                    vmi = best_forming.get('vmi', 1)
-                    st.metric("VMI", f"{vmi:.2f}")
-                    
-                    # Trigger price
-                    trigger = best_forming['price'] * 1.02
-                    st.caption(f"Watch: ₹{trigger:.0f}")
+                        st.info("No quality formations")
                 else:
-                    st.info("No quality formations")
-            else:
-                st.info("No forming waves")
-    
-    with wave_col4:
-        st.markdown("**💥 BREAKING**")
-        st.caption("Losing momentum")
+                    st.info("No forming waves")
         
-        if 'wave_state' in df.columns:
-            breaking = df[df['wave_state'].str.contains('BREAKING', na=False)]
+        with wave_col4:
+            st.markdown("**💥 BREAKING**")
+            st.caption("Losing momentum")
             
-            if len(breaking) > 0:
-                # Most dangerous breaks
-                dangerous = breaking[breaking['rvol'] > 2]  # High volume breaks
+            if 'wave_state' in df.columns:
+                breaking = df[df['wave_state'].str.contains('BREAKING', na=False)]
                 
-                if len(dangerous) > 0:
-                    worst = dangerous.nsmallest(1, 'momentum_score').iloc[0]
+                if len(breaking) > 0:
+                    # Most dangerous breaks
+                    dangerous = breaking[breaking['rvol'] > 2]  # High volume breaks
                     
-                    st.error(f"**{worst['ticker']}**")
-                    
-                    # Show the damage
-                    if 'ret_1d' in worst:
-                        st.metric("Today", f"{worst['ret_1d']:.1f}%")
-                    
-                    # Position tension
-                    if 'position_tension' in worst:
-                        st.caption(f"Tension: {worst['position_tension']:.0f}")
-                    
-                    st.caption("⚠️ EXIT")
+                    if len(dangerous) > 0:
+                        worst = dangerous.nsmallest(1, 'momentum_score').iloc[0]
+                        
+                        st.error(f"**{worst['ticker']}**")
+                        
+                        # Show the damage
+                        if 'ret_1d' in worst:
+                            st.metric("Today", f"{worst['ret_1d']:.1f}%")
+                        
+                        # Position tension
+                        if 'position_tension' in worst:
+                            st.caption(f"Tension: {worst['position_tension']:.0f}")
+                        
+                        st.caption("⚠️ EXIT")
+                    else:
+                        # Show any breaking wave
+                        worst = breaking.iloc[0]
+                        st.warning(f"**{worst['ticker']}**")
+                        st.caption("Weakening")
                 else:
-                    # Show any breaking wave
-                    worst = breaking.iloc[0]
-                    st.warning(f"**{worst['ticker']}**")
-                    st.caption("Weakening")
-            else:
-                st.success("✅ No breaks")
-    
-    st.markdown("---")
-    
-    # ====================================
-    # SECTION 2: PATTERN RADAR (Your 25 patterns!)
-    # ====================================
-    st.markdown("### 🎯 PATTERN RADAR")
-    
-    pattern_col1, pattern_col2, pattern_col3, pattern_col4 = st.columns(4)
-    
-    with pattern_col1:
-        st.markdown("**⛈️ PERFECT STORM**")
+                    st.success("✅ No breaks")
         
-        if 'patterns' in df.columns:
-            perfect_storms = df[df['patterns'].str.contains('PERFECT STORM', na=False)]
-            
-            if len(perfect_storms) > 0:
-                for _, storm in perfect_storms.iterrows():
-                    st.error(f"🌀 **{storm['ticker']}**")
-                    st.caption(f"Score: {storm['master_score']:.0f}")
-                    st.caption("All signals aligned!")
-            else:
-                st.info("No perfect storms")
-    
-    with pattern_col2:
-        st.markdown("**🧛 VAMPIRE**")
+        st.markdown("---")
         
-        if 'patterns' in df.columns:
-            vampires = df[df['patterns'].str.contains('VAMPIRE', na=False)]
-            
-            if len(vampires) > 0:
-                for _, vamp in vampires.head(2).iterrows():
-                    st.warning(f"🧛 **{vamp['ticker']}**")
-                    if 'rvol' in vamp:
-                        st.caption(f"RVOL: {vamp['rvol']:.1f}x")
-            else:
-                st.info("No vampires active")
-    
-    with pattern_col3:
-        st.markdown("**🤫 STEALTH**")
+        # ====================================
+        # SECTION 2: PATTERN RADAR (Your 25 patterns!)
+        # ====================================
+        st.markdown("### 🎯 PATTERN RADAR")
         
-        if 'patterns' in df.columns:
-            stealth = df[df['patterns'].str.contains('STEALTH', na=False)]
-            
-            if len(stealth) > 0:
-                for _, s in stealth.head(2).iterrows():
-                    st.info(f"🤫 **{s['ticker']}**")
-                    st.caption("Accumulating quietly")
-            else:
-                st.info("No stealth accumulation")
-    
-    with pattern_col4:
-        st.markdown("**⚡ VOL EXPLOSION**")
+        pattern_col1, pattern_col2, pattern_col3, pattern_col4 = st.columns(4)
         
-        if 'patterns' in df.columns:
-            explosions = df[df['patterns'].str.contains('VOL EXPLOSION', na=False)]
+        with pattern_col1:
+            st.markdown("**⛈️ PERFECT STORM**")
             
-            if len(explosions) > 0:
-                biggest = explosions.nlargest(1, 'rvol').iloc[0]
-                st.success(f"💥 **{biggest['ticker']}**")
-                st.metric("RVOL", f"{biggest['rvol']:.1f}x")
-            else:
-                st.info("No explosions")
-    
-    st.markdown("---")
-    
-    # ====================================
-    # SECTION 3: MOMENTUM HARMONY MATRIX
-    # ====================================
-    st.markdown("### 🎵 MOMENTUM HARMONY")
-    
-    harmony_col1, harmony_col2, harmony_col3 = st.columns(3)
-    
-    with harmony_col1:
-        st.markdown("**Perfect Harmony (4/4)**")
-        
-        if 'momentum_harmony' in df.columns:
-            perfect = df[df['momentum_harmony'] == 4]
-            
-            if len(perfect) > 0:
-                st.success(f"🎯 {len(perfect)} stocks")
+            if 'patterns' in df.columns:
+                perfect_storms = df[df['patterns'].str.contains('PERFECT STORM', na=False)]
                 
-                # Top 3
-                for _, stock in perfect.nlargest(3, 'master_score').iterrows():
-                    st.write(f"• **{stock['ticker']}** ({stock['master_score']:.0f})")
-            else:
-                st.info("None in perfect sync")
-    
-    with harmony_col2:
-        st.markdown("**Good Harmony (3/4)**")
+                if len(perfect_storms) > 0:
+                    for _, storm in perfect_storms.iterrows():
+                        st.error(f"🌀 **{storm['ticker']}**")
+                        st.caption(f"Score: {storm['master_score']:.0f}")
+                        st.caption("All signals aligned!")
+                else:
+                    st.info("No perfect storms")
         
-        if 'momentum_harmony' in df.columns:
-            good = df[df['momentum_harmony'] == 3]
+        with pattern_col2:
+            st.markdown("**🧛 VAMPIRE**")
             
-            if len(good) > 0:
-                st.warning(f"⚡ {len(good)} stocks")
+            if 'patterns' in df.columns:
+                vampires = df[df['patterns'].str.contains('VAMPIRE', na=False)]
                 
-                # Top 3
-                for _, stock in good.nlargest(3, 'master_score').iterrows():
-                    st.write(f"• {stock['ticker']} ({stock['master_score']:.0f})")
-            else:
-                st.info("None")
-    
-    with harmony_col3:
-        st.markdown("**Discord (≤1/4)**")
+                if len(vampires) > 0:
+                    for _, vamp in vampires.head(2).iterrows():
+                        st.warning(f"🧛 **{vamp['ticker']}**")
+                        if 'rvol' in vamp:
+                            st.caption(f"RVOL: {vamp['rvol']:.1f}x")
+                else:
+                    st.info("No vampires active")
         
-        if 'momentum_harmony' in df.columns:
-            discord = df[df['momentum_harmony'] <= 1]
+        with pattern_col3:
+            st.markdown("**🤫 STEALTH**")
             
-            if len(discord) > 0:
-                st.error(f"⚠️ {len(discord)} stocks")
-                st.caption("Conflicting timeframes")
-            else:
-                st.success("All harmonious")
-    
-    st.markdown("---")
-    
-    # ====================================
-    # SECTION 4: SMART MONEY FLOW
-    # ====================================
-    st.markdown("### 💰 SMART MONEY FLOW")
-    
-    flow_col1, flow_col2, flow_col3, flow_col4 = st.columns(4)
-    
-    with flow_col1:
-        # Highest money flow
-        if 'money_flow_mm' in df.columns:
-            top_flow = df.nlargest(1, 'money_flow_mm').iloc[0]
+            if 'patterns' in df.columns:
+                stealth = df[df['patterns'].str.contains('STEALTH', na=False)]
+                
+                if len(stealth) > 0:
+                    for _, s in stealth.head(2).iterrows():
+                        st.info(f"🤫 **{s['ticker']}**")
+                        st.caption("Accumulating quietly")
+                else:
+                    st.info("No stealth accumulation")
+        
+        with pattern_col4:
+            st.markdown("**⚡ VOL EXPLOSION**")
             
-            st.metric(
-                "Max Flow",
-                f"₹{top_flow['money_flow_mm']:.0f}M",
-                top_flow['ticker']
-            )
-    
-    with flow_col2:
-        # Total institutional flow (top 10)
-        if 'money_flow_mm' in df.columns:
-            institutional = df.nlargest(10, 'money_flow_mm')['money_flow_mm'].sum()
+            if 'patterns' in df.columns:
+                explosions = df[df['patterns'].str.contains('VOL EXPLOSION', na=False)]
+                
+                if len(explosions) > 0:
+                    biggest = explosions.nlargest(1, 'rvol').iloc[0]
+                    st.success(f"💥 **{biggest['ticker']}**")
+                    st.metric("RVOL", f"{biggest['rvol']:.1f}x")
+                else:
+                    st.info("No explosions")
+        
+        st.markdown("---")
+        
+        # ====================================
+        # SECTION 3: MOMENTUM HARMONY MATRIX
+        # ====================================
+        st.markdown("### 🎵 MOMENTUM HARMONY")
+        
+        harmony_col1, harmony_col2, harmony_col3 = st.columns(3)
+        
+        with harmony_col1:
+            st.markdown("**Perfect Harmony (4/4)**")
             
-            st.metric(
-                "Top 10 Flow",
-                f"₹{institutional:.0f}M",
-                "Institutional"
-            )
-    
-    with flow_col3:
-        # Highest VMI
-        if 'vmi' in df.columns:
-            max_vmi = df.nlargest(1, 'vmi').iloc[0]
+            if 'momentum_harmony' in df.columns:
+                perfect = df[df['momentum_harmony'] == 4]
+                
+                if len(perfect) > 0:
+                    st.success(f"🎯 {len(perfect)} stocks")
+                    
+                    # Top 3
+                    for _, stock in perfect.nlargest(3, 'master_score').iterrows():
+                        st.write(f"• **{stock['ticker']}** ({stock['master_score']:.0f})")
+                else:
+                    st.info("None in perfect sync")
+        
+        with harmony_col2:
+            st.markdown("**Good Harmony (3/4)**")
             
-            st.metric(
-                "Max VMI",
-                f"{max_vmi['vmi']:.2f}",
-                max_vmi['ticker']
-            )
-    
-    with flow_col4:
-        # Position tension leader
-        if 'position_tension' in df.columns:
-            max_tension = df.nlargest(1, 'position_tension').iloc[0]
+            if 'momentum_harmony' in df.columns:
+                good = df[df['momentum_harmony'] == 3]
+                
+                if len(good) > 0:
+                    st.warning(f"⚡ {len(good)} stocks")
+                    
+                    # Top 3
+                    for _, stock in good.nlargest(3, 'master_score').iterrows():
+                        st.write(f"• {stock['ticker']} ({stock['master_score']:.0f})")
+                else:
+                    st.info("None")
+        
+        with harmony_col3:
+            st.markdown("**Discord (≤1/4)**")
             
-            st.metric(
-                "Max Tension",
-                f"{max_tension['position_tension']:.0f}",
-                max_tension['ticker']
-            )
+            if 'momentum_harmony' in df.columns:
+                discord = df[df['momentum_harmony'] <= 1]
+                
+                if len(discord) > 0:
+                    st.error(f"⚠️ {len(discord)} stocks")
+                    st.caption("Conflicting timeframes")
+                else:
+                    st.success("All harmonious")
+        
+        st.markdown("---")
+        
+        # ====================================
+        # SECTION 4: SMART MONEY FLOW
+        # ====================================
+        st.markdown("### 💰 SMART MONEY FLOW")
+        
+        flow_col1, flow_col2, flow_col3, flow_col4 = st.columns(4)
+        
+        with flow_col1:
+            # Highest money flow
+            if 'money_flow_mm' in df.columns:
+                top_flow = df.nlargest(1, 'money_flow_mm').iloc[0]
+                
+                st.metric(
+                    "Max Flow",
+                    f"₹{top_flow['money_flow_mm']:.0f}M",
+                    top_flow['ticker']
+                )
+        
+        with flow_col2:
+            # Total institutional flow (top 10)
+            if 'money_flow_mm' in df.columns:
+                institutional = df.nlargest(10, 'money_flow_mm')['money_flow_mm'].sum()
+                
+                st.metric(
+                    "Top 10 Flow",
+                    f"₹{institutional:.0f}M",
+                    "Institutional"
+                )
+        
+        with flow_col3:
+            # Highest VMI
+            if 'vmi' in df.columns:
+                max_vmi = df.nlargest(1, 'vmi').iloc[0]
+                
+                st.metric(
+                    "Max VMI",
+                    f"{max_vmi['vmi']:.2f}",
+                    max_vmi['ticker']
+                )
+        
+        with flow_col4:
+            # Position tension leader
+            if 'position_tension' in df.columns:
+                max_tension = df.nlargest(1, 'position_tension').iloc[0]
+                
+                st.metric(
+                    "Max Tension",
+                    f"{max_tension['position_tension']:.0f}",
+                    max_tension['ticker']
+                )
         
         # ====================================
         # 2. MARKET PULSE - KEEP EXISTING STRUCTURE
