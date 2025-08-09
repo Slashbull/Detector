@@ -4859,63 +4859,278 @@ def main():
         "📊 Summary", "🏆 Rankings", "🌊 Wave Radar", "📊 Analysis", "🔍 Search", "📥 Export", "ℹ️ About"
     ])
     
-    with tabs[0]:
-        st.markdown("### 📊 Executive Summary Dashboard")
+    # ============================================
+# SUMMARY TAB - COMPLETE REPLACEMENT
+# ============================================
+with tabs[0]:
+    st.markdown("### 📊 Executive Summary Dashboard")
+    
+    if not filtered_df.empty:
+        # Call the new enhanced render_summary_section
+        UIComponents.render_summary_section(filtered_df)
         
-        if not filtered_df.empty:
-            UIComponents.render_summary_section(filtered_df)
+        st.markdown("---")
+        
+        # ====================================
+        # DOWNLOAD SECTION - KEEP EXISTING FUNCTIONALITY
+        # ====================================
+        st.markdown("#### 💾 Export Options")
+        
+        download_cols = st.columns(4)
+        
+        with download_cols[0]:
+            st.markdown("**📊 Current View**")
+            st.caption(f"{len(filtered_df)} stocks")
             
-            st.markdown("---")
-            st.markdown("#### 💾 Download Clean Processed Data")
+            csv_filtered = ExportEngine.create_csv_export(filtered_df)
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv_filtered,
+                file_name=f"wave_detection_filtered_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                help="Download currently filtered stocks with all scores",
+                use_container_width=True
+            )
+        
+        with download_cols[1]:
+            st.markdown("**🏆 Top 100**")
+            st.caption("Elite stocks only")
             
-            download_cols = st.columns(3)
+            top_100 = filtered_df.nlargest(min(100, len(filtered_df)), 'master_score')
+            csv_top100 = ExportEngine.create_csv_export(top_100)
+            st.download_button(
+                label="📥 Download Top 100",
+                data=csv_top100,
+                file_name=f"wave_detection_top100_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                help="Download top 100 stocks by Master Score",
+                use_container_width=True
+            )
+        
+        with download_cols[2]:
+            st.markdown("**🎯 Pattern Stocks**")
+            pattern_stocks = filtered_df[filtered_df['patterns'] != '']
+            st.caption(f"{len(pattern_stocks)} with patterns")
             
-            with download_cols[0]:
-                st.markdown("**📊 Current View Data**")
-                st.write(f"Includes {len(filtered_df)} stocks matching current filters")
-                
-                csv_filtered = ExportEngine.create_csv_export(filtered_df)
+            if len(pattern_stocks) > 0:
+                csv_patterns = ExportEngine.create_csv_export(pattern_stocks)
                 st.download_button(
-                    label="📥 Download Filtered Data (CSV)",
-                    data=csv_filtered,
-                    file_name=f"wave_detection_filtered_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
+                    label="📥 Download Patterns",
+                    data=csv_patterns,
+                    file_name=f"wave_detection_patterns_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv",
-                    help="Download currently filtered stocks with all scores and indicators"
+                    help="Download only stocks showing patterns",
+                    use_container_width=True
                 )
+            else:
+                st.info("No patterns active")
+        
+        with download_cols[3]:
+            st.markdown("**📈 Excel Report**")
+            st.caption("Full analysis")
             
-            with download_cols[1]:
-                st.markdown("**🏆 Top 100 Stocks**")
-                st.write("Elite stocks ranked by Master Score")
+            if st.button("📊 Generate Excel", use_container_width=True, key="summary_excel_btn"):
+                with st.spinner("Creating Excel report..."):
+                    try:
+                        excel_file = ExportEngine.create_excel_report(
+                            filtered_df, 
+                            template='full'
+                        )
+                        
+                        st.download_button(
+                            label="📥 Download Excel",
+                            data=excel_file,
+                            file_name=f"wave_report_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            key="summary_excel_download"
+                        )
+                        st.success("✅ Excel report ready!")
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+        
+        # ====================================
+        # QUICK INSIGHTS SECTION
+        # ====================================
+        st.markdown("---")
+        st.markdown("#### 🔍 Quick Market Insights")
+        
+        insight_cols = st.columns(4)
+        
+        with insight_cols[0]:
+            # Market Regime
+            try:
+                regime, regime_metrics = MarketIntelligence.detect_market_regime(filtered_df)
                 
-                top_100 = filtered_df.nlargest(100, 'master_score')
-                csv_top100 = ExportEngine.create_csv_export(top_100)
-                st.download_button(
-                    label="📥 Download Top 100 (CSV)",
-                    data=csv_top100,
-                    file_name=f"wave_detection_top100_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                    help="Download top 100 stocks by Master Score"
-                )
-            
-            with download_cols[2]:
-                st.markdown("**🎯 Pattern Stocks Only**")
-                pattern_stocks = filtered_df[filtered_df['patterns'] != '']
-                st.write(f"Includes {len(pattern_stocks)} stocks with patterns")
-                
-                if len(pattern_stocks) > 0:
-                    csv_patterns = ExportEngine.create_csv_export(pattern_stocks)
-                    st.download_button(
-                        label="📥 Download Pattern Stocks (CSV)",
-                        data=csv_patterns,
-                        file_name=f"wave_detection_patterns_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv",
-                        help="Download only stocks showing patterns"
-                    )
+                if "BULL" in regime or "RISK-ON" in regime:
+                    st.success(f"**Regime:** {regime}")
+                elif "BEAR" in regime or "RISK-OFF" in regime:
+                    st.error(f"**Regime:** {regime}")
                 else:
-                    st.info("No stocks with patterns in current filter")
+                    st.info(f"**Regime:** {regime}")
+                
+                breadth = regime_metrics.get('breadth', 0.5)
+                st.caption(f"Breadth: {breadth:.1%}")
+                
+            except Exception as e:
+                st.info("**Regime:** Analyzing...")
         
+        with insight_cols[1]:
+            # Sector Leader
+            try:
+                if 'sector' in filtered_df.columns:
+                    sector_rotation = MarketIntelligence.detect_sector_rotation(filtered_df)
+                    
+                    if not sector_rotation.empty:
+                        top_sector = sector_rotation.index[0]
+                        flow_score = sector_rotation.iloc[0].get('flow_score', 0)
+                        
+                        st.info(f"**Top Sector:** {top_sector}")
+                        st.caption(f"Flow Score: {flow_score:.1f}")
+                    else:
+                        st.info("**Top Sector:** N/A")
+                else:
+                    st.info("**Top Sector:** N/A")
+                    
+            except Exception as e:
+                st.info("**Top Sector:** Analyzing...")
+        
+        with insight_cols[2]:
+            # Wave Distribution
+            try:
+                if 'wave_state' in filtered_df.columns:
+                    wave_counts = filtered_df['wave_state'].value_counts()
+                    
+                    if len(wave_counts) > 0:
+                        top_wave = wave_counts.index[0]
+                        count = wave_counts.iloc[0]
+                        
+                        # Get emoji for wave state
+                        if 'CRESTING' in top_wave:
+                            emoji = "🌊🌊🌊"
+                        elif 'BUILDING' in top_wave:
+                            emoji = "🌊🌊"
+                        elif 'FORMING' in top_wave:
+                            emoji = "🌊"
+                        else:
+                            emoji = "💥"
+                        
+                        st.info(f"**Dominant:** {emoji}")
+                        st.caption(f"{count} stocks {top_wave.split()[-1].lower()}")
+                    else:
+                        st.info("**Dominant:** N/A")
+                else:
+                    st.info("**Dominant:** N/A")
+                    
+            except Exception as e:
+                st.info("**Dominant:** Analyzing...")
+        
+        with insight_cols[3]:
+            # Pattern Alert
+            try:
+                if 'patterns' in filtered_df.columns:
+                    # Check for critical patterns
+                    perfect_storms = filtered_df[filtered_df['patterns'].str.contains('PERFECT STORM', na=False)]
+                    vampires = filtered_df[filtered_df['patterns'].str.contains('VAMPIRE', na=False)]
+                    vol_explosions = filtered_df[filtered_df['patterns'].str.contains('VOL EXPLOSION', na=False)]
+                    
+                    if len(perfect_storms) > 0:
+                        st.error(f"**Alert:** ⛈️ PERFECT STORM")
+                        st.caption(f"{len(perfect_storms)} detected")
+                    elif len(vampires) > 0:
+                        st.warning(f"**Alert:** 🧛 VAMPIRE")
+                        st.caption(f"{len(vampires)} active")
+                    elif len(vol_explosions) > 0:
+                        st.success(f"**Alert:** ⚡ VOL EXPLOSION")
+                        st.caption(f"{len(vol_explosions)} surging")
+                    else:
+                        st.info(f"**Alert:** Normal")
+                        st.caption("No special patterns")
+                else:
+                    st.info("**Alert:** N/A")
+                    
+            except Exception as e:
+                st.info("**Alert:** Monitoring...")
+        
+        # ====================================
+        # PERFORMANCE METRICS
+        # ====================================
+        if st.session_state.get('performance_metrics'):
+            with st.expander("⚡ Performance Metrics", expanded=False):
+                perf_cols = st.columns(4)
+                
+                metrics = st.session_state.performance_metrics
+                total_time = sum(metrics.values())
+                
+                with perf_cols[0]:
+                    st.metric("Total Load Time", f"{total_time:.2f}s")
+                
+                with perf_cols[1]:
+                    data_proc = metrics.get('process_dataframe', 0)
+                    st.metric("Data Processing", f"{data_proc:.2f}s")
+                
+                with perf_cols[2]:
+                    ranking = metrics.get('calculate_all_scores', 0)
+                    st.metric("Ranking Engine", f"{ranking:.2f}s")
+                
+                with perf_cols[3]:
+                    patterns = metrics.get('detect_all_patterns_optimized', 0)
+                    st.metric("Pattern Detection", f"{patterns:.2f}s")
+    
+    else:
+        # No data available
+        st.warning("No data available for summary. Please adjust filters or load data.")
+        
+        # Show current filter status
+        if st.session_state.get('active_filter_count', 0) > 0:
+            st.markdown("#### Current Filters Applied:")
+            
+            filter_summary = []
+            
+            # Check centralized filter state
+            if 'filter_state' in st.session_state:
+                state = st.session_state.filter_state
+                
+                if state.get('categories'):
+                    filter_summary.append(f"• **Categories:** {', '.join(state['categories'])}")
+                if state.get('sectors'):
+                    filter_summary.append(f"• **Sectors:** {', '.join(state['sectors'][:3])}...")
+                if state.get('industries'):
+                    filter_summary.append(f"• **Industries:** {len(state['industries'])} selected")
+                if state.get('min_score', 0) > 0:
+                    filter_summary.append(f"• **Min Score:** {state['min_score']}")
+                if state.get('patterns'):
+                    filter_summary.append(f"• **Patterns:** {len(state['patterns'])} selected")
+                if state.get('wave_states'):
+                    filter_summary.append(f"• **Wave States:** {', '.join(state['wave_states'])}")
+            
+            if filter_summary:
+                for filter_text in filter_summary:
+                    st.write(filter_text)
+                
+                st.markdown("")
+                if st.button("🗑️ Clear All Filters", type="primary", key="summary_clear_filters_btn"):
+                    FilterEngine.clear_all_filters()
+                    SessionStateManager.clear_filters()
+                    st.rerun()
+            else:
+                st.info("No specific filters applied, but no data matches current criteria.")
         else:
-            st.warning("No data available for summary. Please adjust filters.")
+            st.info("No filters applied. Check if data is loaded properly.")
+            
+            # Data loading hint
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("🔄 Refresh Data", type="primary", use_container_width=True):
+                    st.cache_data.clear()
+                    st.session_state.last_refresh = datetime.now(timezone.utc)
+                    st.rerun()
+            
+            with col2:
+                if st.button("⚙️ Check Data Source", use_container_width=True):
+                    st.session_state.show_data_source = True
+                    st.rerun()
     
     # Tab 1: Rankings
     with tabs[1]:
