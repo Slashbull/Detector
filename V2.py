@@ -541,12 +541,12 @@ def load_and_process_data(source_type: str = "sheet", file_data=None,
         
         # Calculate all scores and rankings
         df = RankingEngine.calculate_all_scores(df)
+
+        # Add advanced metrics
+        df = AdvancedMetrics.calculate_all_metrics(df)
         
         # Corrected method call here
         df = PatternDetector.detect_all_patterns_optimized(df)
-        
-        # Add advanced metrics
-        df = AdvancedMetrics.calculate_all_metrics(df)
         
         # Final validation
         is_valid, validation_msg = DataValidator.validate_dataframe(df, ['master_score', 'rank'], "Final processed")
@@ -4666,10 +4666,18 @@ def main():
             
             # Calculate wave metrics
             wave_counts = {
-                'FORMING': len(filtered_df[filtered_df['wave_state'].str.contains('FORMING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
-                'BUILDING': len(filtered_df[filtered_df['wave_state'].str.contains('BUILDING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
+                'TSUNAMI': len(filtered_df[filtered_df['wave_state'].str.contains('TSUNAMI', na=False)]) if 'wave_state' in filtered_df.columns else 0,
                 'CRESTING': len(filtered_df[filtered_df['wave_state'].str.contains('CRESTING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
-                'BREAKING': len(filtered_df[filtered_df['wave_state'].str.contains('BREAKING', na=False)]) if 'wave_state' in filtered_df.columns else 0
+                'SURGING': len(filtered_df[filtered_df['wave_state'].str.contains('SURGING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
+                'BUILDING': len(filtered_df[filtered_df['wave_state'].str.contains('BUILDING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
+                'RISING': len(filtered_df[filtered_df['wave_state'].str.contains('RISING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
+                'STRENGTHENING': len(filtered_df[filtered_df['wave_state'].str.contains('STRENGTHENING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
+                'FORMING': len(filtered_df[filtered_df['wave_state'].str.contains('FORMING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
+                'RIPPLING': len(filtered_df[filtered_df['wave_state'].str.contains('RIPPLING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
+                'CALM': len(filtered_df[filtered_df['wave_state'].str.contains('CALM', na=False)]) if 'wave_state' in filtered_df.columns else 0,
+                'EXHAUSTING': len(filtered_df[filtered_df['wave_state'].str.contains('EXHAUSTING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
+                'BREAKING': len(filtered_df[filtered_df['wave_state'].str.contains('BREAKING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
+                'COLLAPSING': len(filtered_df[filtered_df['wave_state'].str.contains('COLLAPSING', na=False)]) if 'wave_state' in filtered_df.columns else 0
             }
             
             total_waves = sum(wave_counts.values())
@@ -5840,6 +5848,22 @@ def main():
                 💪 Monthly Trend: Established trends with SMAs
                 """
             )
+            
+        # Add column existence checks before using wave metrics
+        if 'wave_velocity' not in wave_filtered_df.columns:
+            wave_filtered_df['wave_velocity'] = 0
+            
+        if 'wave_pressure' not in wave_filtered_df.columns:
+            wave_filtered_df['wave_pressure'] = 50
+            
+        if 'wave_direction' not in wave_filtered_df.columns:
+            wave_filtered_df['wave_direction'] = '➡️ NEUTRAL'
+            
+        if 'next_wave_prediction' not in wave_filtered_df.columns:
+            wave_filtered_df['next_wave_prediction'] = '❓ UNCERTAIN'
+            
+        if 'transition_probability' not in wave_filtered_df.columns:
+            wave_filtered_df['transition_probability'] = 50
         
         with radar_col2:
             sensitivity = st.select_slider(
