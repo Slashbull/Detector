@@ -4882,98 +4882,275 @@ def main():
                 st.error(f"❄️ **BEARISH MARKET** - Wave Health: {wave_health:.0f}/100 | Defensive mode, avoid BREAKING stocks")
             
             # ====================================
-            # SECTION 2: KEY MARKET METRICS (Clean Grid)
+            # SECTION 2: MARKET METRICS (INTELLIGENT VERSION)
             # ====================================
             
-            st.markdown("#### 📊 Market Metrics")
+            st.markdown("#### 📊 Market Intelligence Metrics")
             
-            metric_cols = st.columns(6)
+            # Calculate advanced market metrics
+            market_strength = filtered_df['master_score'].mean() if 'master_score' in filtered_df.columns else 50
+            top_20_pct_threshold = filtered_df['master_score'].quantile(0.8) if 'master_score' in filtered_df.columns else 70
+            elite_stocks = len(filtered_df[filtered_df['master_score'] > top_20_pct_threshold]) if 'master_score' in filtered_df.columns else 0
             
-            with metric_cols[0]:
-                # Market Strength
-                avg_score = filtered_df['master_score'].mean() if 'master_score' in filtered_df.columns else 50
-                top_20_pct = int(len(filtered_df) * 0.2)
-                if top_20_pct > 0:
-                    top_strength = filtered_df.nlargest(top_20_pct, 'master_score')['master_score'].mean()
-                else:
-                    top_strength = avg_score
+            # First Row - PRIMARY MARKET INDICATORS
+            primary_cols = st.columns(6)
+            
+            with primary_cols[0]:
+                # MARKET STRENGTH INDEX (Composite)
+                strength_components = {
+                    'score': market_strength / 100 * 30,  # 30% weight
+                    'breadth': 0,
+                    'momentum': 0,
+                    'volume': 0
+                }
                 
-                st.metric(
-                    "Market Score",
-                    f"{avg_score:.0f}",
-                    f"Top 20%: {top_strength:.0f}",
-                    help="Average Master Score across all stocks"
-                )
-            
-            with metric_cols[1]:
-                # Breadth
                 if 'ret_30d' in filtered_df.columns:
                     advancing = len(filtered_df[filtered_df['ret_30d'] > 0])
-                    total = len(filtered_df)
-                    breadth_pct = (advancing / total * 100) if total > 0 else 50
-                    
-                    st.metric(
-                        "Breadth",
-                        f"{advancing}/{total}",
-                        f"{breadth_pct:.0f}% up",
-                        help="Stocks with positive 30-day returns"
-                    )
-            
-            with metric_cols[2]:
-                # Volume Activity
+                    strength_components['breadth'] = (advancing / len(filtered_df)) * 30  # 30% weight
+                
+                if 'momentum_score' in filtered_df.columns:
+                    high_momentum = len(filtered_df[filtered_df['momentum_score'] > 60])
+                    strength_components['momentum'] = (high_momentum / len(filtered_df)) * 20  # 20% weight
+                
                 if 'rvol' in filtered_df.columns:
-                    high_vol = len(filtered_df[filtered_df['rvol'] > 2])
-                    extreme_vol = len(filtered_df[filtered_df['rvol'] > 5])
+                    active_volume = len(filtered_df[filtered_df['rvol'] > 1.5])
+                    strength_components['volume'] = (active_volume / len(filtered_df)) * 20  # 20% weight
+                
+                market_strength_index = sum(strength_components.values())
+                
+                strength_emoji = "🔥" if market_strength_index > 70 else "💪" if market_strength_index > 50 else "⚠️"
+                
+                st.metric(
+                    "Market Strength",
+                    f"{strength_emoji} {market_strength_index:.0f}",
+                    f"Elite: {elite_stocks} stocks",
+                    help="Composite strength: Score + Breadth + Momentum + Volume"
+                )
+            
+            with primary_cols[1]:
+                # ACCELERATION BREADTH
+                if 'acceleration_score' in filtered_df.columns:
+                    accelerating = len(filtered_df[filtered_df['acceleration_score'] > 70])
+                    strongly_accel = len(filtered_df[filtered_df['acceleration_score'] > 85])
+                    accel_breadth = (accelerating / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
+                    
+                    accel_emoji = "🚀" if accel_breadth > 30 else "📈" if accel_breadth > 15 else "📉"
                     
                     st.metric(
-                        "Volume Surge",
-                        f"{high_vol}",
-                        f"{extreme_vol} extreme",
-                        help="Stocks with RVOL > 2x"
+                        "Acceleration",
+                        f"{accel_emoji} {accelerating}",
+                        f"Strong: {strongly_accel}",
+                        help="Stocks with momentum acceleration > 70"
                     )
+                else:
+                    st.metric("Acceleration", "N/A")
             
-            with metric_cols[3]:
-                # Pattern Activity
+            with primary_cols[2]:
+                # SMART MONEY FLOW
+                if all(col in filtered_df.columns for col in ['money_flow_mm', 'rvol']):
+                    # Smart money = High money flow + High RVOL
+                    smart_money = filtered_df[(filtered_df['rvol'] > 2) & 
+                                             (filtered_df['money_flow_mm'] > filtered_df['money_flow_mm'].quantile(0.7))]
+                    smart_count = len(smart_money)
+                    
+                    if smart_count > 0:
+                        smart_flow = smart_money['money_flow_mm'].sum()
+                        flow_emoji = "💰" if smart_flow > 1000 else "💵" if smart_flow > 500 else "💸"
+                        
+                        st.metric(
+                            "Smart Money",
+                            f"{flow_emoji} {smart_count}",
+                            f"₹{smart_flow:.0f}M",
+                            help="Stocks with RVOL>2x + High money flow"
+                        )
+                    else:
+                        st.metric("Smart Money", "0", "No flow")
+                else:
+                    st.metric("Smart Money", "N/A")
+            
+            with primary_cols[3]:
+                # BREAKOUT POTENTIAL
+                if 'breakout_score' in filtered_df.columns:
+                    ready_to_break = len(filtered_df[filtered_df['breakout_score'] > 80])
+                    imminent = len(filtered_df[filtered_df['breakout_score'] > 90])
+                    
+                    breakout_emoji = "🎯" if imminent > 5 else "🔍" if ready_to_break > 10 else "😴"
+                    
+                    st.metric(
+                        "Breakout Ready",
+                        f"{breakout_emoji} {ready_to_break}",
+                        f"Imminent: {imminent}",
+                        help="Stocks with breakout probability > 80"
+                    )
+                else:
+                    st.metric("Breakout Ready", "N/A")
+            
+            with primary_cols[4]:
+                # RISK/REWARD RATIO
+                opportunities = 0
+                risks = 0
+                
+                if 'from_low_pct' in filtered_df.columns:
+                    # Opportunities: Good position + momentum
+                    opportunities = len(filtered_df[(filtered_df['from_low_pct'] < 50) & 
+                                                   (filtered_df.get('momentum_score', 0) > 60)])
+                    # Risks: Overextended or breaking
+                    risks = len(filtered_df[(filtered_df['from_low_pct'] > 80) | 
+                                           (filtered_df.get('wave_state', '').str.contains('BREAKING', na=False))])
+                
+                if risks > 0:
+                    rr_ratio = opportunities / risks
+                    rr_emoji = "✅" if rr_ratio > 2 else "⚖️" if rr_ratio > 1 else "⚠️"
+                    
+                    st.metric(
+                        "Risk/Reward",
+                        f"{rr_emoji} {rr_ratio:.1f}",
+                        f"Opp: {opportunities} | Risk: {risks}",
+                        help="Opportunities vs Risk ratio"
+                    )
+                else:
+                    st.metric("Risk/Reward", f"∞", f"Opp: {opportunities}")
+            
+            with primary_cols[5]:
+                # PATTERN QUALITY SCORE
                 if 'patterns' in filtered_df.columns:
-                    with_patterns = len(filtered_df[filtered_df['patterns'] != ''])
-                    unique_patterns = set()
-                    for p in filtered_df['patterns'].dropna():
-                        if p:
-                            unique_patterns.update(p.split(' | '))
+                    stocks_with_patterns = filtered_df[filtered_df['patterns'] != '']
+                    pattern_count = len(stocks_with_patterns)
+                    
+                    # Quality patterns (high value)
+                    quality_patterns = ['PERFECT STORM', 'VOL EXPLOSION', 'ACCELERATING', 'BREAKOUT', 'GOLDEN']
+                    quality_count = 0
+                    
+                    for pattern in quality_patterns:
+                        quality_count += len(filtered_df[filtered_df['patterns'].str.contains(pattern, na=False)])
+                    
+                    pattern_quality = (quality_count / pattern_count * 100) if pattern_count > 0 else 0
+                    
+                    quality_emoji = "💎" if pattern_quality > 30 else "📊" if pattern_quality > 15 else "📉"
                     
                     st.metric(
-                        "Patterns",
-                        f"{with_patterns}",
-                        f"{len(unique_patterns)} types",
-                        help="Stocks with detected patterns"
+                        "Pattern Quality",
+                        f"{quality_emoji} {pattern_quality:.0f}%",
+                        f"Total: {pattern_count}",
+                        help="% of high-quality patterns"
                     )
+                else:
+                    st.metric("Pattern Quality", "N/A")
             
-            with metric_cols[4]:
-                # Momentum Harmony
-                if 'momentum_harmony' in filtered_df.columns:
-                    perfect = len(filtered_df[filtered_df['momentum_harmony'] == 4])
-                    aligned = len(filtered_df[filtered_df['momentum_harmony'] >= 3])
-                    
-                    st.metric(
-                        "Harmony",
-                        f"{perfect}",
-                        f"{aligned} aligned",
-                        help="Stocks with multi-timeframe alignment"
-                    )
-            
-            with metric_cols[5]:
-                # Money Flow
-                if 'money_flow_mm' in filtered_df.columns:
-                    top_10_flow = filtered_df.nlargest(10, 'money_flow_mm')['money_flow_mm'].sum()
-                    
-                    st.metric(
-                        "Top 10 Flow",
-                        f"₹{top_10_flow:.0f}M",
-                        f"{len(filtered_df[filtered_df['money_flow_mm'] > filtered_df['money_flow_mm'].quantile(0.9)])} hot",
-                        help="Money flow in top 10 stocks"
-                    )
-            
+            # Second Row - DETAILED BREAKDOWN TABLE
             st.markdown("---")
+            st.markdown("##### 📈 Market Breadth Analysis")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # MOMENTUM DISTRIBUTION TABLE
+                momentum_data = []
+                
+                if 'ret_30d' in filtered_df.columns:
+                    momentum_data.append({
+                        'Range': '🚀 Strong (>20%)',
+                        'Count': len(filtered_df[filtered_df['ret_30d'] > 20]),
+                        '%': f"{len(filtered_df[filtered_df['ret_30d'] > 20])/len(filtered_df)*100:.1f}%"
+                    })
+                    momentum_data.append({
+                        'Range': '📈 Positive (5-20%)',
+                        'Count': len(filtered_df[(filtered_df['ret_30d'] >= 5) & (filtered_df['ret_30d'] <= 20)]),
+                        '%': f"{len(filtered_df[(filtered_df['ret_30d'] >= 5) & (filtered_df['ret_30d'] <= 20)])/len(filtered_df)*100:.1f}%"
+                    })
+                    momentum_data.append({
+                        'Range': '➡️ Flat (-5 to 5%)',
+                        'Count': len(filtered_df[(filtered_df['ret_30d'] > -5) & (filtered_df['ret_30d'] < 5)]),
+                        '%': f"{len(filtered_df[(filtered_df['ret_30d'] > -5) & (filtered_df['ret_30d'] < 5)])/len(filtered_df)*100:.1f}%"
+                    })
+                    momentum_data.append({
+                        'Range': '📉 Negative (<-5%)',
+                        'Count': len(filtered_df[filtered_df['ret_30d'] <= -5]),
+                        '%': f"{len(filtered_df[filtered_df['ret_30d'] <= -5])/len(filtered_df)*100:.1f}%"
+                    })
+                
+                if momentum_data:
+                    momentum_df = pd.DataFrame(momentum_data)
+                    st.dataframe(momentum_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No momentum data available")
+            
+            with col2:
+                # VOLUME ACTIVITY TABLE
+                volume_data = []
+                
+                if 'rvol' in filtered_df.columns:
+                    volume_data.append({
+                        'Activity': '🔥 Extreme (>5x)',
+                        'Count': len(filtered_df[filtered_df['rvol'] > 5]),
+                        '%': f"{len(filtered_df[filtered_df['rvol'] > 5])/len(filtered_df)*100:.1f}%"
+                    })
+                    volume_data.append({
+                        'Activity': '⚡ High (3-5x)',
+                        'Count': len(filtered_df[(filtered_df['rvol'] >= 3) & (filtered_df['rvol'] <= 5)]),
+                        '%': f"{len(filtered_df[(filtered_df['rvol'] >= 3) & (filtered_df['rvol'] <= 5)])/len(filtered_df)*100:.1f}%"
+                    })
+                    volume_data.append({
+                        'Activity': '📊 Above Avg (1.5-3x)',
+                        'Count': len(filtered_df[(filtered_df['rvol'] >= 1.5) & (filtered_df['rvol'] < 3)]),
+                        '%': f"{len(filtered_df[(filtered_df['rvol'] >= 1.5) & (filtered_df['rvol'] < 3)])/len(filtered_df)*100:.1f}%"
+                    })
+                    volume_data.append({
+                        'Activity': '😴 Normal (<1.5x)',
+                        'Count': len(filtered_df[filtered_df['rvol'] < 1.5]),
+                        '%': f"{len(filtered_df[filtered_df['rvol'] < 1.5])/len(filtered_df)*100:.1f}%"
+                    })
+                
+                if volume_data:
+                    volume_df = pd.DataFrame(volume_data)
+                    st.dataframe(volume_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No volume data available")
+            
+            # Third Row - MARKET REGIME INDICATOR
+            st.markdown("---")
+            
+            # Calculate Market Regime Score
+            regime_score = 0
+            regime_factors = []
+            
+            # Factor 1: Breadth
+            if 'ret_30d' in filtered_df.columns:
+                breadth = len(filtered_df[filtered_df['ret_30d'] > 0]) / len(filtered_df)
+                regime_score += breadth * 25
+                regime_factors.append(f"Breadth: {breadth*100:.0f}%")
+            
+            # Factor 2: Momentum Quality
+            if 'momentum_score' in filtered_df.columns:
+                mom_quality = len(filtered_df[filtered_df['momentum_score'] > 60]) / len(filtered_df)
+                regime_score += mom_quality * 25
+                regime_factors.append(f"Momentum: {mom_quality*100:.0f}%")
+            
+            # Factor 3: Volume Activity
+            if 'rvol' in filtered_df.columns:
+                vol_activity = len(filtered_df[filtered_df['rvol'] > 1.5]) / len(filtered_df)
+                regime_score += vol_activity * 25
+                regime_factors.append(f"Volume: {vol_activity*100:.0f}%")
+            
+            # Factor 4: Risk Level (inverse)
+            if 'from_low_pct' in filtered_df.columns:
+                not_overextended = len(filtered_df[filtered_df['from_low_pct'] < 70]) / len(filtered_df)
+                regime_score += not_overextended * 25
+                regime_factors.append(f"Position: {not_overextended*100:.0f}%")
+            
+            # Display Market Regime
+            if regime_score > 75:
+                st.success(f"🔥 **STRONG BULL MARKET** | Regime Score: {regime_score:.0f}/100 | {' | '.join(regime_factors)}")
+                st.caption("Strategy: Aggressive - Focus on CRESTING & BUILDING waves, ride momentum")
+            elif regime_score > 50:
+                st.info(f"📈 **BULLISH MARKET** | Regime Score: {regime_score:.0f}/100 | {' | '.join(regime_factors)}")
+                st.caption("Strategy: Selective - Focus on stocks with acceleration and volume")
+            elif regime_score > 25:
+                st.warning(f"⚖️ **NEUTRAL MARKET** | Regime Score: {regime_score:.0f}/100 | {' | '.join(regime_factors)}")
+                st.caption("Strategy: Cautious - Wait for clear breakouts, focus on quality")
+            else:
+                st.error(f"🐻 **BEAR MARKET** | Regime Score: {regime_score:.0f}/100 | {' | '.join(regime_factors)}")
+                st.caption("Strategy: Defensive - Preserve capital, look for capitulation bottoms")
             
             # ====================================
             # SECTION 3: DISCOVERY INSIGHTS (3 Focused Tabs)
