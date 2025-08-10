@@ -135,7 +135,12 @@ class Config:
         "range_compress": 75,
         "stealth": 70,
         "vampire": 85,
-        "perfect_storm": 80
+        "perfect_storm": 80,
+        "bull_trap": 90,           # High confidence for shorting
+        "capitulation": 95,        # Extreme events only
+        "runaway_gap": 85,         # Strong continuation
+        "rotation_leader": 80,     # Sector relative strength
+        "distribution_top": 85,    # High confidence tops
     })
     
     # Value bounds for data validation
@@ -1337,6 +1342,11 @@ class PatternDetector:
         '🤫 STEALTH': {'importance_weight': 10},
         '🧛 VAMPIRE': {'importance_weight': 10},
         '⛈️ PERFECT STORM': {'importance_weight': 20}
+        '🪤 BULL TRAP': {'importance_weight': 15},      # High value for shorts
+        '💣 CAPITULATION': {'importance_weight': 20},   # Best risk/reward
+        '🏃 RUNAWAY GAP': {'importance_weight': 12},    # Strong continuation
+        '🔄 ROTATION LEADER': {'importance_weight': 10}, # Sector strength
+        '⚠️ DISTRIBUTION': {'importance_weight': 15},   # Exit signal
     }
 
     @staticmethod
@@ -1511,6 +1521,74 @@ class PatternDetector:
         if 'momentum_harmony' in df.columns and 'master_score' in df.columns:
             mask = (get_col_safe('momentum_harmony', 0) == 4) & (get_col_safe('master_score', 0) > 80)
             patterns.append(('⛈️ PERFECT STORM', mask))
+
+        # 26. BULL TRAP - Failed breakout/shorting opportunity
+        if all(col in df.columns for col in ['from_high_pct', 'ret_7d', 'volume_7d', 'volume_30d']):
+            mask = (
+                (get_col_safe('from_high_pct', -100) > -5) &     # Was near 52W high
+                (get_col_safe('ret_7d', 0) < -10) &              # Now falling hard
+                (get_col_safe('volume_7d', 0) > get_col_safe('volume_30d', 1))  # High volume selling
+            )
+            patterns.append(('🪤 BULL TRAP', mask))
+        
+        # 27. CAPITULATION BOTTOM - Panic selling exhaustion
+        if all(col in df.columns for col in ['ret_1d', 'from_low_pct', 'rvol', 'volume_1d', 'volume_90d']):
+            mask = (
+                (get_col_safe('ret_1d', 0) < -7) &               # Huge down day
+                (get_col_safe('from_low_pct', 100) < 20) &       # Near 52W low
+                (get_col_safe('rvol', 0) > 5) &                  # Extreme volume
+                (get_col_safe('volume_1d', 0) > get_col_safe('volume_90d', 1) * 3)  # Panic volume
+            )
+            patterns.append(('💣 CAPITULATION', mask))
+        
+        # 28. RUNAWAY GAP - Continuation pattern
+        if all(col in df.columns for col in ['price', 'prev_close', 'ret_30d', 'rvol', 'from_high_pct']):
+            price = get_col_safe('price', 0)
+            prev_close = get_col_safe('prev_close', 1)
+            
+            # Calculate gap percentage safely
+            with np.errstate(divide='ignore', invalid='ignore'):
+                gap = np.where(prev_close > 0, 
+                              ((price - prev_close) / prev_close) * 100,
+                              0)
+            gap_series = pd.Series(gap, index=df.index)
+            
+            mask = (
+                (gap_series > 5) &                               # Big gap up
+                (get_col_safe('ret_30d', 0) > 20) &             # Already trending
+                (get_col_safe('rvol', 0) > 3) &                 # Institutional volume
+                (get_col_safe('from_high_pct', -100) > -3)      # Making new highs
+            )
+            patterns.append(('🏃 RUNAWAY GAP', mask))
+        
+        # 29. ROTATION LEADER - First mover in sector rotation
+        if all(col in df.columns for col in ['ret_7d', 'sector', 'rvol']):
+            ret_7d = get_col_safe('ret_7d', 0)
+            
+            # Calculate sector average return safely
+            if 'sector' in df.columns:
+                sector_avg = df.groupby('sector')['ret_7d'].transform('mean').fillna(0)
+            else:
+                sector_avg = pd.Series(0, index=df.index)
+            
+            mask = (
+                (ret_7d > sector_avg + 5) &                      # Beating sector by 5%
+                (ret_7d > 0) &                                   # Positive absolute return
+                (sector_avg < 0) &                               # Sector still negative
+                (get_col_safe('rvol', 0) > 2)                   # Volume confirmation
+            )
+            patterns.append(('🔄 ROTATION LEADER', mask))
+        
+        # 30. DISTRIBUTION TOP - Smart money selling
+        if all(col in df.columns for col in ['from_high_pct', 'rvol', 'ret_1d', 'ret_30d', 'volume_7d', 'volume_30d']):
+            mask = (
+                (get_col_safe('from_high_pct', -100) > -10) &    # Near highs
+                (get_col_safe('rvol', 0) > 2) &                  # High volume
+                (get_col_safe('ret_1d', 0) < 2) &                # Price not moving up
+                (get_col_safe('ret_30d', 0) > 50) &              # After big rally
+                (get_col_safe('volume_7d', 0) > get_col_safe('volume_30d', 1) * 1.5)  # Volume spike
+            )
+            patterns.append(('⚠️ DISTRIBUTION', mask))
 
         return patterns
 
@@ -5794,6 +5872,94 @@ def main():
                                 st.caption(f"• {cat}: {count} stocks")
             else:
                 st.info(f"No volume surges detected with {sensitivity} sensitivity (requires RVOL ≥ {rvol_threshold}x).")
+
+                st.markdown("---")
+                st.markdown("#### ⚠️ Critical Reversal Signals - Risk Management Alerts")
+                
+                # Check for reversal patterns
+                if 'patterns' in wave_filtered_df.columns:
+                    # Define critical reversal patterns
+                    reversal_patterns = ['BULL TRAP', 'CAPITULATION', 'DISTRIBUTION']
+                    
+                    # Find stocks with reversal patterns
+                    reversal_mask = wave_filtered_df['patterns'].str.contains(
+                        '|'.join(reversal_patterns), 
+                        na=False, 
+                        regex=True
+                    )
+                    reversal_stocks = wave_filtered_df[reversal_mask]
+                    
+                    if len(reversal_stocks) > 0:
+                        # Separate by pattern type
+                        bull_traps = reversal_stocks[reversal_stocks['patterns'].str.contains('BULL TRAP', na=False)]
+                        capitulations = reversal_stocks[reversal_stocks['patterns'].str.contains('CAPITULATION', na=False)]
+                        distributions = reversal_stocks[reversal_stocks['patterns'].str.contains('DISTRIBUTION', na=False)]
+                        
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            if len(bull_traps) > 0:
+                                st.error(f"🪤 **BULL TRAPS ({len(bull_traps)})**")
+                                for _, stock in bull_traps.head(3).iterrows():
+                                    st.write(f"• **{stock['ticker']}**")
+                                    st.caption(f"7D: {stock.get('ret_7d', 0):.1f}% | From High: {stock.get('from_high_pct', 0):.1f}%")
+                            else:
+                                st.info("🪤 No Bull Traps")
+                        
+                        with col2:
+                            if len(capitulations) > 0:
+                                st.success(f"💣 **CAPITULATIONS ({len(capitulations)})**")
+                                for _, stock in capitulations.head(3).iterrows():
+                                    st.write(f"• **{stock['ticker']}**")
+                                    st.caption(f"1D: {stock.get('ret_1d', 0):.1f}% | RVOL: {stock.get('rvol', 0):.1f}x")
+                            else:
+                                st.info("💣 No Capitulations")
+                        
+                        with col3:
+                            if len(distributions) > 0:
+                                st.warning(f"⚠️ **DISTRIBUTIONS ({len(distributions)})**")
+                                for _, stock in distributions.head(3).iterrows():
+                                    st.write(f"• **{stock['ticker']}**")
+                                    st.caption(f"30D: {stock.get('ret_30d', 0):.1f}% | RVOL: {stock.get('rvol', 0):.1f}x")
+                            else:
+                                st.info("⚠️ No Distributions")
+                        
+                        # Show detailed table if there are many reversals
+                        if len(reversal_stocks) > 5:
+                            with st.expander(f"📊 View All {len(reversal_stocks)} Reversal Signals", expanded=False):
+                                reversal_display = reversal_stocks[['ticker', 'company_name', 'patterns', 'master_score', 
+                                                                    'ret_1d', 'ret_7d', 'from_high_pct', 'rvol']].copy()
+                                
+                                reversal_display['Type'] = reversal_display['patterns'].apply(
+                                    lambda x: '🪤 Trap' if 'BULL TRAP' in x else 
+                                             '💣 Bottom' if 'CAPITULATION' in x else 
+                                             '⚠️ Top'
+                                )
+                                
+                                st.dataframe(
+                                    reversal_display,
+                                    use_container_width=True,
+                                    hide_index=True,
+                                    column_config={
+                                        'ticker': st.column_config.TextColumn('Ticker', width="small"),
+                                        'company_name': st.column_config.TextColumn('Company', width="medium"),
+                                        'Type': st.column_config.TextColumn('Signal', width="small"),
+                                        'master_score': st.column_config.ProgressColumn(
+                                            'Score',
+                                            min_value=0,
+                                            max_value=100,
+                                            format="%.0f"
+                                        ),
+                                        'ret_1d': st.column_config.NumberColumn('1D%', format="%.1f%%"),
+                                        'ret_7d': st.column_config.NumberColumn('7D%', format="%.1f%%"),
+                                        'from_high_pct': st.column_config.NumberColumn('From High', format="%.1f%%"),
+                                        'rvol': st.column_config.NumberColumn('RVOL', format="%.1fx")
+                                    }
+                                )
+                    else:
+                        st.info("No reversal patterns detected in current wave timeframe")
+                else:
+                    st.info("Pattern data not available for reversal detection")
         
         else:
             st.warning(f"No data available for Wave Radar analysis with {wave_timeframe} timeframe.")
@@ -7143,10 +7309,12 @@ def main():
             - **Wave State** - Real-time momentum classification
             - **Overall Wave Strength** - Composite score for wave filter
             
-            **25 Pattern Detection** - Complete set:
+            **30 Pattern Detection** - Complete set:
             - 11 Technical patterns
             - 5 Fundamental patterns (Hybrid mode)
             - 6 Price range patterns
+            - 3 Intelligence patterns
+            - 5 NEW Quant reversal patterns
             - 3 NEW intelligence patterns (Stealth, Vampire, Perfect Storm)
             
             #### 💡 How to Use
@@ -7230,6 +7398,13 @@ def main():
             - 🏆 QUALITY LEADER
             - ⚡ TURNAROUND
             - ⚠️ HIGH PE
+
+            **Quant Reversal**
+            - 🪤 BULL TRAP
+            - 💣 CAPITULATION
+            - 🏃 RUNAWAY GAP
+            - 🔄 ROTATION LEADER
+            - ⚠️ DISTRIBUTION
             
             #### ⚡ Performance
             
