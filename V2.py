@@ -4408,99 +4408,114 @@ def main():
         if not filtered_df.empty:
             
             # ====================================
-            # SECTION 1: MARKET WAVE PULSE (Philosophy Core) - ENHANCED VERSION
+            # SECTION 1: MARKET WAVE PULSE (Philosophy Core)
             # ====================================
-            st.markdown("### 🌊 Market Wave State")
+            st.markdown("#### 🌊 Market Wave State")
             
-            if not filtered_df.empty and 'wave_state' in filtered_df.columns:
-                # Calculate wave metrics
-                wave_counts = {
-                    'FORMING': len(filtered_df[filtered_df['wave_state'].str.contains('FORMING', na=False)]),
-                    'BUILDING': len(filtered_df[filtered_df['wave_state'].str.contains('BUILDING', na=False)]),
-                    'CRESTING': len(filtered_df[filtered_df['wave_state'].str.contains('CRESTING', na=False)]),
-                    'BREAKING': len(filtered_df[filtered_df['wave_state'].str.contains('BREAKING', na=False)])
-                }
+            # Calculate wave metrics
+            wave_counts = {
+                'FORMING': len(filtered_df[filtered_df['wave_state'].str.contains('FORMING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
+                'BUILDING': len(filtered_df[filtered_df['wave_state'].str.contains('BUILDING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
+                'CRESTING': len(filtered_df[filtered_df['wave_state'].str.contains('CRESTING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
+                'BREAKING': len(filtered_df[filtered_df['wave_state'].str.contains('BREAKING', na=False)]) if 'wave_state' in filtered_df.columns else 0
+            }
             
-                total_waves = sum(wave_counts.values())
+            total_waves = sum(wave_counts.values())
             
-                # Calculate Wave Health Score
-                wave_health = 0
-                if total_waves > 0:
-                    wave_health = (
-                        wave_counts['CRESTING'] * 100 +
-                        wave_counts['BUILDING'] * 75 +
-                        wave_counts['FORMING'] * 50 +
-                        wave_counts['BREAKING'] * 25
-                    ) / total_waves
-                    wave_health_formatted = f"{wave_health:.0f}"
-                else:
-                    wave_health_formatted = "N/A"
+            # Wave Health Score
+            wave_health = 0
+            if total_waves > 0:
+                wave_health = (
+                    wave_counts['CRESTING'] * 100 +
+                    wave_counts['BUILDING'] * 75 +
+                    wave_counts['FORMING'] * 50 +
+                    wave_counts['BREAKING'] * 25
+                ) / total_waves
             
-                # Determine market mood and emoji
-                if wave_health > 70:
-                    mood_emoji = "🔥"
-                    market_mood_text = "BULLISH WAVES"
-                    market_regime_text = "Risk-On Market"
-                    mood_color = "success"
-                elif wave_health > 50:
-                    mood_emoji = "⚡"
-                    market_mood_text = "NEUTRAL WAVES"
-                    market_regime_text = "Balanced Market"
-                    mood_color = "warning"
-                else:
-                    mood_emoji = "❄️"
-                    market_mood_text = "BEARISH WAVES"
-                    market_regime_text = "Risk-Off Market"
-                    mood_color = "error"
+            # Visual Wave Flow
+            wave_col1, wave_col2, wave_col3 = st.columns([1, 3, 1])
+            
+            with wave_col1:
+                # Wave Health Meter
+                st.markdown("**Wave Strength**")
                 
-                # Use columns for layout
-                col1, col2 = st.columns([1, 4])
+                # Color-coded health indicator
+                if wave_health > 70:
+                    st.success(f"## 🔥 {wave_health:.0f}")
+                    st.caption("**BULLISH WAVES**")
+                    market_mood = "Risk-On"
+                elif wave_health > 50:
+                    st.warning(f"## ⚡ {wave_health:.0f}")
+                    st.caption("**NEUTRAL WAVES**")
+                    market_mood = "Balanced"
+                else:
+                    st.error(f"## ❄️ {wave_health:.0f}")
+                    st.caption("**BEARISH WAVES**")
+                    market_mood = "Risk-Off"
+                
+                # Add quick insight
+                if wave_counts['CRESTING'] > wave_counts['FORMING'] * 2:
+                    st.caption("⚠️ Many cresting")
+                elif wave_counts['FORMING'] > wave_counts['CRESTING'] * 2:
+                    st.caption("🌱 New waves forming")
             
-                with col1:
-                    st.markdown(f"""
-                    <div style="
-                        text-align: center;
-                        background-color: rgba(255, 255, 255, 0.1);
-                        border-radius: 10px;
-                        padding: 15px;
-                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-                    ">
-                        <h4 style="margin:0; color: #667eea;">Wave Health Score</h4>
-                        <h1 style="margin: 5px 0; color: #764ba2;">{wave_health_formatted}</h1>
-                        <p style="margin: 0; font-size: 14px; opacity: 0.8;">{market_mood_text}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.markdown(f"<p style='text-align: center; font-weight: bold;'>{mood_emoji} {market_regime_text}</p>", unsafe_allow_html=True)
+            with wave_col2:
+                # Interactive Wave Distribution
+                fig = go.Figure()
+                
+                # Create funnel chart for wave flow
+                stages = ['🌊 FORMING', '🌊🌊 BUILDING', '🌊🌊🌊 CRESTING', '💥 BREAKING']
+                values = [wave_counts['FORMING'], wave_counts['BUILDING'], wave_counts['CRESTING'], wave_counts['BREAKING']]
+                colors = ['#3498db', '#f39c12', '#2ecc71', '#e74c3c']
+                
+                # Horizontal bar chart for wave flow
+                fig.add_trace(go.Bar(
+                    y=stages,
+                    x=values,
+                    orientation='h',
+                    text=[f"{v} ({v/total_waves*100:.0f}%)" if total_waves > 0 else f"{v}" for v in values],
+                    textposition='auto',
+                    marker_color=colors,
+                    hovertemplate='%{y}<br>Count: %{x}<br>%{text}<extra></extra>'
+                ))
+                
+                fig.update_layout(
+                    height=150,
+                    margin=dict(t=0, b=0, l=0, r=0),
+                    showlegend=False,
+                    template='plotly_white',
+                    xaxis_title="",
+                    yaxis_title="",
+                    xaxis=dict(showgrid=False),
+                    yaxis=dict(showgrid=False)
+                )
+                
+                st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+                
+                # Dominant wave insight
+                max_wave = max(wave_counts, key=wave_counts.get)
+                st.caption(f"📍 **Dominant State:** {max_wave} ({wave_counts[max_wave]} stocks, {wave_counts[max_wave]/total_waves*100:.0f}%)")
             
-                with col2:
-                    st.markdown(f"#### Wave State Distribution ({total_waves} Stocks)")
-                    
-                    # Determine dominant state
-                    if total_waves > 0:
-                        dominant_state = max(wave_counts, key=wave_counts.get)
-                        dominant_count = wave_counts[dominant_state]
-                        dominant_pct = (dominant_count / total_waves) * 100
-                    else:
-                        dominant_state = "N/A"
-                        dominant_count = 0
-                        dominant_pct = 0
-                    
-                    st.info(f"📍 **Dominant State:** {dominant_state} ({dominant_count} stocks, {dominant_pct:.0f}%)")
+            with wave_col3:
+                # Quick Actions (Connect to other tabs)
+                st.markdown("**Quick Actions**")
+                
+                if st.button("🌊 Deep Wave Analysis", key="summary_wave_btn"):
+                    st.info("👉 Go to Wave Radar tab for detailed wave analysis")
+                
+                if st.button("🏆 View Rankings", key="summary_rank_btn"):
+                    st.info("👉 Go to Rankings tab for top stocks")
+                
+                # Market regime
+                regime, metrics = MarketIntelligence.detect_market_regime(filtered_df)
+                if "RISK-ON" in regime:
+                    st.success(f"🔥 {market_mood} Market")
+                elif "RISK-OFF" in regime:
+                    st.warning(f"🛡️ {market_mood} Market")
+                else:
+                    st.info(f"😴 {market_mood} Market")
             
-                    # Visual Wave Flow with a progress bar or chart for better visualization
-                    st.markdown("##### Visual Wave Flow")
-                    
-                    if total_waves > 0:
-                        # Create a simplified progress-like visualization
-                        for state, count in wave_counts.items():
-                            if count > 0:
-                                percent = (count / total_waves) * 100
-                                st.progress(percent, text=f"{state} ({count} stocks, {percent:.0f}%)")
-                    else:
-                        st.info("No wave state data available for the current selection.")
-            else:
-                st.warning("No data available to analyze wave state. Please check your filters.")
+            st.markdown("---")
             
             # ====================================
             # SECTION 2: KEY MARKET METRICS (Clean Grid)
