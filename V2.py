@@ -4825,16 +4825,7 @@ def main():
             st.markdown("---")
             st.markdown("#### 💡 Market Insights & Actions")
             
-            insight_col1, insight_col2, insight_col3 = st.columns(3)
-            
-            with insight_col1:
-                st.info(f"""
-                **📊 Market Summary**
-                • Regime: {market_mood}
-                • Dominant Wave: {max_wave}
-                • Wave Health: {wave_health:.0f}/100
-                • Breadth: {breadth_pct:.0f}% positive
-                """)
+            insight_col2, insight_col3 = st.columns(3)
             
             with insight_col2:
                 # Key opportunities
