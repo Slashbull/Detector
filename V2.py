@@ -739,6 +739,9 @@ class AdvancedMetrics:
     Calculates advanced metrics and indicators using a combination of price,
     volume, and algorithmically derived scores. Ensures robust calculation
     by handling potential missing data (NaNs) gracefully.
+    
+    ENHANCED WITH: VWAP, Momentum Quality, Velocity, Smart Money Index,
+    Range Analytics, Volume Profile, and Exhaustion Indicators
     """
     
     @staticmethod
@@ -757,6 +760,10 @@ class AdvancedMetrics:
         """
         if df.empty:
             return df
+        
+        # ============================================
+        # EXISTING METRICS (KEEP AS IS)
+        # ============================================
         
         # Money Flow (in millions)
         if all(col in df.columns for col in ['price', 'volume_1d', 'rvol']):
@@ -805,7 +812,7 @@ class AdvancedMetrics:
         
         # Wave State
         df['wave_state'] = df.apply(AdvancedMetrics._get_wave_state, axis=1)
-
+        
         # Overall Wave Strength
         score_cols = ['momentum_score', 'acceleration_score', 'rvol_score', 'breakout_score']
         if all(col in df.columns for col in score_cols):
@@ -818,15 +825,274 @@ class AdvancedMetrics:
         else:
             df['overall_wave_strength'] = pd.Series(np.nan, index=df.index)
         
+        # ============================================
+        # NEW ADVANCED METRICS
+        # ============================================
+        
+        # 1. VWAP and VWAP Deviation
+        if all(col in df.columns for col in ['price', 'volume_1d']):
+            # Calculate 20-day rolling VWAP
+            price_volume = df['price'].fillna(0) * df['volume_1d'].fillna(0)
+            
+            # Use rolling window for VWAP calculation
+            df['vwap'] = (
+                price_volume.rolling(window=20, min_periods=1).sum() / 
+                df['volume_1d'].fillna(0).rolling(window=20, min_periods=1).sum()
+            ).fillna(df['price'])
+            
+            # VWAP Deviation percentage
+            df['vwap_deviation'] = ((df['price'] - df['vwap']) / df['vwap'] * 100).fillna(0)
+            df['vwap_deviation'] = df['vwap_deviation'].clip(-50, 50)  # Cap extreme values
+        else:
+            df['vwap'] = pd.Series(np.nan, index=df.index)
+            df['vwap_deviation'] = pd.Series(np.nan, index=df.index)
+        
+        # 2. Momentum Quality Score (0-100)
+        df['momentum_quality'] = pd.Series(0, index=df.index, dtype=float)
+        
+        # Component 1: Positive return (20 points)
+        if 'ret_30d' in df.columns:
+            df['momentum_quality'] += (df['ret_30d'] > 0).astype(float) * 20
+        
+        # Component 2: Accelerating returns (20 points)
+        if all(col in df.columns for col in ['ret_30d', 'ret_3m']):
+            with np.errstate(divide='ignore', invalid='ignore'):
+                monthly_avg = np.where(df['ret_3m'] != 0, df['ret_3m'] / 3, 0)
+            df['momentum_quality'] += (df['ret_30d'] > monthly_avg).astype(float) * 20
+        
+        # Component 3: Volume support (20 points)
+        if all(col in df.columns for col in ['volume_30d', 'volume_90d']):
+            df['momentum_quality'] += (df['volume_30d'] > df['volume_90d']).astype(float) * 20
+        
+        # Component 4: Trend alignment (20 points)
+        if all(col in df.columns for col in ['sma_20d', 'sma_50d']):
+            df['momentum_quality'] += (df['sma_20d'] > df['sma_50d']).astype(float) * 20
+        
+        # Component 5: Not overextended (20 points)
+        if 'from_low_pct' in df.columns:
+            df['momentum_quality'] += (df['from_low_pct'] < 70).astype(float) * 20
+        
+        # 3. Velocity Metric (Rate of change acceleration)
+        if all(col in df.columns for col in ['ret_7d', 'ret_30d']):
+            with np.errstate(divide='ignore', invalid='ignore'):
+                velocity_7d = np.where(df['ret_7d'] != 0, df['ret_7d'] / 7, 0)
+                velocity_30d = np.where(df['ret_30d'] != 0, df['ret_30d'] / 30, 0)
+            df['velocity'] = pd.Series(velocity_7d - velocity_30d, index=df.index)
+            df['velocity'] = df['velocity'].fillna(0).clip(-10, 10)  # Cap extreme values
+        else:
+            df['velocity'] = pd.Series(np.nan, index=df.index)
+        
+        # 4. Smart Money Index (0-100)
+        df['smart_money_index'] = pd.Series(0, index=df.index, dtype=float)
+        
+        # Long-term volume accumulation (25 points)
+        if 'vol_ratio_90d_180d' in df.columns:
+            df['smart_money_index'] += (df['vol_ratio_90d_180d'] > 1.1).astype(float) * 25
+        
+        # Recent acceleration vs long-term (25 points)
+        if all(col in df.columns for col in ['ret_7d', 'ret_30d']):
+            with np.errstate(divide='ignore', invalid='ignore'):
+                daily_7d = np.where(df['ret_7d'] != 0, df['ret_7d'] / 7, 0)
+                daily_30d = np.where(df['ret_30d'] != 0, df['ret_30d'] / 30, 0)
+            df['smart_money_index'] += (daily_7d > daily_30d).astype(float) * 25
+        
+        # High money flow (25 points)
+        if 'money_flow_mm' in df.columns:
+            flow_80th = df['money_flow_mm'].quantile(0.8)
+            df['smart_money_index'] += (df['money_flow_mm'] > flow_80th).astype(float) * 25
+        
+        # Near highs accumulation (25 points)
+        if all(col in df.columns for col in ['high_52w', 'price']):
+            with np.errstate(divide='ignore', invalid='ignore'):
+                near_high_pct = np.where(df['price'] > 0, 
+                                        (df['high_52w'] - df['price']) / df['price'] * 100,
+                                        100)
+            df['smart_money_index'] += (near_high_pct < 10).astype(float) * 25
+        
+        # 5. Range Analytics
+        if all(col in df.columns for col in ['high_52w', 'low_52w', 'price']):
+            # 52-week range size
+            with np.errstate(divide='ignore', invalid='ignore'):
+                df['range_52w_pct'] = pd.Series(
+                    np.where(df['low_52w'] > 0,
+                            (df['high_52w'] - df['low_52w']) / df['low_52w'] * 100,
+                            np.nan),
+                    index=df.index
+                ).fillna(50)
+            
+            # Position in range (0-100)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                df['range_position'] = pd.Series(
+                    np.where((df['high_52w'] - df['low_52w']) > 0,
+                            (df['price'] - df['low_52w']) / (df['high_52w'] - df['low_52w']) * 100,
+                            50),
+                    index=df.index
+                ).fillna(50).clip(0, 100)
+        else:
+            df['range_52w_pct'] = pd.Series(np.nan, index=df.index)
+            df['range_position'] = pd.Series(np.nan, index=df.index)
+        
+        # 6. Volume Profile Score
+        if all(col in df.columns for col in ['volume_1d', 'volume_7d', 'volume_30d', 'volume_90d']):
+            # Calculate volume trend score
+            df['volume_profile'] = pd.Series(0, index=df.index, dtype=float)
+            
+            # Increasing volume trend
+            df['volume_profile'] += (df['volume_1d'] > df['volume_7d'] / 7).astype(float) * 25
+            df['volume_profile'] += (df['volume_7d'] > df['volume_30d'] / 4.3).astype(float) * 25
+            df['volume_profile'] += (df['volume_30d'] > df['volume_90d'] / 3).astype(float) * 25
+            
+            # RVOL component
+            if 'rvol' in df.columns:
+                df['volume_profile'] += ((df['rvol'] > 1.5) & (df['rvol'] < 10)).astype(float) * 25
+        else:
+            df['volume_profile'] = pd.Series(np.nan, index=df.index)
+        
+        # 7. Exhaustion Indicator (0-100, higher = more exhausted)
+        df['exhaustion_score'] = pd.Series(0, index=df.index, dtype=float)
+        
+        # Distance from low (overextension)
+        if 'from_low_pct' in df.columns:
+            df['exhaustion_score'] += (df['from_low_pct'] > 70).astype(float) * 25
+            df['exhaustion_score'] += (df['from_low_pct'] > 85).astype(float) * 25  # Extra penalty
+        
+        # Extreme returns
+        if 'ret_7d' in df.columns:
+            df['exhaustion_score'] += (df['ret_7d'] > 25).astype(float) * 25
+        
+        # Declining volume on rally
+        if all(col in df.columns for col in ['ret_30d', 'vol_ratio_30d_90d']):
+            df['exhaustion_score'] += (
+                (df['ret_30d'] > 30) & (df['vol_ratio_30d_90d'] < 0.8)
+            ).astype(float) * 25
+        
+        # 8. Accumulation/Distribution Score
+        if all(col in df.columns for col in ['price', 'high_52w', 'low_52w', 'volume_1d']):
+            # Money Flow Multiplier
+            with np.errstate(divide='ignore', invalid='ignore'):
+                close_location = np.where(
+                    (df['high_52w'] - df['low_52w']) > 0,
+                    ((df['price'] - df['low_52w']) - (df['high_52w'] - df['price'])) / 
+                    (df['high_52w'] - df['low_52w']),
+                    0
+                )
+            
+            # Money Flow Volume
+            df['money_flow_volume'] = pd.Series(close_location * df['volume_1d'].fillna(0), index=df.index)
+            
+            # A/D Line (normalized to 0-100)
+            df['ad_line'] = df['money_flow_volume'].rolling(window=20, min_periods=1).sum()
+            
+            # Normalize to 0-100 scale
+            ad_min = df['ad_line'].quantile(0.01)
+            ad_max = df['ad_line'].quantile(0.99)
+            if ad_max > ad_min:
+                df['ad_score'] = ((df['ad_line'] - ad_min) / (ad_max - ad_min) * 100).clip(0, 100)
+            else:
+                df['ad_score'] = pd.Series(50, index=df.index)
+        else:
+            df['money_flow_volume'] = pd.Series(np.nan, index=df.index)
+            df['ad_line'] = pd.Series(np.nan, index=df.index)
+            df['ad_score'] = pd.Series(np.nan, index=df.index)
+        
+        # 9. Relative Strength vs Market
+        if all(col in df.columns for col in ['ret_30d', 'category']):
+            # Calculate category average return
+            df['category_avg_return'] = df.groupby('category')['ret_30d'].transform('mean')
+            
+            # Relative strength
+            df['relative_strength'] = df['ret_30d'] - df['category_avg_return']
+            df['relative_strength'] = df['relative_strength'].fillna(0)
+            
+            # Outperformance flag
+            df['outperforming'] = (df['relative_strength'] > 5).astype(int)
+        else:
+            df['relative_strength'] = pd.Series(np.nan, index=df.index)
+            df['outperforming'] = pd.Series(0, index=df.index)
+        
+        # 10. Volatility Score (Normalized ATR concept)
+        if all(col in df.columns for col in ['ret_1d', 'ret_3d', 'ret_7d']):
+            # Calculate simple volatility from returns
+            returns_df = df[['ret_1d', 'ret_3d', 'ret_7d']].fillna(0)
+            df['volatility'] = returns_df.std(axis=1)
+            df['volatility'] = df['volatility'].fillna(0).clip(0, 50)
+            
+            # Volatility percentile
+            df['volatility_percentile'] = df['volatility'].rank(pct=True) * 100
+        else:
+            df['volatility'] = pd.Series(np.nan, index=df.index)
+            df['volatility_percentile'] = pd.Series(np.nan, index=df.index)
+        
+        # 11. Momentum Divergence Score
+        if all(col in df.columns for col in ['price', 'momentum_score', 'volume_score']):
+            # Price making new highs but momentum/volume declining
+            df['divergence_score'] = pd.Series(0, index=df.index, dtype=float)
+            
+            # Price near highs
+            if 'from_high_pct' in df.columns:
+                price_at_high = (df['from_high_pct'] > -5).astype(float) * 50
+            else:
+                price_at_high = 0
+            
+            # But momentum weak
+            momentum_weak = (df['momentum_score'] < 50).astype(float) * 25
+            
+            # And volume weak
+            volume_weak = (df['volume_score'] < 50).astype(float) * 25
+            
+            df['divergence_score'] = price_at_high + momentum_weak + volume_weak
+        else:
+            df['divergence_score'] = pd.Series(np.nan, index=df.index)
+        
+        # 12. Composite Strength Index (CSI)
+        # Combines multiple strength metrics into one super metric
+        df['composite_strength'] = pd.Series(0, index=df.index, dtype=float)
+        
+        strength_components = [
+            ('master_score', 0.20),
+            ('momentum_quality', 0.15),
+            ('smart_money_index', 0.15),
+            ('volume_profile', 0.10),
+            ('trend_quality', 0.10),
+            ('position_score', 0.10),
+            ('relative_strength', 0.10),
+            ('ad_score', 0.10)
+        ]
+        
+        total_weight = 0
+        for col_name, weight in strength_components:
+            if col_name in df.columns:
+                # Normalize relative_strength to 0-100 scale
+                if col_name == 'relative_strength':
+                    normalized = ((df[col_name] + 100) / 2).clip(0, 100)
+                else:
+                    normalized = df[col_name].fillna(50)
+                
+                df['composite_strength'] += normalized * weight
+                total_weight += weight
+        
+        # Normalize by actual weight used
+        if total_weight > 0:
+            df['composite_strength'] = df['composite_strength'] / total_weight
+        else:
+            df['composite_strength'] = pd.Series(50, index=df.index)
+        
+        df['composite_strength'] = df['composite_strength'].clip(0, 100)
+        
+        # Log completion
+        logger.info(f"Advanced metrics calculation complete for {len(df)} stocks")
+        
         return df
     
     @staticmethod
     def _get_wave_state(row: pd.Series) -> str:
         """
         Determines the `wave_state` for a single stock based on a set of thresholds.
+        Enhanced with new metrics consideration.
         """
         signals = 0
         
+        # Original signals
         if row.get('momentum_score', 0) > 70:
             signals += 1
         if row.get('volume_score', 0) > 70:
@@ -836,7 +1102,16 @@ class AdvancedMetrics:
         if row.get('rvol', 0) > 2:
             signals += 1
         
-        if signals >= 4:
+        # New signal: Smart money involvement
+        if row.get('smart_money_index', 0) > 75:
+            signals += 1
+        
+        # New signal: Momentum quality
+        if row.get('momentum_quality', 0) > 80:
+            signals += 1
+        
+        # Enhanced wave state with 6 possible signals
+        if signals >= 5:
             return "🌊🌊🌊 CRESTING"
         elif signals >= 3:
             return "🌊🌊 BUILDING"
@@ -1347,6 +1622,12 @@ class PatternDetector:
         '🏃 RUNAWAY GAP': {'importance_weight': 12},    # Strong continuation
         '🔄 ROTATION LEADER': {'importance_weight': 10}, # Sector strength
         '⚠️ DISTRIBUTION': {'importance_weight': 15},   # Exit signal
+        '🎯 VELOCITY SQUEEZE': {'importance_weight': 15},    # High value - coiled spring
+        '⚠️ VOLUME DIVERGENCE': {'importance_weight': -10},  # Negative - warning signal
+        '⚡ GOLDEN CROSS': {'importance_weight': 12},        # Strong bullish
+        '📉 EXHAUSTION': {'importance_weight': -15},         # Strong bearish
+        '🔺 PYRAMID': {'importance_weight': 10},             # Accumulation
+        '🌪️ VACUUM': {'importance_weight': 18},             # High potential bounce
     }
 
     @staticmethod
@@ -1589,6 +1870,80 @@ class PatternDetector:
                 (get_col_safe('volume_7d', 0) > get_col_safe('volume_30d', 1) * 1.5)  # Volume spike
             )
             patterns.append(('⚠️ DISTRIBUTION', mask))
+
+        # 31. VELOCITY SQUEEZE
+        if all(col in df.columns for col in ['ret_7d', 'ret_30d', 'from_high_pct', 'from_low_pct', 'high_52w', 'low_52w']):
+            with np.errstate(divide='ignore', invalid='ignore'):
+                daily_7d = np.where(df['ret_7d'] != 0, df['ret_7d'] / 7, 0)
+                daily_30d = np.where(df['ret_30d'] != 0, df['ret_30d'] / 30, 0)
+                range_pct = np.where(df['low_52w'] > 0, 
+                                   (df['high_52w'] - df['low_52w']) / df['low_52w'], 
+                                   np.inf)
+            
+            mask = (
+                (daily_7d > daily_30d) &  # Velocity increasing
+                (abs(df['from_high_pct']) + df['from_low_pct'] < 30) &  # Middle of range
+                (range_pct < 0.5)  # Tight range
+            )
+            patterns.append(('🎯 VELOCITY SQUEEZE', mask))
+        
+        # 32. VOLUME DIVERGENCE TRAP
+        if all(col in df.columns for col in ['ret_30d', 'vol_ratio_30d_180d', 'vol_ratio_90d_180d', 'from_high_pct']):
+            mask = (
+                (df['ret_30d'] > 20) &
+                (df['vol_ratio_30d_180d'] < 0.7) &
+                (df['vol_ratio_90d_180d'] < 0.9) &
+                (df['from_high_pct'] > -5)
+            )
+            patterns.append(('⚠️ VOLUME DIVERGENCE', mask))
+        
+        # 33. GOLDEN CROSS MOMENTUM
+        if all(col in df.columns for col in ['sma_20d', 'sma_50d', 'sma_200d', 'rvol', 'ret_7d', 'ret_30d']):
+            mask = (
+                (df['sma_20d'] > df['sma_50d']) &
+                (df['sma_50d'] > df['sma_200d']) &
+                ((df['sma_20d'] - df['sma_50d']) / df['sma_50d'] > 0.02) &
+                (df['rvol'] > 1.5) &
+                (df['ret_7d'] > df['ret_30d'] / 4)
+            )
+            patterns.append(('⚡ GOLDEN CROSS', mask))
+        
+        # 34. MOMENTUM EXHAUSTION
+        if all(col in df.columns for col in ['ret_7d', 'ret_1d', 'rvol', 'from_low_pct', 'price', 'sma_20d']):
+            with np.errstate(divide='ignore', invalid='ignore'):
+                sma_deviation = np.where(df['sma_20d'] > 0,
+                                        (df['price'] - df['sma_20d']) / df['sma_20d'],
+                                        0)
+            mask = (
+                (df['ret_7d'] > 25) &
+                (df['ret_1d'] < 0) &
+                (df['rvol'] < df['rvol'].shift(1)) &
+                (df['from_low_pct'] > 80) &
+                (sma_deviation > 0.15)
+            )
+            patterns.append(('📉 EXHAUSTION', mask))
+        
+        # 35. PYRAMID ACCUMULATION
+        if all(col in df.columns for col in ['vol_ratio_7d_90d', 'vol_ratio_30d_90d', 'vol_ratio_90d_180d', 'ret_30d', 'from_low_pct']):
+            mask = (
+                (df['vol_ratio_7d_90d'] > 1.1) &
+                (df['vol_ratio_30d_90d'] > 1.05) &
+                (df['vol_ratio_90d_180d'] > 1.02) &
+                (df['ret_30d'].between(5, 15)) &
+                (df['from_low_pct'] < 50)
+            )
+            patterns.append(('🔺 PYRAMID', mask))
+        
+        # 36. MOMENTUM VACUUM
+        if all(col in df.columns for col in ['ret_30d', 'ret_7d', 'ret_1d', 'rvol', 'from_low_pct']):
+            mask = (
+                (df['ret_30d'] < -20) &
+                (df['ret_7d'] > 0) &
+                (df['ret_1d'] > 2) &
+                (df['rvol'] > 3) &
+                (df['from_low_pct'] < 10)
+            )
+            patterns.append(('🌪️ VACUUM', mask))
 
         return patterns
 
@@ -2672,6 +3027,578 @@ class ExportEngine:
 
 class UIComponents:
     """Reusable UI components for Wave Detection Dashboard"""
+    @staticmethod
+    def render_summary_section(df: pd.DataFrame) -> None:
+        """
+        Enhanced summary section with actionable trading signals.
+        Shows entry/exit signals with specific prices, stops, and targets.
+        Uses dataframe displays matching the script's philosophy.
+        """
+        
+        if df.empty:
+            st.warning("No data available for analysis")
+            return
+        
+        # Header with timestamp
+        st.markdown("### 🎯 Wave Detection Trading Signals")
+        st.caption(f"Last Update: {datetime.now().strftime('%H:%M:%S')} • Analyzing {len(df):,} stocks")
+        
+        # ============================================
+        # MARKET PULSE - Quick Overview
+        # ============================================
+        
+        st.markdown("#### 📊 Market Pulse")
+        
+        pulse_cols = st.columns(6)
+        
+        with pulse_cols[0]:
+            if 'ret_30d' in df.columns:
+                bullish = (df['ret_30d'] > 0).sum()
+                bearish = (df['ret_30d'] <= 0).sum()
+                ratio = bullish / (bullish + bearish) * 100 if (bullish + bearish) > 0 else 50
+                
+                if ratio > 60:
+                    st.metric("Market Trend", "🟢 BULLISH", f"{ratio:.0f}% up")
+                elif ratio < 40:
+                    st.metric("Market Trend", "🔴 BEARISH", f"{ratio:.0f}% up")
+                else:
+                    st.metric("Market Trend", "🟡 NEUTRAL", f"{ratio:.0f}% up")
+        
+        with pulse_cols[1]:
+            if 'rvol' in df.columns:
+                high_vol = (df['rvol'] > 2).sum()
+                st.metric("Volume Surges", f"{high_vol}", "RVOL > 2x")
+        
+        with pulse_cols[2]:
+            if 'patterns' in df.columns:
+                critical_patterns = df['patterns'].str.contains('PERFECT STORM|VOL EXPLOSION|CAPITULATION', na=False).sum()
+                st.metric("Critical Patterns", f"{critical_patterns}", "⚡ Active")
+        
+        with pulse_cols[3]:
+            if 'wave_state' in df.columns:
+                cresting = df['wave_state'].str.contains('CRESTING', na=False).sum()
+                st.metric("Cresting Waves", f"{cresting}", "🌊🌊🌊")
+        
+        with pulse_cols[4]:
+            if 'momentum_harmony' in df.columns:
+                perfect = (df['momentum_harmony'] == 4).sum()
+                st.metric("Perfect Harmony", f"{perfect}", "4/4 Aligned")
+        
+        with pulse_cols[5]:
+            if 'smart_money_index' in df.columns:
+                smart = (df['smart_money_index'] > 75).sum()
+                st.metric("Smart Money", f"{smart}", "Index > 75")
+        
+        st.markdown("---")
+        
+        # ============================================
+        # TAB LAYOUT FOR DIFFERENT SIGNAL TYPES
+        # ============================================
+        
+        signal_tabs = st.tabs([
+            "🟢 Entry Signals", 
+            "🔴 Exit Signals", 
+            "⏰ Pre-Breakout", 
+            "⚠️ Risk Alerts",
+            "🎯 Pattern Plays"
+        ])
+        
+        # ============================================
+        # TAB 1: ENTRY SIGNALS
+        # ============================================
+        
+        with signal_tabs[0]:
+            st.markdown("##### 🟢 **ENTRY SIGNALS - Buy Now with Targets**")
+            
+            # Entry criteria based on your philosophy
+            entry_conditions = (
+                (df['master_score'] > 70) &
+                (df['momentum_score'] > 60) &
+                (df['rvol'] > 1.5) &
+                (df['from_high_pct'] > -15) &
+                (df['ret_7d'] > 0)
+            )
+            
+            # Add smart money filter if available
+            if 'smart_money_index' in df.columns:
+                entry_conditions = entry_conditions & (df['smart_money_index'] > 50)
+            
+            # Add momentum quality filter if available
+            if 'momentum_quality' in df.columns:
+                entry_conditions = entry_conditions & (df['momentum_quality'] > 60)
+            
+            entry_candidates = df[entry_conditions].copy()
+            
+            if len(entry_candidates) > 0:
+                # Calculate entry metrics
+                entry_candidates['entry_price'] = entry_candidates['price']
+                entry_candidates['stop_loss'] = (entry_candidates['price'] * 0.95).round(2)  # 5% stop
+                
+                # Dynamic target based on range position
+                entry_candidates['range_potential'] = 100 - entry_candidates['from_low_pct']
+                entry_candidates['target_1'] = (entry_candidates['price'] * 1.07).round(2)  # 7% target
+                entry_candidates['target_2'] = (entry_candidates['price'] * 1.15).round(2)  # 15% target
+                
+                # Risk/Reward calculation
+                entry_candidates['risk'] = entry_candidates['entry_price'] - entry_candidates['stop_loss']
+                entry_candidates['reward'] = entry_candidates['target_1'] - entry_candidates['entry_price']
+                entry_candidates['rr_ratio'] = (entry_candidates['reward'] / entry_candidates['risk']).round(2)
+                
+                # Signal strength
+                entry_candidates['signal_strength'] = pd.Series("", index=entry_candidates.index)
+                entry_candidates.loc[entry_candidates['master_score'] > 85, 'signal_strength'] = "🔥🔥🔥"
+                entry_candidates.loc[(entry_candidates['master_score'] > 75) & (entry_candidates['master_score'] <= 85), 'signal_strength'] = "🔥🔥"
+                entry_candidates.loc[entry_candidates['master_score'] <= 75, 'signal_strength'] = "🔥"
+                
+                # Pattern indicators
+                entry_candidates['key_pattern'] = entry_candidates['patterns'].apply(
+                    lambda x: str(x).split(' | ')[0] if x else "No Pattern"
+                )
+                
+                # Select top 10 by composite score
+                if 'composite_strength' in entry_candidates.columns:
+                    entry_display = entry_candidates.nlargest(10, 'composite_strength')
+                else:
+                    entry_display = entry_candidates.nlargest(10, 'master_score')
+                
+                # Create display dataframe
+                display_df = pd.DataFrame({
+                    'Signal': entry_display['signal_strength'],
+                    'Ticker': entry_display['ticker'],
+                    'Company': entry_display['company_name'].str[:25],
+                    'Entry': entry_display['entry_price'].apply(lambda x: f"₹{x:,.0f}"),
+                    'Stop': entry_display['stop_loss'].apply(lambda x: f"₹{x:,.0f}"),
+                    'Target 1': entry_display['target_1'].apply(lambda x: f"₹{x:,.0f}"),
+                    'Target 2': entry_display['target_2'].apply(lambda x: f"₹{x:,.0f}"),
+                    'R:R': entry_display['rr_ratio'].apply(lambda x: f"1:{x:.1f}"),
+                    'Score': entry_display['master_score'].round(1),
+                    'RVOL': entry_display['rvol'].apply(lambda x: f"{x:.1f}x"),
+                    'Pattern': entry_display['key_pattern'].str[:20],
+                    'Wave': entry_display['wave_state'] if 'wave_state' in entry_display.columns else 'N/A'
+                })
+                
+                # Display with column configuration
+                st.dataframe(
+                    display_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        'Signal': st.column_config.TextColumn('Signal', width="small"),
+                        'Ticker': st.column_config.TextColumn('Ticker', width="small"),
+                        'Company': st.column_config.TextColumn('Company', width="medium"),
+                        'Entry': st.column_config.TextColumn('Entry', width="small"),
+                        'Stop': st.column_config.TextColumn('Stop Loss', width="small"),
+                        'Target 1': st.column_config.TextColumn('T1 (7%)', width="small"),
+                        'Target 2': st.column_config.TextColumn('T2 (15%)', width="small"),
+                        'R:R': st.column_config.TextColumn('Risk:Reward', width="small"),
+                        'Score': st.column_config.ProgressColumn(
+                            'Score',
+                            min_value=0,
+                            max_value=100,
+                            format="%.1f"
+                        ),
+                        'RVOL': st.column_config.TextColumn('Volume', width="small"),
+                        'Pattern': st.column_config.TextColumn('Pattern', width="medium"),
+                        'Wave': st.column_config.TextColumn('Wave State', width="medium")
+                    }
+                )
+                
+                # Summary stats
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.info(f"📊 Signals Found: {len(entry_display)}")
+                with col2:
+                    avg_rr = entry_display['rr_ratio'].mean()
+                    st.info(f"📈 Avg R:R: 1:{avg_rr:.1f}")
+                with col3:
+                    avg_score = entry_display['master_score'].mean()
+                    st.info(f"⭐ Avg Score: {avg_score:.1f}")
+                with col4:
+                    with_patterns = (entry_display['patterns'] != '').sum() if 'patterns' in entry_display.columns else 0
+                    st.info(f"🎯 With Patterns: {with_patterns}")
+            
+            else:
+                st.info("No strong entry signals at current levels. Market may be overextended or in consolidation.")
+        
+        # ============================================
+        # TAB 2: EXIT SIGNALS
+        # ============================================
+        
+        with signal_tabs[1]:
+            st.markdown("##### 🔴 **EXIT SIGNALS - Book Profits or Cut Losses**")
+            
+            # Exit criteria - overextended or showing exhaustion
+            exit_conditions = (
+                (df['from_low_pct'] > 75) |  # Far from support
+                (df['patterns'].str.contains('EXHAUSTION|DISTRIBUTION|BULL TRAP', na=False)) |
+                ((df['ret_30d'] > 50) & (df['ret_1d'] < -2))  # Momentum reversal
+            )
+            
+            # Add exhaustion score if available
+            if 'exhaustion_score' in df.columns:
+                exit_conditions = exit_conditions | (df['exhaustion_score'] > 75)
+            
+            # Add divergence score if available
+            if 'divergence_score' in df.columns:
+                exit_conditions = exit_conditions | (df['divergence_score'] > 75)
+            
+            exit_candidates = df[exit_conditions].copy()
+            
+            if len(exit_candidates) > 0:
+                # Calculate exit metrics
+                exit_candidates['current_price'] = exit_candidates['price']
+                
+                # Support levels
+                exit_candidates['support_1'] = exit_candidates[['sma_20d', 'sma_50d']].min(axis=1) if 'sma_20d' in exit_candidates.columns else exit_candidates['price'] * 0.95
+                exit_candidates['support_2'] = exit_candidates['sma_200d'] if 'sma_200d' in exit_candidates.columns else exit_candidates['price'] * 0.90
+                
+                # Potential downside
+                exit_candidates['downside_1'] = ((exit_candidates['current_price'] - exit_candidates['support_1']) / exit_candidates['current_price'] * 100).round(1)
+                exit_candidates['downside_2'] = ((exit_candidates['current_price'] - exit_candidates['support_2']) / exit_candidates['current_price'] * 100).round(1)
+                
+                # Exit urgency
+                exit_candidates['urgency'] = pd.Series("", index=exit_candidates.index)
+                exit_candidates.loc[exit_candidates['from_low_pct'] > 90, 'urgency'] = "🚨🚨🚨"
+                exit_candidates.loc[(exit_candidates['from_low_pct'] > 80) & (exit_candidates['from_low_pct'] <= 90), 'urgency'] = "🚨🚨"
+                exit_candidates.loc[exit_candidates['from_low_pct'] <= 80, 'urgency'] = "🚨"
+                
+                # Exit reason
+                exit_candidates['exit_reason'] = pd.Series("", index=exit_candidates.index)
+                exit_candidates.loc[exit_candidates['from_low_pct'] > 85, 'exit_reason'] = "Overextended"
+                exit_candidates.loc[exit_candidates['patterns'].str.contains('EXHAUSTION', na=False), 'exit_reason'] = "Exhaustion"
+                exit_candidates.loc[exit_candidates['patterns'].str.contains('DISTRIBUTION', na=False), 'exit_reason'] = "Distribution"
+                exit_candidates.loc[exit_candidates['patterns'].str.contains('BULL TRAP', na=False), 'exit_reason'] = "Bull Trap"
+                exit_candidates.loc[(exit_candidates['ret_30d'] > 50) & (exit_candidates['ret_1d'] < -2), 'exit_reason'] = "Reversal"
+                
+                # Select top exits by urgency (from_low_pct)
+                exit_display = exit_candidates.nlargest(10, 'from_low_pct')
+                
+                # Create display dataframe
+                display_df = pd.DataFrame({
+                    'Urgency': exit_display['urgency'],
+                    'Ticker': exit_display['ticker'],
+                    'Company': exit_display['company_name'].str[:25],
+                    'Current': exit_display['current_price'].apply(lambda x: f"₹{x:,.0f}"),
+                    'Support 1': exit_display['support_1'].apply(lambda x: f"₹{x:,.0f}"),
+                    'Risk 1': exit_display['downside_1'].apply(lambda x: f"-{x:.1f}%"),
+                    'Support 2': exit_display['support_2'].apply(lambda x: f"₹{x:,.0f}"),
+                    'Risk 2': exit_display['downside_2'].apply(lambda x: f"-{x:.1f}%"),
+                    'From Low': exit_display['from_low_pct'].apply(lambda x: f"{x:.0f}%"),
+                    '30D Ret': exit_display['ret_30d'].apply(lambda x: f"{x:+.1f}%") if 'ret_30d' in exit_display.columns else 'N/A',
+                    'Reason': exit_display['exit_reason'],
+                    'Pattern': exit_display['patterns'].str[:30] if 'patterns' in exit_display.columns else ''
+                })
+                
+                # Display with styling
+                st.dataframe(
+                    display_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        'Urgency': st.column_config.TextColumn('⚠️', width="small"),
+                        'Ticker': st.column_config.TextColumn('Ticker', width="small"),
+                        'Company': st.column_config.TextColumn('Company', width="medium"),
+                        'Current': st.column_config.TextColumn('Price', width="small"),
+                        'Support 1': st.column_config.TextColumn('Supp 1', width="small"),
+                        'Risk 1': st.column_config.TextColumn('Risk 1', width="small"),
+                        'Support 2': st.column_config.TextColumn('Supp 2', width="small"),
+                        'Risk 2': st.column_config.TextColumn('Risk 2', width="small"),
+                        'From Low': st.column_config.TextColumn('From Low', width="small"),
+                        '30D Ret': st.column_config.TextColumn('30D', width="small"),
+                        'Reason': st.column_config.TextColumn('Exit Reason', width="medium"),
+                        'Pattern': st.column_config.TextColumn('Patterns', width="large")
+                    }
+                )
+                
+                # Risk summary
+                st.warning(f"⚠️ {len(exit_display)} stocks showing exit signals. Average distance from low: {exit_display['from_low_pct'].mean():.0f}%")
+            
+            else:
+                st.success("No immediate exit signals. Current positions appear healthy.")
+        
+        # ============================================
+        # TAB 3: PRE-BREAKOUT SETUPS
+        # ============================================
+        
+        with signal_tabs[2]:
+            st.markdown("##### ⏰ **PRE-BREAKOUT SETUPS - Watch for Entry Above Key Levels**")
+            
+            # Pre-breakout criteria
+            breakout_conditions = (
+                (df['breakout_score'] > 70) &
+                (df['breakout_score'] < 85) &  # Not yet broken out
+                (df['position_score'] > 60) &
+                (df['volume_score'] > 50) &
+                (df['from_high_pct'] > -20) &
+                (df['from_high_pct'] < -3)  # Near but not at highs
+            )
+            
+            # Add volatility filter if available
+            if 'volatility' in df.columns:
+                breakout_conditions = breakout_conditions & (df['volatility'] < df['volatility'].quantile(0.5))
+            
+            breakout_candidates = df[breakout_conditions].copy()
+            
+            if len(breakout_candidates) > 0:
+                # Calculate breakout levels
+                breakout_candidates['current'] = breakout_candidates['price']
+                
+                # Resistance is typically near 52-week high or recent high
+                breakout_candidates['breakout_level'] = (breakout_candidates['high_52w'] * 0.98).round(2) if 'high_52w' in breakout_candidates.columns else breakout_candidates['price'] * 1.05
+                
+                # Distance to breakout
+                breakout_candidates['distance_pct'] = ((breakout_candidates['breakout_level'] - breakout_candidates['current']) / breakout_candidates['current'] * 100).round(1)
+                
+                # Volume needed (2x normal)
+                breakout_candidates['volume_needed'] = "2x Normal"
+                
+                # Breakout confidence
+                breakout_candidates['confidence'] = pd.Series("", index=breakout_candidates.index)
+                breakout_candidates.loc[breakout_candidates['breakout_score'] > 80, 'confidence'] = "⭐⭐⭐"
+                breakout_candidates.loc[(breakout_candidates['breakout_score'] > 75) & (breakout_candidates['breakout_score'] <= 80), 'confidence'] = "⭐⭐"
+                breakout_candidates.loc[breakout_candidates['breakout_score'] <= 75, 'confidence'] = "⭐"
+                
+                # Select top by breakout score
+                breakout_display = breakout_candidates.nlargest(10, 'breakout_score')
+                
+                # Create display dataframe
+                display_df = pd.DataFrame({
+                    'Confidence': breakout_display['confidence'],
+                    'Ticker': breakout_display['ticker'],
+                    'Company': breakout_display['company_name'].str[:25],
+                    'Current': breakout_display['current'].apply(lambda x: f"₹{x:,.0f}"),
+                    'Entry Above': breakout_display['breakout_level'].apply(lambda x: f"₹{x:,.0f}"),
+                    'Distance': breakout_display['distance_pct'].apply(lambda x: f"+{x:.1f}%"),
+                    'B/O Score': breakout_display['breakout_score'].round(1),
+                    'Current RVOL': breakout_display['rvol'].apply(lambda x: f"{x:.1f}x") if 'rvol' in breakout_display.columns else 'N/A',
+                    'Vol Needed': breakout_display['volume_needed'],
+                    'Wave': breakout_display['wave_state'] if 'wave_state' in breakout_display.columns else 'N/A',
+                    'Category': breakout_display['category'] if 'category' in breakout_display.columns else 'N/A'
+                })
+                
+                # Display
+                st.dataframe(
+                    display_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        'Confidence': st.column_config.TextColumn('⭐', width="small"),
+                        'Ticker': st.column_config.TextColumn('Ticker', width="small"),
+                        'Company': st.column_config.TextColumn('Company', width="medium"),
+                        'Current': st.column_config.TextColumn('Current', width="small"),
+                        'Entry Above': st.column_config.TextColumn('Buy Above', width="small"),
+                        'Distance': st.column_config.TextColumn('Gap', width="small"),
+                        'B/O Score': st.column_config.ProgressColumn(
+                            'B/O Score',
+                            min_value=0,
+                            max_value=100,
+                            format="%.1f"
+                        ),
+                        'Current RVOL': st.column_config.TextColumn('RVOL', width="small"),
+                        'Vol Needed': st.column_config.TextColumn('Vol Need', width="small"),
+                        'Wave': st.column_config.TextColumn('Wave', width="medium"),
+                        'Category': st.column_config.TextColumn('Category', width="medium")
+                    }
+                )
+                
+                st.info(f"💡 {len(breakout_display)} stocks approaching breakout levels. Wait for volume confirmation above entry level.")
+            
+            else:
+                st.info("No pre-breakout setups detected. Market may need consolidation.")
+        
+        # ============================================
+        # TAB 4: RISK ALERTS
+        # ============================================
+        
+        with signal_tabs[3]:
+            st.markdown("##### ⚠️ **RISK ALERTS - Potential Reversals & Traps**")
+            
+            # Risk conditions - stocks showing warning signs
+            risk_conditions = (
+                df['patterns'].str.contains('BULL TRAP|DISTRIBUTION|DIVERGENCE|EXHAUSTION', na=False) |
+                ((df['from_high_pct'] > -5) & (df['ret_1d'] < -3)) |  # Failed at resistance
+                ((df['rvol'] > 3) & (df['ret_1d'] < -5))  # High volume selling
+            )
+            
+            risk_candidates = df[risk_conditions].copy()
+            
+            if len(risk_candidates) > 0:
+                # Risk assessment
+                risk_candidates['risk_level'] = pd.Series("", index=risk_candidates.index)
+                risk_candidates.loc[risk_candidates['patterns'].str.contains('BULL TRAP', na=False), 'risk_level'] = "🔴🔴🔴"
+                risk_candidates.loc[risk_candidates['patterns'].str.contains('DISTRIBUTION', na=False), 'risk_level'] = "🔴🔴"
+                risk_candidates.loc[risk_candidates['patterns'].str.contains('EXHAUSTION', na=False), 'risk_level'] = "🟡🟡"
+                risk_candidates.loc[risk_candidates['risk_level'] == "", 'risk_level'] = "🟡"
+                
+                # Risk type
+                risk_candidates['risk_type'] = pd.Series("", index=risk_candidates.index)
+                risk_candidates.loc[risk_candidates['patterns'].str.contains('BULL TRAP', na=False), 'risk_type'] = "Bull Trap"
+                risk_candidates.loc[risk_candidates['patterns'].str.contains('DISTRIBUTION', na=False), 'risk_type'] = "Distribution"
+                risk_candidates.loc[risk_candidates['patterns'].str.contains('EXHAUSTION', na=False), 'risk_type'] = "Exhaustion"
+                risk_candidates.loc[risk_candidates['patterns'].str.contains('DIVERGENCE', na=False), 'risk_type'] = "Divergence"
+                risk_candidates.loc[(risk_candidates['rvol'] > 3) & (risk_candidates['ret_1d'] < -5), 'risk_type'] = "Panic Selling"
+                
+                # Select top risks
+                risk_display = risk_candidates.head(15)
+                
+                # Create display dataframe
+                display_df = pd.DataFrame({
+                    'Risk': risk_display['risk_level'],
+                    'Ticker': risk_display['ticker'],
+                    'Company': risk_display['company_name'].str[:25],
+                    'Price': risk_display['price'].apply(lambda x: f"₹{x:,.0f}"),
+                    'Today': risk_display['ret_1d'].apply(lambda x: f"{x:+.1f}%") if 'ret_1d' in risk_display.columns else 'N/A',
+                    '7D': risk_display['ret_7d'].apply(lambda x: f"{x:+.1f}%") if 'ret_7d' in risk_display.columns else 'N/A',
+                    'RVOL': risk_display['rvol'].apply(lambda x: f"{x:.1f}x") if 'rvol' in risk_display.columns else 'N/A',
+                    'Risk Type': risk_display['risk_type'],
+                    'From High': risk_display['from_high_pct'].apply(lambda x: f"{x:.0f}%") if 'from_high_pct' in risk_display.columns else 'N/A',
+                    'Pattern': risk_display['patterns'].str[:40] if 'patterns' in risk_display.columns else ''
+                })
+                
+                # Display
+                st.dataframe(
+                    display_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        'Risk': st.column_config.TextColumn('⚠️', width="small"),
+                        'Ticker': st.column_config.TextColumn('Ticker', width="small"),
+                        'Company': st.column_config.TextColumn('Company', width="medium"),
+                        'Price': st.column_config.TextColumn('Price', width="small"),
+                        'Today': st.column_config.TextColumn('1D', width="small"),
+                        '7D': st.column_config.TextColumn('7D', width="small"),
+                        'RVOL': st.column_config.TextColumn('RVOL', width="small"),
+                        'Risk Type': st.column_config.TextColumn('Risk Type', width="medium"),
+                        'From High': st.column_config.TextColumn('From High', width="small"),
+                        'Pattern': st.column_config.TextColumn('Patterns', width="large")
+                    }
+                )
+                
+                st.error(f"🚨 {len(risk_display)} stocks showing risk signals. Exercise caution or avoid new entries.")
+            
+            else:
+                st.success("No major risk alerts detected. Market conditions appear stable.")
+        
+        # ============================================
+        # TAB 5: PATTERN PLAYS
+        # ============================================
+        
+        with signal_tabs[4]:
+            st.markdown("##### 🎯 **PATTERN PLAYS - High-Probability Setups**")
+            
+            # High-value patterns
+            valuable_patterns = [
+                '⛈️ PERFECT STORM', '🌊 MOMENTUM WAVE', '🚀 ACCELERATING',
+                '💎 HIDDEN GEM', '🔥 CAT LEADER', '👑 MARKET LEADER',
+                '⚡ VOL EXPLOSION', '🎯 BREAKOUT'
+            ]
+            
+            pattern_regex = '|'.join([p.split()[-1] for p in valuable_patterns])
+            
+            pattern_conditions = df['patterns'].str.contains(pattern_regex, na=False)
+            
+            pattern_candidates = df[pattern_conditions].copy()
+            
+            if len(pattern_candidates) > 0:
+                # Extract primary pattern
+                pattern_candidates['primary_pattern'] = pattern_candidates['patterns'].apply(
+                    lambda x: str(x).split(' | ')[0] if x else "No Pattern"
+                )
+                
+                # Pattern count
+                pattern_candidates['pattern_count'] = pattern_candidates['patterns'].apply(
+                    lambda x: len(str(x).split(' | ')) if x else 0
+                )
+                
+                # Select top by pattern confidence and master score
+                if 'pattern_confidence' in pattern_candidates.columns:
+                    pattern_display = pattern_candidates.nlargest(15, 'pattern_confidence')
+                else:
+                    pattern_display = pattern_candidates.nlargest(15, 'master_score')
+                
+                # Create display dataframe
+                display_df = pd.DataFrame({
+                    'Pattern': pattern_display['primary_pattern'],
+                    'Ticker': pattern_display['ticker'],
+                    'Company': pattern_display['company_name'].str[:25],
+                    'Price': pattern_display['price'].apply(lambda x: f"₹{x:,.0f}"),
+                    'Score': pattern_display['master_score'].round(1),
+                    'Mom': pattern_display['momentum_score'].round(0) if 'momentum_score' in pattern_display.columns else 0,
+                    'Accel': pattern_display['acceleration_score'].round(0) if 'acceleration_score' in pattern_display.columns else 0,
+                    'RVOL': pattern_display['rvol'].apply(lambda x: f"{x:.1f}x") if 'rvol' in pattern_display.columns else 'N/A',
+                    '# Patterns': pattern_display['pattern_count'],
+                    'Wave': pattern_display['wave_state'] if 'wave_state' in pattern_display.columns else 'N/A',
+                    'Category': pattern_display['category'] if 'category' in pattern_display.columns else 'N/A'
+                })
+                
+                # Display
+                st.dataframe(
+                    display_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        'Pattern': st.column_config.TextColumn('Pattern', width="medium"),
+                        'Ticker': st.column_config.TextColumn('Ticker', width="small"),
+                        'Company': st.column_config.TextColumn('Company', width="medium"),
+                        'Price': st.column_config.TextColumn('Price', width="small"),
+                        'Score': st.column_config.ProgressColumn(
+                            'Score',
+                            min_value=0,
+                            max_value=100,
+                            format="%.1f"
+                        ),
+                        'Mom': st.column_config.NumberColumn('Mom', width="small"),
+                        'Accel': st.column_config.NumberColumn('Accel', width="small"),
+                        'RVOL': st.column_config.TextColumn('RVOL', width="small"),
+                        '# Patterns': st.column_config.NumberColumn('# Pat', width="small"),
+                        'Wave': st.column_config.TextColumn('Wave', width="medium"),
+                        'Category': st.column_config.TextColumn('Category', width="medium")
+                    }
+                )
+                
+                # Pattern distribution
+                pattern_dist = pattern_candidates['primary_pattern'].value_counts().head(5)
+                st.info(f"🎯 Top patterns: {', '.join([f'{p} ({c})' for p, c in pattern_dist.items()])}")
+            
+            else:
+                st.info("No high-value pattern plays detected currently.")
+        
+        # ============================================
+        # BOTTOM SUMMARY METRICS
+        # ============================================
+        
+        st.markdown("---")
+        st.markdown("#### 📈 Summary Insights")
+        
+        summary_cols = st.columns(4)
+        
+        with summary_cols[0]:
+            if 'composite_strength' in df.columns:
+                top_strength = df.nlargest(5, 'composite_strength')
+                st.markdown("**💪 Strongest Stocks**")
+                for _, stock in top_strength.iterrows():
+                    st.caption(f"• {stock['ticker']}: {stock['composite_strength']:.0f}")
+        
+        with summary_cols[1]:
+            if 'smart_money_index' in df.columns:
+                smart_money = df.nlargest(5, 'smart_money_index')
+                st.markdown("**💰 Smart Money**")
+                for _, stock in smart_money.iterrows():
+                    st.caption(f"• {stock['ticker']}: {stock['smart_money_index']:.0f}")
+        
+        with summary_cols[2]:
+            if 'velocity' in df.columns:
+                high_velocity = df.nlargest(5, 'velocity')
+                st.markdown("**⚡ Highest Velocity**")
+                for _, stock in high_velocity.iterrows():
+                    st.caption(f"• {stock['ticker']}: {stock['velocity']:.1f}")
+        
+        with summary_cols[3]:
+            if 'pattern_confidence' in df.columns:
+                pattern_leaders = df.nlargest(5, 'pattern_confidence')
+                st.markdown("**🎯 Pattern Leaders**")
+                for _, stock in pattern_leaders.iterrows():
+                    st.caption(f"• {stock['ticker']}: {stock['pattern_confidence']:.0f}%")
     
     @staticmethod
     def render_metric_card(label: str, value: Any, delta: Optional[str] = None, 
