@@ -736,363 +736,372 @@ class DataProcessor:
         
         return df
         
-# ============================================
-# ADVANCED METRICS CALCULATOR
-# ============================================
-
-class AdvancedMetrics:
-    """
-    Calculates advanced metrics and indicators using a combination of price,
-    volume, and algorithmically derived scores. Ensures robust calculation
-    by handling potential missing data (NaNs) gracefully.
-    """
-    
-    @staticmethod
-    @PerformanceMonitor.timer(target_time=0.5)
-    def calculate_all_metrics(df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Calculates a comprehensive set of advanced metrics for the DataFrame.
-        All calculations are designed to be vectorized and handle missing data
-        without raising errors.
-
-        Args:
-            df (pd.DataFrame): The DataFrame with raw data and core scores.
-
-        Returns:
-            pd.DataFrame: The DataFrame with all calculated advanced metrics added.
-        """
-        if df.empty:
-            return df
-        
-        # Money Flow (in millions)
-        if all(col in df.columns for col in ['price', 'volume_1d', 'rvol']):
-            df['money_flow'] = df['price'].fillna(0) * df['volume_1d'].fillna(0) * df['rvol'].fillna(1.0)
-            df['money_flow_mm'] = df['money_flow'] / 1_000_000
-        else:
-            df['money_flow_mm'] = pd.Series(np.nan, index=df.index)
-        
-        # Volume Momentum Index (VMI)
-        if all(col in df.columns for col in ['vol_ratio_1d_90d', 'vol_ratio_7d_90d', 'vol_ratio_30d_90d', 'vol_ratio_90d_180d']):
-            df['vmi'] = (
-                df['vol_ratio_1d_90d'].fillna(1.0) * 4 +
-                df['vol_ratio_7d_90d'].fillna(1.0) * 3 +
-                df['vol_ratio_30d_90d'].fillna(1.0) * 2 +
-                df['vol_ratio_90d_180d'].fillna(1.0) * 1
-            ) / 10
-        else:
-            df['vmi'] = pd.Series(np.nan, index=df.index)
-        
-        # Position Tension
-        if all(col in df.columns for col in ['from_low_pct', 'from_high_pct']):
-            df['position_tension'] = df['from_low_pct'].fillna(50) + abs(df['from_high_pct'].fillna(-50))
-        else:
-            df['position_tension'] = pd.Series(np.nan, index=df.index)
-        
-        # Momentum Harmony
-        df['momentum_harmony'] = pd.Series(0, index=df.index, dtype=int)
-        
-        if 'ret_1d' in df.columns:
-            df['momentum_harmony'] += (df['ret_1d'].fillna(0) > 0).astype(int)
-        
-        if all(col in df.columns for col in ['ret_7d', 'ret_30d']):
-            with np.errstate(divide='ignore', invalid='ignore'):
-                daily_ret_7d = pd.Series(np.where(df['ret_7d'].fillna(0) != 0, df['ret_7d'].fillna(0) / 7, np.nan), index=df.index)
-                daily_ret_30d = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
-            df['momentum_harmony'] += ((daily_ret_7d.fillna(-np.inf) > daily_ret_30d.fillna(-np.inf))).astype(int)
-        
-        if all(col in df.columns for col in ['ret_30d', 'ret_3m']):
-            with np.errstate(divide='ignore', invalid='ignore'):
-                daily_ret_30d_comp = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
-                daily_ret_3m_comp = pd.Series(np.where(df['ret_3m'].fillna(0) != 0, df['ret_3m'].fillna(0) / 90, np.nan), index=df.index)
-            df['momentum_harmony'] += ((daily_ret_30d_comp.fillna(-np.inf) > daily_ret_3m_comp.fillna(-np.inf))).astype(int)
-        
-        if 'ret_3m' in df.columns:
-            df['momentum_harmony'] += (df['ret_3m'].fillna(0) > 0).astype(int)
-        
-        # Wave State
-        df['wave_state'] = df.apply(AdvancedMetrics._get_wave_state, axis=1)
-
-        # Overall Wave Strength
-        score_cols = ['momentum_score', 'acceleration_score', 'rvol_score', 'breakout_score']
-        if all(col in df.columns for col in score_cols):
-            df['overall_wave_strength'] = (
-                df['momentum_score'].fillna(50) * 0.3 +
-                df['acceleration_score'].fillna(50) * 0.3 +
-                df['rvol_score'].fillna(50) * 0.2 +
-                df['breakout_score'].fillna(50) * 0.2
-            )
-        else:
-            df['overall_wave_strength'] = pd.Series(np.nan, index=df.index)
-        
-        return df
-    
-   # ============================================
-    # ADVANCED WAVE STATE CALCULATOR - COMPLETE FIX
-    # Replace the entire _get_wave_state method in AdvancedMetrics class
+    # ============================================
+    # ADVANCED METRICS CALCULATOR
     # ============================================
     
-    @staticmethod
-    def _get_wave_state(row: pd.Series) -> str:
+    class AdvancedMetrics:
         """
-        ULTRA-ADVANCED Wave State Detection System
-        Analyzes 20+ factors to determine precise market wave position
+        Calculates advanced metrics and indicators using a combination of price,
+        volume, and algorithmically derived scores. Ensures robust calculation
+        by handling potential missing data (NaNs) gracefully.
         """
         
-        # Initialize scoring components
-        momentum_signals = 0
-        volume_signals = 0
-        trend_signals = 0
-        reversal_signals = 0
-        quality_signals = 0
-        
-        # ====================================
-        # 1. MOMENTUM ANALYSIS (0-5 points)
-        # ====================================
-        if row.get('momentum_score', 0) > 80:
-            momentum_signals += 2
-        elif row.get('momentum_score', 0) > 60:
-            momentum_signals += 1
-        
-        if row.get('acceleration_score', 0) > 80:
-            momentum_signals += 2
-        elif row.get('acceleration_score', 0) > 60:
-            momentum_signals += 1
-        
-        # Check momentum harmony
-        if row.get('momentum_harmony', 0) >= 3:
-            momentum_signals += 1
-        
-        # ====================================
-        # 2. VOLUME ANALYSIS (0-5 points)
-        # ====================================
-        if row.get('rvol', 0) > 5:
-            volume_signals += 3  # Extreme volume
-        elif row.get('rvol', 0) > 3:
-            volume_signals += 2  # High volume
-        elif row.get('rvol', 0) > 2:
-            volume_signals += 1  # Elevated volume
-        
-        if row.get('volume_score', 0) > 80:
-            volume_signals += 1
-        
-        if row.get('vmi', 0) > 2:
-            volume_signals += 1  # Volume momentum strong
-        
-        # ====================================
-        # 3. TREND ANALYSIS (0-5 points)
-        # ====================================
-        if row.get('trend_quality', 0) >= 80:
-            trend_signals += 2
-        elif row.get('trend_quality', 0) >= 60:
-            trend_signals += 1
-        
-        # Price vs SMAs
-        price = row.get('price', 0)
-        if price > row.get('sma_20d', price):
-            trend_signals += 1
-        if price > row.get('sma_50d', price):
-            trend_signals += 1
-        if price > row.get('sma_200d', price):
-            trend_signals += 1
-        
-        # ====================================
-        # 4. REVERSAL/EXHAUSTION CHECK (0-5 points)
-        # ====================================
-        # Check if overextended
-        if row.get('from_low_pct', 0) > 90:
-            reversal_signals += 2  # Far from support
-        elif row.get('from_low_pct', 0) > 80:
-            reversal_signals += 1
-        
-        if row.get('from_high_pct', 0) < -90:
-            reversal_signals += 2  # Far from resistance
-        elif row.get('from_high_pct', 0) < -80:
-            reversal_signals += 1
-        
-        # Check for exhaustion patterns
-        if row.get('ret_1d', 0) < 0 and row.get('ret_7d', 0) > 15:
-            reversal_signals += 1  # Potential exhaustion
-        
-        # ====================================
-        # 5. QUALITY SIGNALS (0-5 points)
-        # ====================================
-        if row.get('master_score', 0) > 80:
-            quality_signals += 2
-        elif row.get('master_score', 0) > 60:
-            quality_signals += 1
-        
-        if row.get('breakout_score', 0) > 80:
-            quality_signals += 1
-        
-        if row.get('position_score', 0) > 80:
-            quality_signals += 1
-        
-        if row.get('money_flow_mm', 0) > 100:
-            quality_signals += 1
-        
-        # ====================================
-        # CALCULATE COMPOSITE WAVE STATE
-        # ====================================
-        total_score = momentum_signals + volume_signals + trend_signals - reversal_signals + quality_signals
-        
-        # Advanced state determination with 12 states instead of 4
-        
-        # EXPLOSIVE STATES (Highest energy)
-        if total_score >= 18 and volume_signals >= 4:
-            return "🌊🔥🚀 TSUNAMI"  # Rare explosive move
-        elif total_score >= 16 and momentum_signals >= 4:
-            return "🌊🌊🌊 CRESTING"  # Peak momentum
-        elif total_score >= 14 and trend_signals >= 4:
-            return "🌊🌊⚡ SURGING"  # Strong trend push
-        
-        # BUILDING STATES (Accumulating energy)
-        elif total_score >= 12 and volume_signals >= 3:
-            return "🌊🌊 BUILDING"  # Classic building
-        elif total_score >= 10 and momentum_signals >= 3:
-            return "🌊📈 RISING"  # Momentum building
-        elif total_score >= 8 and quality_signals >= 3:
-            return "🌊💪 STRENGTHENING"  # Quality improving
-        
-        # NEUTRAL STATES (Transitional)
-        elif total_score >= 6:
-            return "🌊 FORMING"  # Early formation
-        elif total_score >= 4:
-            return "〰️ RIPPLING"  # Small movements
-        elif total_score >= 2:
-            return "💤 CALM"  # Low activity
-        
-        # NEGATIVE STATES (Energy dissipating)
-        elif reversal_signals >= 3:
-            return "⚠️ EXHAUSTING"  # Overextended
-        elif total_score >= 0:
-            return "💥 BREAKING"  # Breakdown
-        else:
-            return "🔻 COLLAPSING"  # Severe breakdown
-
-            class AdvancedMetrics:
+        @staticmethod
+        @PerformanceMonitor.timer(target_time=0.5)
+        def calculate_all_metrics(df: pd.DataFrame) -> pd.DataFrame:
             """
-            Calculates advanced metrics and indicators using a combination of price,
-            volume, and algorithmically derived scores. Ensures robust calculation
-            by handling potential missing data (NaNs) gracefully.
+            Calculates a comprehensive set of advanced metrics for the DataFrame.
+            All calculations are designed to be vectorized and handle missing data
+            without raising errors.
+    
+            Args:
+                df (pd.DataFrame): The DataFrame with raw data and core scores.
+    
+            Returns:
+                pd.DataFrame: The DataFrame with all calculated advanced metrics added.
             """
+            if df.empty:
+                return df
             
-            @staticmethod
-            @PerformanceMonitor.timer(target_time=0.5)
-            def calculate_all_metrics(df: pd.DataFrame) -> pd.DataFrame:
-                """
-                Calculates a comprehensive set of advanced metrics for the DataFrame.
-                """
-                if df.empty:
-                    return df
+            # Money Flow (in millions)
+            if all(col in df.columns for col in ['price', 'volume_1d', 'rvol']):
+                df['money_flow'] = df['price'].fillna(0) * df['volume_1d'].fillna(0) * df['rvol'].fillna(1.0)
+                df['money_flow_mm'] = df['money_flow'] / 1_000_000
+            else:
+                df['money_flow_mm'] = pd.Series(np.nan, index=df.index)
+            
+            # Volume Momentum Index (VMI)
+            if all(col in df.columns for col in ['vol_ratio_1d_90d', 'vol_ratio_7d_90d', 'vol_ratio_30d_90d', 'vol_ratio_90d_180d']):
+                df['vmi'] = (
+                    df['vol_ratio_1d_90d'].fillna(1.0) * 4 +
+                    df['vol_ratio_7d_90d'].fillna(1.0) * 3 +
+                    df['vol_ratio_30d_90d'].fillna(1.0) * 2 +
+                    df['vol_ratio_90d_180d'].fillna(1.0) * 1
+                ) / 10
+            else:
+                df['vmi'] = pd.Series(np.nan, index=df.index)
+            
+            # Position Tension
+            if all(col in df.columns for col in ['from_low_pct', 'from_high_pct']):
+                df['position_tension'] = df['from_low_pct'].fillna(50) + abs(df['from_high_pct'].fillna(-50))
+            else:
+                df['position_tension'] = pd.Series(np.nan, index=df.index)
+            
+            # Momentum Harmony
+            df['momentum_harmony'] = pd.Series(0, index=df.index, dtype=int)
+            
+            if 'ret_1d' in df.columns:
+                df['momentum_harmony'] += (df['ret_1d'].fillna(0) > 0).astype(int)
+            
+            if all(col in df.columns for col in ['ret_7d', 'ret_30d']):
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    daily_ret_7d = pd.Series(np.where(df['ret_7d'].fillna(0) != 0, df['ret_7d'].fillna(0) / 7, np.nan), index=df.index)
+                    daily_ret_30d = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
+                df['momentum_harmony'] += ((daily_ret_7d.fillna(-np.inf) > daily_ret_30d.fillna(-np.inf))).astype(int)
+            
+            if all(col in df.columns for col in ['ret_30d', 'ret_3m']):
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    daily_ret_30d_comp = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
+                    daily_ret_3m_comp = pd.Series(np.where(df['ret_3m'].fillna(0) != 0, df['ret_3m'].fillna(0) / 90, np.nan), index=df.index)
+                df['momentum_harmony'] += ((daily_ret_30d_comp.fillna(-np.inf) > daily_ret_3m_comp.fillna(-np.inf))).astype(int)
+            
+            if 'ret_3m' in df.columns:
+                df['momentum_harmony'] += (df['ret_3m'].fillna(0) > 0).astype(int)
+            
+            # Wave State
+            df['wave_state'] = df.apply(AdvancedMetrics._get_wave_state, axis=1)
+            
+            # ============================================
+            # Overall Wave Strength - MORE SOPHISTICATED
+            # NOW PROPERLY INSIDE THE METHOD!
+            # ============================================
+            
+            if all(col in df.columns for col in ['momentum_score', 'acceleration_score', 'rvol_score', 'breakout_score']):
+                # Base calculation
+                base_strength = (
+                    df['momentum_score'].fillna(50) * 0.25 +
+                    df['acceleration_score'].fillna(50) * 0.25 +
+                    df['rvol_score'].fillna(50) * 0.20 +
+                    df['breakout_score'].fillna(50) * 0.20
+                )
                 
-                # Money Flow (in millions)
-                if all(col in df.columns for col in ['price', 'volume_1d', 'rvol']):
-                    df['money_flow'] = df['price'].fillna(0) * df['volume_1d'].fillna(0) * df['rvol'].fillna(1.0)
-                    df['money_flow_mm'] = df['money_flow'] / 1_000_000
-                else:
-                    df['money_flow_mm'] = pd.Series(np.nan, index=df.index)
+                # Trend quality modifier
+                trend_modifier = 1.0
+                if 'trend_quality' in df.columns:
+                    trend_modifier = 0.8 + (df['trend_quality'].fillna(50) / 250)  # 0.8 to 1.2
                 
-                # Volume Momentum Index (VMI)
-                if all(col in df.columns for col in ['vol_ratio_1d_90d', 'vol_ratio_7d_90d', 'vol_ratio_30d_90d', 'vol_ratio_90d_180d']):
-                    df['vmi'] = (
-                        df['vol_ratio_1d_90d'].fillna(1.0) * 4 +
-                        df['vol_ratio_7d_90d'].fillna(1.0) * 3 +
-                        df['vol_ratio_30d_90d'].fillna(1.0) * 2 +
-                        df['vol_ratio_90d_180d'].fillna(1.0) * 1
-                    ) / 10
-                else:
-                    df['vmi'] = pd.Series(np.nan, index=df.index)
+                # Volume momentum modifier
+                volume_modifier = 1.0
+                if 'vmi' in df.columns:
+                    volume_modifier = 0.9 + (df['vmi'].fillna(1.0).clip(0, 2) / 10)  # 0.9 to 1.1
                 
-                # Position Tension
-                if all(col in df.columns for col in ['from_low_pct', 'from_high_pct']):
-                    df['position_tension'] = df['from_low_pct'].fillna(50) + abs(df['from_high_pct'].fillna(-50))
-                else:
-                    df['position_tension'] = pd.Series(np.nan, index=df.index)
-                
-                # Momentum Harmony
-                df['momentum_harmony'] = pd.Series(0, index=df.index, dtype=int)
-                
-                if 'ret_1d' in df.columns:
-                    df['momentum_harmony'] += (df['ret_1d'].fillna(0) > 0).astype(int)
-                
-                if all(col in df.columns for col in ['ret_7d', 'ret_30d']):
-                    with np.errstate(divide='ignore', invalid='ignore'):
-                        daily_ret_7d = pd.Series(np.where(df['ret_7d'].fillna(0) != 0, df['ret_7d'].fillna(0) / 7, np.nan), index=df.index)
-                        daily_ret_30d = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
-                    df['momentum_harmony'] += ((daily_ret_7d.fillna(-np.inf) > daily_ret_30d.fillna(-np.inf))).astype(int)
-                
-                if all(col in df.columns for col in ['ret_30d', 'ret_3m']):
-                    with np.errstate(divide='ignore', invalid='ignore'):
-                        daily_ret_30d_comp = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
-                        daily_ret_3m_comp = pd.Series(np.where(df['ret_3m'].fillna(0) != 0, df['ret_3m'].fillna(0) / 90, np.nan), index=df.index)
-                    df['momentum_harmony'] += ((daily_ret_30d_comp.fillna(-np.inf) > daily_ret_3m_comp.fillna(-np.inf))).astype(int)
-                
-                if 'ret_3m' in df.columns:
-                    df['momentum_harmony'] += (df['ret_3m'].fillna(0) > 0).astype(int)
-                
-                # Wave State
-                df['wave_state'] = df.apply(AdvancedMetrics._get_wave_state, axis=1)
-                
-                # ============================================
-                # Overall Wave Strength - MORE SOPHISTICATED
-                # THIS SHOULD BE INSIDE THE METHOD, NOT AT CLASS LEVEL!
-                # ============================================
-                
-                if all(col in df.columns for col in ['momentum_score', 'acceleration_score', 'rvol_score', 'breakout_score']):
-                    # Base calculation
-                    base_strength = (
-                        df['momentum_score'].fillna(50) * 0.25 +
-                        df['acceleration_score'].fillna(50) * 0.25 +
-                        df['rvol_score'].fillna(50) * 0.20 +
-                        df['breakout_score'].fillna(50) * 0.20
+                # Position modifier (penalize overextension)
+                position_modifier = 1.0
+                if 'from_low_pct' in df.columns:
+                    # Reduce strength if too far from support
+                    position_modifier = pd.Series(
+                        np.where(df['from_low_pct'] > 80, 0.9,  # 10% penalty if overextended
+                                np.where(df['from_low_pct'] < 20, 1.1,  # 10% bonus if near support
+                                        1.0)),
+                        index=df.index
                     )
-                    
-                    # Trend quality modifier
-                    trend_modifier = 1.0
-                    if 'trend_quality' in df.columns:
-                        trend_modifier = 0.8 + (df['trend_quality'].fillna(50) / 250)  # 0.8 to 1.2
-                    
-                    # Volume momentum modifier
-                    volume_modifier = 1.0
-                    if 'vmi' in df.columns:
-                        volume_modifier = 0.9 + (df['vmi'].fillna(1.0).clip(0, 2) / 10)  # 0.9 to 1.1
-                    
-                    # Position modifier (penalize overextension)
-                    position_modifier = 1.0
-                    if 'from_low_pct' in df.columns:
-                        # Reduce strength if too far from support
-                        position_modifier = pd.Series(
-                            np.where(df['from_low_pct'] > 80, 0.9,  # 10% penalty if overextended
-                                    np.where(df['from_low_pct'] < 20, 1.1,  # 10% bonus if near support
-                                            1.0)),
-                            index=df.index
-                        )
-                    
-                    # Harmony bonus
-                    harmony_bonus = 0
-                    if 'momentum_harmony' in df.columns:
-                        harmony_bonus = df['momentum_harmony'].fillna(0) * 2.5  # 0-10 point bonus
-                    
-                    # Calculate final wave strength
-                    df['overall_wave_strength'] = (
-                        base_strength * trend_modifier * volume_modifier * position_modifier + harmony_bonus
-                    ).clip(0, 100)
-                else:
-                    df['overall_wave_strength'] = pd.Series(50, index=df.index)
                 
-                # ADD ALL OTHER WAVE METRICS HERE (inside the method)
-                # Wave Velocity, Wave Pressure, Wave Direction, etc.
+                # Harmony bonus
+                harmony_bonus = 0
+                if 'momentum_harmony' in df.columns:
+                    harmony_bonus = df['momentum_harmony'].fillna(0) * 2.5  # 0-10 point bonus
                 
-                return df  # Don't forget to return df!
+                # Calculate final wave strength
+                df['overall_wave_strength'] = (
+                    base_strength * trend_modifier * volume_modifier * position_modifier + harmony_bonus
+                ).clip(0, 100)
+            else:
+                df['overall_wave_strength'] = pd.Series(50, index=df.index)
             
-            @staticmethod
-            def _get_wave_state(row: pd.Series) -> str:
-                """
-                Wave state detection method
-                """
-                # Your wave state logic here
-                # ... (keep the existing or improved wave state logic)
-                return "🌊 FORMING"  # Default return
+            # ============================================
+            # ADD NEW WAVE METRICS
+            # ============================================
+            
+            # Wave Velocity (rate of change in wave strength)
+            if 'overall_wave_strength' in df.columns:
+                # Calculate wave acceleration
+                df['wave_velocity'] = 0
+                
+                # Use returns as proxy for velocity
+                if all(col in df.columns for col in ['ret_1d', 'ret_7d', 'ret_30d']):
+                    daily_velocity = df['ret_1d'].fillna(0)
+                    weekly_velocity = df['ret_7d'].fillna(0) / 7
+                    monthly_velocity = df['ret_30d'].fillna(0) / 30
+                    
+                    df['wave_velocity'] = (
+                        daily_velocity * 0.5 +  # Recent weighted more
+                        weekly_velocity * 0.3 +
+                        monthly_velocity * 0.2
+                    ).round(2)
+            
+            # Wave Pressure (likelihood of state change)
+            df['wave_pressure'] = 0
+            if all(col in df.columns for col in ['rvol', 'momentum_harmony', 'position_tension']):
+                # High pressure = likely to change state soon
+                df['wave_pressure'] = (
+                    (df['rvol'].fillna(1) - 1) * 25 +  # Volume pressure
+                    (4 - df['momentum_harmony'].fillna(2)) * 12.5 +  # Divergence pressure
+                    (df['position_tension'].fillna(50) / 100) * 25  # Position pressure
+                ).clip(0, 100)
+            
+            # Wave Direction (bullish/bearish/neutral)
+            df['wave_direction'] = 'NEUTRAL'
+            if all(col in df.columns for col in ['ret_30d', 'momentum_score', 'trend_quality']):
+                bullish_mask = (
+                    (df['ret_30d'] > 5) & 
+                    (df['momentum_score'] > 60) & 
+                    (df['trend_quality'] > 60)
+                )
+                bearish_mask = (
+                    (df['ret_30d'] < -5) & 
+                    (df['momentum_score'] < 40) & 
+                    (df['trend_quality'] < 40)
+                )
+                
+                df.loc[bullish_mask, 'wave_direction'] = '↗️ BULLISH'
+                df.loc[bearish_mask, 'wave_direction'] = '↘️ BEARISH'
+                df.loc[~bullish_mask & ~bearish_mask, 'wave_direction'] = '➡️ NEUTRAL'
+            
+            # Predict next wave state
+            df = AdvancedMetrics.predict_next_wave_state(df)
+            
+            return df
+        
+        @staticmethod
+        def _get_wave_state(row: pd.Series) -> str:
+            """
+            ULTRA-ADVANCED Wave State Detection System
+            Analyzes 20+ factors to determine precise market wave position
+            """
+            
+            # Initialize scoring components
+            momentum_signals = 0
+            volume_signals = 0
+            trend_signals = 0
+            reversal_signals = 0
+            quality_signals = 0
+            
+            # ====================================
+            # 1. MOMENTUM ANALYSIS (0-5 points)
+            # ====================================
+            if row.get('momentum_score', 0) > 80:
+                momentum_signals += 2
+            elif row.get('momentum_score', 0) > 60:
+                momentum_signals += 1
+            
+            if row.get('acceleration_score', 0) > 80:
+                momentum_signals += 2
+            elif row.get('acceleration_score', 0) > 60:
+                momentum_signals += 1
+            
+            # Check momentum harmony
+            if row.get('momentum_harmony', 0) >= 3:
+                momentum_signals += 1
+            
+            # ====================================
+            # 2. VOLUME ANALYSIS (0-5 points)
+            # ====================================
+            if row.get('rvol', 0) > 5:
+                volume_signals += 3  # Extreme volume
+            elif row.get('rvol', 0) > 3:
+                volume_signals += 2  # High volume
+            elif row.get('rvol', 0) > 2:
+                volume_signals += 1  # Elevated volume
+            
+            if row.get('volume_score', 0) > 80:
+                volume_signals += 1
+            
+            if row.get('vmi', 0) > 2:
+                volume_signals += 1  # Volume momentum strong
+            
+            # ====================================
+            # 3. TREND ANALYSIS (0-5 points)
+            # ====================================
+            if row.get('trend_quality', 0) >= 80:
+                trend_signals += 2
+            elif row.get('trend_quality', 0) >= 60:
+                trend_signals += 1
+            
+            # Price vs SMAs
+            price = row.get('price', 0)
+            if price > row.get('sma_20d', price):
+                trend_signals += 1
+            if price > row.get('sma_50d', price):
+                trend_signals += 1
+            if price > row.get('sma_200d', price):
+                trend_signals += 1
+            
+            # ====================================
+            # 4. REVERSAL/EXHAUSTION CHECK (0-5 points)
+            # ====================================
+            # Check if overextended
+            if row.get('from_low_pct', 0) > 90:
+                reversal_signals += 2  # Far from support
+            elif row.get('from_low_pct', 0) > 80:
+                reversal_signals += 1
+            
+            if row.get('from_high_pct', 0) < -90:
+                reversal_signals += 2  # Far from resistance
+            elif row.get('from_high_pct', 0) < -80:
+                reversal_signals += 1
+            
+            # Check for exhaustion patterns
+            if row.get('ret_1d', 0) < 0 and row.get('ret_7d', 0) > 15:
+                reversal_signals += 1  # Potential exhaustion
+            
+            # ====================================
+            # 5. QUALITY SIGNALS (0-5 points)
+            # ====================================
+            if row.get('master_score', 0) > 80:
+                quality_signals += 2
+            elif row.get('master_score', 0) > 60:
+                quality_signals += 1
+            
+            if row.get('breakout_score', 0) > 80:
+                quality_signals += 1
+            
+            if row.get('position_score', 0) > 80:
+                quality_signals += 1
+            
+            if row.get('money_flow_mm', 0) > 100:
+                quality_signals += 1
+            
+            # ====================================
+            # CALCULATE COMPOSITE WAVE STATE
+            # ====================================
+            total_score = momentum_signals + volume_signals + trend_signals - reversal_signals + quality_signals
+            
+            # Advanced state determination with 12 states
+            
+            # EXPLOSIVE STATES (Highest energy)
+            if total_score >= 18 and volume_signals >= 4:
+                return "🌊🔥🚀 TSUNAMI"  # Rare explosive move
+            elif total_score >= 16 and momentum_signals >= 4:
+                return "🌊🌊🌊 CRESTING"  # Peak momentum
+            elif total_score >= 14 and trend_signals >= 4:
+                return "🌊🌊⚡ SURGING"  # Strong trend push
+            
+            # BUILDING STATES (Accumulating energy)
+            elif total_score >= 12 and volume_signals >= 3:
+                return "🌊🌊 BUILDING"  # Classic building
+            elif total_score >= 10 and momentum_signals >= 3:
+                return "🌊📈 RISING"  # Momentum building
+            elif total_score >= 8 and quality_signals >= 3:
+                return "🌊💪 STRENGTHENING"  # Quality improving
+            
+            # NEUTRAL STATES (Transitional)
+            elif total_score >= 6:
+                return "🌊 FORMING"  # Early formation
+            elif total_score >= 4:
+                return "〰️ RIPPLING"  # Small movements
+            elif total_score >= 2:
+                return "💤 CALM"  # Low activity
+            
+            # NEGATIVE STATES (Energy dissipating)
+            elif reversal_signals >= 3:
+                return "⚠️ EXHAUSTING"  # Overextended
+            elif total_score >= 0:
+                return "💥 BREAKING"  # Breakdown
+            else:
+                return "🔻 COLLAPSING"  # Severe breakdown
+        
+        @staticmethod
+        def predict_next_wave_state(df: pd.DataFrame) -> pd.DataFrame:
+            """
+            Predicts the likely next wave state transition
+            """
+            df['next_wave_prediction'] = ''
+            df['transition_probability'] = 0
+            
+            for idx, row in df.iterrows():
+                current_state = row.get('wave_state', '')
+                wave_velocity = row.get('wave_velocity', 0)
+                wave_pressure = row.get('wave_pressure', 0)
+                
+                # Predict based on current state and metrics
+                if 'TSUNAMI' in current_state or 'CRESTING' in current_state:
+                    if wave_pressure > 70:
+                        df.loc[idx, 'next_wave_prediction'] = '⚠️ EXHAUSTING'
+                        df.loc[idx, 'transition_probability'] = wave_pressure
+                    else:
+                        df.loc[idx, 'next_wave_prediction'] = '🌊🌊 SUSTAINING'
+                        df.loc[idx, 'transition_probability'] = 100 - wave_pressure
+                        
+                elif 'BUILDING' in current_state or 'RISING' in current_state:
+                    if wave_velocity > 2 and wave_pressure < 50:
+                        df.loc[idx, 'next_wave_prediction'] = '🌊🌊🌊 CRESTING'
+                        df.loc[idx, 'transition_probability'] = min(wave_velocity * 20, 100)
+                    else:
+                        df.loc[idx, 'next_wave_prediction'] = '🌊🌊 BUILDING'
+                        df.loc[idx, 'transition_probability'] = 50
+                        
+                elif 'FORMING' in current_state or 'RIPPLING' in current_state:
+                    if wave_velocity > 1 and row.get('rvol', 0) > 2:
+                        df.loc[idx, 'next_wave_prediction'] = '🌊🌊 BUILDING'
+                        df.loc[idx, 'transition_probability'] = wave_velocity * 30
+                    else:
+                        df.loc[idx, 'next_wave_prediction'] = '〰️ CONTINUING'
+                        df.loc[idx, 'transition_probability'] = 60
+                        
+                elif 'BREAKING' in current_state or 'COLLAPSING' in current_state:
+                    if wave_velocity > 0 and row.get('from_low_pct', 100) < 20:
+                        df.loc[idx, 'next_wave_prediction'] = '🔄 REVERSING'
+                        df.loc[idx, 'transition_probability'] = 40 + wave_velocity * 10
+                    else:
+                        df.loc[idx, 'next_wave_prediction'] = '🔻 DECLINING'
+                        df.loc[idx, 'transition_probability'] = 70
+                        
+                else:
+                    df.loc[idx, 'next_wave_prediction'] = '❓ UNCERTAIN'
+                    df.loc[idx, 'transition_probability'] = 50
+            
+            return df
         
 # ============================================
 # RANKING ENGINE - OPTIMIZED
