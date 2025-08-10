@@ -1341,7 +1341,7 @@ class PatternDetector:
         '🎯 RANGE COMPRESS': {'importance_weight': 5},
         '🤫 STEALTH': {'importance_weight': 10},
         '🧛 VAMPIRE': {'importance_weight': 10},
-        '⛈️ PERFECT STORM': {'importance_weight': 20}
+        '⛈️ PERFECT STORM': {'importance_weight': 20},
         '🪤 BULL TRAP': {'importance_weight': 15},      # High value for shorts
         '💣 CAPITULATION': {'importance_weight': 20},   # Best risk/reward
         '🏃 RUNAWAY GAP': {'importance_weight': 12},    # Strong continuation
