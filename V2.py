@@ -5159,228 +5159,360 @@ def main():
             st.markdown("#### 🔍 Market Discovery Insights")
             
             discovery_tabs = st.tabs([
-                "🌀 Momentum Discovery",
-                "🎯 Pattern Intelligence", 
-                "💎 Hidden Opportunities"
+                "🚀 Momentum Discoveries",
+                "💎 Pattern Insights", 
+                "🎯 Hidden Opportunities"
             ])
             
-            # TAB 1: MOMENTUM DISCOVERY (What's Moving)
+            # TAB 1: MOMENTUM DISCOVERIES (What's Moving NOW)
             with discovery_tabs[0]:
                 mom_col1, mom_col2 = st.columns(2)
                 
                 with mom_col1:
-                    st.markdown("##### 🚀 Acceleration Leaders")
+                    st.markdown("##### 🔥 **EXPLOSIVE MOMENTUM** (Ready to Fly)")
                     
-                    if all(col in filtered_df.columns for col in ['ticker', 'acceleration_score', 'momentum_score']):
-                        # Find accelerating stocks
-                        accelerating = filtered_df[
-                            (filtered_df['acceleration_score'] > 70) &
-                            (filtered_df['momentum_score'] > 60)
-                        ].nlargest(5, 'acceleration_score')
+                    # Find stocks with MULTIPLE momentum confirmations
+                    explosive_conditions = pd.Series(True, index=filtered_df.index)
+                    
+                    if 'acceleration_score' in filtered_df.columns:
+                        explosive_conditions &= (filtered_df['acceleration_score'] > 70)
+                    if 'momentum_score' in filtered_df.columns:
+                        explosive_conditions &= (filtered_df['momentum_score'] > 60)
+                    if 'rvol' in filtered_df.columns:
+                        explosive_conditions &= (filtered_df['rvol'] > 2)
+                    if 'ret_7d' in filtered_df.columns:
+                        explosive_conditions &= (filtered_df['ret_7d'] > 5)
+                    if 'wave_state' in filtered_df.columns:
+                        explosive_conditions &= ~filtered_df['wave_state'].str.contains('BREAKING', na=False)
+                    
+                    explosive_stocks = filtered_df[explosive_conditions].copy()
+                    
+                    if len(explosive_stocks) > 0:
+                        # Calculate momentum quality score
+                        explosive_stocks['momentum_quality'] = (
+                            explosive_stocks.get('acceleration_score', 0) * 0.3 +
+                            explosive_stocks.get('momentum_score', 0) * 0.3 +
+                            explosive_stocks.get('rvol_score', 0) * 0.2 +
+                            explosive_stocks.get('volume_score', 0) * 0.2
+                        )
                         
-                        if len(accelerating) > 0:
-                            accel_display = []
-                            for _, stock in accelerating.iterrows():
-                                # Momentum indicator
-                                if stock['acceleration_score'] > 90:
-                                    mom_emoji = "🔥🔥🔥"
-                                elif stock['acceleration_score'] > 80:
-                                    mom_emoji = "🔥🔥"
-                                else:
-                                    mom_emoji = "🔥"
-                                
-                                accel_display.append({
-                                    'Stock': f"{stock['ticker']}",
-                                    'Heat': mom_emoji,
-                                    'Accel': stock['acceleration_score'],
-                                    'Mom': stock['momentum_score'],
-                                    '7D%': stock.get('ret_7d', 0),
-                                    'Wave': stock.get('wave_state', 'N/A')[:8]
-                                })
-                            
-                            accel_df = pd.DataFrame(accel_display)
-                            st.dataframe(
-                                accel_df,
-                                use_container_width=True,
-                                hide_index=True,
-                                column_config={
-                                    'Accel': st.column_config.ProgressColumn(
-                                        'Accel',
-                                        min_value=0,
-                                        max_value=100,
-                                        format="%.0f"
-                                    ),
-                                    'Mom': st.column_config.ProgressColumn(
-                                        'Mom',
-                                        min_value=0,
-                                        max_value=100,
-                                        format="%.0f"
-                                    ),
-                                    '7D%': st.column_config.NumberColumn('7D%', format="%.1f%%")
-                                }
-                            )
-                        else:
-                            st.info("No strong acceleration detected")
+                        explosive_display = explosive_stocks.nlargest(10, 'momentum_quality')[
+                            ['ticker', 'company_name', 'price', 'ret_1d', 'ret_7d', 'ret_30d', 
+                             'acceleration_score', 'rvol', 'wave_state']
+                        ].copy()
+                        
+                        # Format display
+                        explosive_display['Signal'] = explosive_display.apply(
+                            lambda x: '🔥🔥🔥' if x['acceleration_score'] > 85 else '🔥🔥' if x['acceleration_score'] > 75 else '🔥',
+                            axis=1
+                        )
+                        explosive_display['Company'] = explosive_display['company_name'].str[:20]
+                        explosive_display['Price'] = explosive_display['price'].apply(lambda x: f"₹{x:.0f}")
+                        explosive_display['1D%'] = explosive_display['ret_1d'].apply(lambda x: f"{x:+.1f}%" if pd.notna(x) else "0%")
+                        explosive_display['7D%'] = explosive_display['ret_7d'].apply(lambda x: f"{x:+.1f}%" if pd.notna(x) else "0%")
+                        explosive_display['30D%'] = explosive_display['ret_30d'].apply(lambda x: f"{x:+.1f}%" if pd.notna(x) else "0%")
+                        explosive_display['RVOL'] = explosive_display['rvol'].apply(lambda x: f"{x:.1f}x")
+                        explosive_display['Wave'] = explosive_display['wave_state'].str[:10]
+                        
+                        final_explosive = explosive_display[['Signal', 'ticker', 'Price', '1D%', '7D%', '30D%', 'RVOL', 'Wave']]
+                        final_explosive.columns = ['🔥', 'Ticker', 'Price', '1D', '7D', '30D', 'Vol', 'Wave']
+                        
+                        st.dataframe(final_explosive, use_container_width=True, hide_index=True, height=350)
+                        
+                        st.success(f"🎯 Found {len(explosive_stocks)} stocks with explosive momentum!")
+                    else:
+                        st.info("No explosive momentum stocks found in current filter")
                 
                 with mom_col2:
-                    st.markdown("##### 💰 Money Flow Leaders")
+                    st.markdown("##### 🌀 **MOMENTUM SHIFTS** (Changing Direction)")
                     
-                    if 'money_flow_mm' in filtered_df.columns:
-                        top_flow = filtered_df.nlargest(5, 'money_flow_mm')
+                    # Find stocks where momentum is CHANGING (acceleration)
+                    if all(col in filtered_df.columns for col in ['ret_1d', 'ret_7d', 'ret_30d']):
+                        shift_df = filtered_df.copy()
                         
-                        flow_display = []
-                        for _, stock in top_flow.iterrows():
-                            flow_display.append({
-                                'Stock': stock['ticker'],
-                                'Flow': stock['money_flow_mm'],
-                                'RVOL': stock.get('rvol', 1),
-                                'Score': stock['master_score'],
-                                'Cat': stock.get('category', 'N/A')[:8]
+                        # Calculate momentum shift score
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            shift_df['daily_7d'] = shift_df['ret_7d'] / 7
+                            shift_df['daily_30d'] = shift_df['ret_30d'] / 30
+                        
+                        # Positive shifts (turning bullish)
+                        positive_shifts = shift_df[
+                            (shift_df['ret_1d'] > shift_df['daily_7d']) &
+                            (shift_df['daily_7d'] > shift_df['daily_30d']) &
+                            (shift_df['ret_1d'] > 0)
+                        ].copy()
+                        
+                        # Negative shifts (turning bearish)
+                        negative_shifts = shift_df[
+                            (shift_df['ret_1d'] < shift_df['daily_7d']) &
+                            (shift_df['daily_7d'] < shift_df['daily_30d']) &
+                            (shift_df['ret_1d'] < 0)
+                        ].copy()
+                        
+                        shift_data = []
+                        
+                        # Add positive shifts
+                        for _, stock in positive_shifts.nlargest(5, 'acceleration_score').iterrows():
+                            shift_data.append({
+                                'Direction': '📈',
+                                'Ticker': stock['ticker'],
+                                'Type': 'Bullish Turn',
+                                '1D': f"{stock['ret_1d']:+.1f}%",
+                                '7D Avg': f"{stock['daily_7d']:+.1f}%",
+                                '30D Avg': f"{stock['daily_30d']:+.1f}%",
+                                'Strength': f"{stock.get('acceleration_score', 0):.0f}"
                             })
                         
-                        flow_df = pd.DataFrame(flow_display)
-                        st.dataframe(
-                            flow_df,
-                            use_container_width=True,
-                            hide_index=True,
-                            column_config={
-                                'Flow': st.column_config.NumberColumn('₹M', format="%.0f"),
-                                'RVOL': st.column_config.NumberColumn('RVOL', format="%.1fx"),
-                                'Score': st.column_config.ProgressColumn(
-                                    'Score',
-                                    min_value=0,
-                                    max_value=100,
-                                    format="%.0f"
-                                )
-                            }
-                        )
+                        # Add negative shifts (warnings)
+                        for _, stock in negative_shifts.nlargest(5, 'master_score').iterrows():
+                            shift_data.append({
+                                'Direction': '📉',
+                                'Ticker': stock['ticker'],
+                                'Type': 'Bearish Turn',
+                                '1D': f"{stock['ret_1d']:+.1f}%",
+                                '7D Avg': f"{stock['daily_7d']:+.1f}%",
+                                '30D Avg': f"{stock['daily_30d']:+.1f}%",
+                                'Strength': f"{stock.get('acceleration_score', 0):.0f}"
+                            })
+                        
+                        if shift_data:
+                            shift_display_df = pd.DataFrame(shift_data)
+                            st.dataframe(shift_display_df, use_container_width=True, hide_index=True, height=350)
+                        else:
+                            st.info("No significant momentum shifts detected")
+                    else:
+                        st.info("Insufficient data for momentum shift analysis")
             
             # TAB 2: PATTERN INTELLIGENCE
             with discovery_tabs[1]:
                 if 'patterns' in filtered_df.columns:
-                    # Pattern frequency and insights
-                    pattern_col1, pattern_col2 = st.columns([2, 1])
+                    pattern_col1, pattern_col2 = st.columns([3, 2])
                     
                     with pattern_col1:
-                        # Critical patterns
-                        st.markdown("##### 🎯 Active Pattern Signals")
+                        st.markdown("##### 🎨 **CRITICAL PATTERN CLUSTERS**")
                         
-                        critical_patterns = {
-                            '⛈️ PERFECT STORM': filtered_df['patterns'].str.contains('PERFECT STORM', na=False).sum(),
-                            '⚡ VOL EXPLOSION': filtered_df['patterns'].str.contains('VOL EXPLOSION', na=False).sum(),
-                            '🎯 BREAKOUT': filtered_df['patterns'].str.contains('BREAKOUT', na=False).sum(),
-                            '🪤 BULL TRAP': filtered_df['patterns'].str.contains('BULL TRAP', na=False).sum(),
-                            '💣 CAPITULATION': filtered_df['patterns'].str.contains('CAPITULATION', na=False).sum(),
-                            '🚀 ACCELERATING': filtered_df['patterns'].str.contains('ACCELERATING', na=False).sum()
+                        # Define pattern categories
+                        pattern_categories = {
+                            'Breakout Patterns': ['🎯 BREAKOUT', '🎯 52W HIGH APPROACH', '🎯 RANGE COMPRESS', '🏃 RUNAWAY GAP'],
+                            'Momentum Patterns': ['🚀 ACCELERATING', '🌊 MOMENTUM WAVE', '⛈️ PERFECT STORM', '⚡ GOLDEN CROSS'],
+                            'Volume Patterns': ['⚡ VOL EXPLOSION', '🏦 INSTITUTIONAL', '📊 VOL ACCUMULATION', '🔺 PYRAMID'],
+                            'Reversal Patterns': ['🪤 BULL TRAP', '💣 CAPITULATION', '⚠️ DISTRIBUTION', '📉 EXHAUSTION'],
+                            'Value Patterns': ['💎 HIDDEN GEM', '💎 VALUE MOMENTUM', '🤫 STEALTH', '🌪️ VACUUM']
                         }
                         
-                        # Filter only active patterns
-                        active_patterns = {k: v for k, v in critical_patterns.items() if v > 0}
+                        cluster_data = []
                         
-                        if active_patterns:
-                            pattern_data = []
-                            for pattern, count in sorted(active_patterns.items(), key=lambda x: x[1], reverse=True):
-                                # Get example stocks
-                                pattern_name = pattern.split()[-1]
-                                examples = filtered_df[filtered_df['patterns'].str.contains(pattern_name, na=False)]['ticker'].head(3).tolist()
-                                
-                                pattern_data.append({
-                                    'Pattern': pattern,
-                                    'Count': count,
-                                    'Examples': ', '.join(examples[:3])
-                                })
+                        for category, patterns in pattern_categories.items():
+                            stocks_with_category = pd.Series(False, index=filtered_df.index)
                             
-                            pattern_df = pd.DataFrame(pattern_data)
-                            st.dataframe(pattern_df, use_container_width=True, hide_index=True)
+                            for pattern in patterns:
+                                pattern_name = pattern.split()[-1]  # Get last word
+                                stocks_with_category |= filtered_df['patterns'].str.contains(pattern_name, na=False)
+                            
+                            count = stocks_with_category.sum()
+                            
+                            if count > 0:
+                                # Get example stocks
+                                examples = filtered_df[stocks_with_category].nlargest(3, 'master_score')['ticker'].tolist()
+                                
+                                # Determine signal strength
+                                if category == 'Reversal Patterns':
+                                    signal = '⚠️ Warning'
+                                elif count > 10:
+                                    signal = '🔥 Strong'
+                                elif count > 5:
+                                    signal = '📊 Moderate'
+                                else:
+                                    signal = '👀 Watch'
+                                
+                                cluster_data.append({
+                                    'Pattern Type': category,
+                                    'Count': count,
+                                    'Signal': signal,
+                                    'Top Stocks': ', '.join(examples[:3]),
+                                    'Action': 'Buy' if 'Breakout' in category or 'Momentum' in category else 'Watch' if 'Value' in category else 'Caution'
+                                })
+                        
+                        if cluster_data:
+                            cluster_df = pd.DataFrame(cluster_data)
+                            cluster_df = cluster_df.sort_values('Count', ascending=False)
+                            st.dataframe(cluster_df, use_container_width=True, hide_index=True)
                         else:
-                            st.info("No critical patterns active")
+                            st.info("No pattern clusters detected")
                     
                     with pattern_col2:
-                        st.markdown("##### 📊 Pattern Stats")
+                        st.markdown("##### 📊 **PATTERN STRENGTH**")
                         
-                        # Pattern diversity
-                        all_patterns = []
-                        for p in filtered_df['patterns'].dropna():
-                            if p:
-                                all_patterns.extend(p.split(' | '))
+                        # Calculate pattern confidence for stocks with multiple patterns
+                        multi_pattern_stocks = filtered_df[filtered_df['patterns'].str.count('\|') >= 2].copy()
                         
-                        if all_patterns:
-                            st.metric("Unique Patterns", len(set(all_patterns)))
-                            st.metric("Total Signals", len(all_patterns))
-                            st.metric("Avg per Stock", f"{len(all_patterns)/len(filtered_df[filtered_df['patterns'] != '']):.1f}")
+                        if len(multi_pattern_stocks) > 0:
+                            pattern_strength_data = []
                             
-                            # Most common pattern
-                            from collections import Counter
-                            most_common = Counter(all_patterns).most_common(1)[0]
-                            st.caption(f"**Most Common:**")
-                            st.caption(f"{most_common[0].split()[-1]} ({most_common[1]})")
+                            for _, stock in multi_pattern_stocks.nlargest(8, 'master_score').iterrows():
+                                pattern_count = len(stock['patterns'].split(' | '))
+                                
+                                # Classify pattern strength
+                                if pattern_count >= 5:
+                                    strength = '💎💎💎'
+                                    level = 'Extreme'
+                                elif pattern_count >= 4:
+                                    strength = '💎💎'
+                                    level = 'Strong'
+                                elif pattern_count >= 3:
+                                    strength = '💎'
+                                    level = 'Good'
+                                else:
+                                    strength = '📊'
+                                    level = 'Moderate'
+                                
+                                pattern_strength_data.append({
+                                    'Ticker': stock['ticker'],
+                                    'Patterns': pattern_count,
+                                    'Strength': strength,
+                                    'Level': level,
+                                    'Score': f"{stock['master_score']:.0f}"
+                                })
+                            
+                            if pattern_strength_data:
+                                strength_df = pd.DataFrame(pattern_strength_data)
+                                st.dataframe(strength_df, use_container_width=True, hide_index=True)
+                            
+                            # Pattern combo analysis
+                            st.markdown("**🎯 Best Combos:**")
+                            
+                            # Find stocks with specific powerful combinations
+                            power_combos = {
+                                'Perfect Setup': ['ACCELERATING', 'VOL EXPLOSION'],
+                                'Breakout Imminent': ['BREAKOUT', 'INSTITUTIONAL'],
+                                'Hidden Value': ['HIDDEN GEM', 'STEALTH']
+                            }
+                            
+                            for combo_name, patterns_needed in power_combos.items():
+                                combo_stocks = filtered_df.copy()
+                                for pattern in patterns_needed:
+                                    combo_stocks = combo_stocks[combo_stocks['patterns'].str.contains(pattern, na=False)]
+                                
+                                if len(combo_stocks) > 0:
+                                    st.success(f"✅ {combo_name}: {', '.join(combo_stocks['ticker'].head(3).tolist())}")
+                        else:
+                            st.info("No multi-pattern stocks found")
+                else:
+                    st.info("Pattern data not available")
             
             # TAB 3: HIDDEN OPPORTUNITIES
             with discovery_tabs[2]:
                 opp_col1, opp_col2 = st.columns(2)
                 
                 with opp_col1:
-                    st.markdown("##### 💎 Hidden Gems")
+                    st.markdown("##### 💎 **UNDISCOVERED GEMS**")
                     
-                    # Find undervalued momentum stocks
-                    hidden_gems = filtered_df[
-                        (filtered_df['percentile'] < 50) &  # Not in top half
-                        (filtered_df['category_percentile'] > 80) if 'category_percentile' in filtered_df.columns else (filtered_df['percentile'] < 50)
-                    ].head(5)
+                    # Find stocks that are strong in category but weak overall
+                    undiscovered = filtered_df.copy()
                     
-                    if len(hidden_gems) > 0:
-                        gem_display = []
-                        for _, stock in hidden_gems.iterrows():
-                            gem_display.append({
-                                'Stock': stock['ticker'],
-                                'Score': stock['master_score'],
-                                'Cat Rank': stock.get('category_rank', 0),
-                                'From Low': f"{stock.get('from_low_pct', 0):.0f}%",
-                                'Pattern': 'Yes' if stock.get('patterns') else 'No'
-                            })
+                    if all(col in filtered_df.columns for col in ['category_percentile', 'percentile', 'master_score']):
+                        # High category rank but low overall rank = Hidden gem
+                        gems = undiscovered[
+                            (undiscovered['category_percentile'] > 80) &  # Top 20% in category
+                            (undiscovered['percentile'] < 60) &  # Not in top 40% overall
+                            (undiscovered['master_score'] > 50)  # Still decent score
+                        ].copy()
                         
-                        gem_df = pd.DataFrame(gem_display)
-                        st.dataframe(gem_df, use_container_width=True, hide_index=True)
+                        if len(gems) > 0:
+                            gems['opportunity_score'] = (
+                                gems['category_percentile'] - gems['percentile'] +
+                                (gems.get('momentum_score', 50) * 0.5)
+                            )
+                            
+                            gem_display = gems.nlargest(8, 'opportunity_score')[
+                                ['ticker', 'company_name', 'category', 'category_rank', 'rank', 
+                                 'master_score', 'from_low_pct']
+                            ].copy()
+                            
+                            gem_display['Company'] = gem_display['company_name'].str[:15]
+                            gem_display['Cat Rank'] = gem_display['category_rank'].astype(int)
+                            gem_display['Overall'] = gem_display['rank'].astype(int)
+                            gem_display['Score'] = gem_display['master_score'].apply(lambda x: f"{x:.0f}")
+                            gem_display['Position'] = gem_display['from_low_pct'].apply(lambda x: f"{x:.0f}%")
+                            
+                            final_gems = gem_display[['ticker', 'Company', 'category', 'Cat Rank', 'Overall', 'Score', 'Position']]
+                            final_gems.columns = ['Ticker', 'Company', 'Category', 'Cat#', 'Rank', 'Score', 'From Low']
+                            
+                            st.dataframe(final_gems, use_container_width=True, hide_index=True)
+                            
+                            st.info(f"💡 Found {len(gems)} hidden gems (strong in category, overlooked overall)")
+                        else:
+                            st.info("No hidden gems found")
                     else:
-                        st.info("No hidden gems found")
+                        st.info("Insufficient data for gem detection")
                 
                 with opp_col2:
-                    st.markdown("##### 🔄 Near Transitions")
+                    st.markdown("##### 🎯 **PRE-BREAKOUT SETUPS**")
                     
-                    # Find stocks about to change wave state
-                    transitions = []
+                    # Find stocks about to breakout
+                    pre_breakout_conditions = pd.Series(True, index=filtered_df.index)
                     
-                    # About to build (FORMING → BUILDING)
-                    if 'wave_state' in filtered_df.columns:
-                        forming = filtered_df[filtered_df['wave_state'].str.contains('FORMING', na=False)]
-                        for _, stock in forming.head(2).iterrows():
-                            if stock.get('momentum_score', 0) > 50:
-                                transitions.append({
-                                    'Stock': stock['ticker'],
-                                    'Current': 'FORMING',
-                                    'Signal': '→ BUILDING',
-                                    'Prob': 'High' if stock.get('rvol', 0) > 2 else 'Med'
-                                })
+                    if 'breakout_score' in filtered_df.columns:
+                        pre_breakout_conditions &= filtered_df['breakout_score'].between(70, 85)  # Close but not there yet
+                    if 'from_high_pct' in filtered_df.columns:
+                        pre_breakout_conditions &= filtered_df['from_high_pct'].between(-15, -5)  # Near resistance
+                    if 'vol_ratio_7d_90d' in filtered_df.columns:
+                        pre_breakout_conditions &= filtered_df['vol_ratio_7d_90d'] > 1.2  # Volume building
+                    if 'trend_quality' in filtered_df.columns:
+                        pre_breakout_conditions &= filtered_df['trend_quality'] > 60  # Good trend
                     
-                    # About to crest (BUILDING → CRESTING)
-                    if 'wave_state' in filtered_df.columns:
-                        building = filtered_df[filtered_df['wave_state'].str.contains('BUILDING', na=False)]
-                        for _, stock in building.head(2).iterrows():
-                            if stock.get('acceleration_score', 0) > 80:
-                                transitions.append({
-                                    'Stock': stock['ticker'],
-                                    'Current': 'BUILDING',
-                                    'Signal': '→ CRESTING',
-                                    'Prob': 'High' if stock.get('momentum_harmony', 0) >= 3 else 'Med'
-                                })
+                    pre_breakout = filtered_df[pre_breakout_conditions].copy()
                     
-                    if transitions:
-                        trans_df = pd.DataFrame(transitions[:4])
-                        st.dataframe(trans_df, use_container_width=True, hide_index=True)
+                    if len(pre_breakout) > 0:
+                        breakout_data = []
+                        
+                        for _, stock in pre_breakout.nlargest(8, 'breakout_score').iterrows():
+                            # Calculate breakout level
+                            if 'high_52w' in stock and pd.notna(stock['high_52w']):
+                                breakout_level = stock['high_52w'] * 0.98  # 2% below 52W high
+                            else:
+                                breakout_level = stock['price'] * 1.05  # 5% above current
+                            
+                            breakout_data.append({
+                                'Ticker': stock['ticker'],
+                                'Current': f"₹{stock['price']:.0f}",
+                                'Target': f"₹{breakout_level:.0f}",
+                                'Gap': f"{((breakout_level - stock['price'])/stock['price']*100):.1f}%",
+                                'Volume': f"{stock.get('rvol', 1):.1f}x",
+                                'Score': f"{stock['breakout_score']:.0f}"
+                            })
+                        
+                        if breakout_data:
+                            breakout_df = pd.DataFrame(breakout_data)
+                            st.dataframe(breakout_df, use_container_width=True, hide_index=True)
+                            
+                            st.success(f"🎯 {len(pre_breakout)} stocks approaching breakout levels!")
                     else:
-                        st.info("No imminent transitions")
+                        st.info("No pre-breakout setups found")
             
+            # Summary line
             st.markdown("---")
+            
+            # Calculate discovery summary
+            total_discoveries = 0
+            discovery_summary = []
+            
+            if 'explosive_stocks' in locals():
+                total_discoveries += len(explosive_stocks)
+                discovery_summary.append(f"🔥 {len(explosive_stocks)} Explosive")
+            
+            if 'gems' in locals():
+                total_discoveries += len(gems)
+                discovery_summary.append(f"💎 {len(gems)} Hidden Gems")
+            
+            if 'pre_breakout' in locals():
+                total_discoveries += len(pre_breakout)
+                discovery_summary.append(f"🎯 {len(pre_breakout)} Pre-Breakout")
+            
+            if total_discoveries > 0:
+                st.success(f"**📍 Total Discoveries: {total_discoveries} stocks** | {' | '.join(discovery_summary)}")
+            else:
+                st.info("**📍 No significant discoveries in current filter - try adjusting parameters**")
             
             # ====================================
             # SECTION 4: MARKET INTELLIGENCE
