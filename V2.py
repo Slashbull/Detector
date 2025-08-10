@@ -969,130 +969,130 @@ class AdvancedMetrics:
         else:
             return "🔻 COLLAPSING"  # Severe breakdown
 
-        class AdvancedMetrics:
-        """
-        Calculates advanced metrics and indicators using a combination of price,
-        volume, and algorithmically derived scores. Ensures robust calculation
-        by handling potential missing data (NaNs) gracefully.
-        """
-        
-        @staticmethod
-        @PerformanceMonitor.timer(target_time=0.5)
-        def calculate_all_metrics(df: pd.DataFrame) -> pd.DataFrame:
+            class AdvancedMetrics:
             """
-            Calculates a comprehensive set of advanced metrics for the DataFrame.
+            Calculates advanced metrics and indicators using a combination of price,
+            volume, and algorithmically derived scores. Ensures robust calculation
+            by handling potential missing data (NaNs) gracefully.
             """
-            if df.empty:
-                return df
             
-            # Money Flow (in millions)
-            if all(col in df.columns for col in ['price', 'volume_1d', 'rvol']):
-                df['money_flow'] = df['price'].fillna(0) * df['volume_1d'].fillna(0) * df['rvol'].fillna(1.0)
-                df['money_flow_mm'] = df['money_flow'] / 1_000_000
-            else:
-                df['money_flow_mm'] = pd.Series(np.nan, index=df.index)
-            
-            # Volume Momentum Index (VMI)
-            if all(col in df.columns for col in ['vol_ratio_1d_90d', 'vol_ratio_7d_90d', 'vol_ratio_30d_90d', 'vol_ratio_90d_180d']):
-                df['vmi'] = (
-                    df['vol_ratio_1d_90d'].fillna(1.0) * 4 +
-                    df['vol_ratio_7d_90d'].fillna(1.0) * 3 +
-                    df['vol_ratio_30d_90d'].fillna(1.0) * 2 +
-                    df['vol_ratio_90d_180d'].fillna(1.0) * 1
-                ) / 10
-            else:
-                df['vmi'] = pd.Series(np.nan, index=df.index)
-            
-            # Position Tension
-            if all(col in df.columns for col in ['from_low_pct', 'from_high_pct']):
-                df['position_tension'] = df['from_low_pct'].fillna(50) + abs(df['from_high_pct'].fillna(-50))
-            else:
-                df['position_tension'] = pd.Series(np.nan, index=df.index)
-            
-            # Momentum Harmony
-            df['momentum_harmony'] = pd.Series(0, index=df.index, dtype=int)
-            
-            if 'ret_1d' in df.columns:
-                df['momentum_harmony'] += (df['ret_1d'].fillna(0) > 0).astype(int)
-            
-            if all(col in df.columns for col in ['ret_7d', 'ret_30d']):
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    daily_ret_7d = pd.Series(np.where(df['ret_7d'].fillna(0) != 0, df['ret_7d'].fillna(0) / 7, np.nan), index=df.index)
-                    daily_ret_30d = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
-                df['momentum_harmony'] += ((daily_ret_7d.fillna(-np.inf) > daily_ret_30d.fillna(-np.inf))).astype(int)
-            
-            if all(col in df.columns for col in ['ret_30d', 'ret_3m']):
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    daily_ret_30d_comp = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
-                    daily_ret_3m_comp = pd.Series(np.where(df['ret_3m'].fillna(0) != 0, df['ret_3m'].fillna(0) / 90, np.nan), index=df.index)
-                df['momentum_harmony'] += ((daily_ret_30d_comp.fillna(-np.inf) > daily_ret_3m_comp.fillna(-np.inf))).astype(int)
-            
-            if 'ret_3m' in df.columns:
-                df['momentum_harmony'] += (df['ret_3m'].fillna(0) > 0).astype(int)
-            
-            # Wave State
-            df['wave_state'] = df.apply(AdvancedMetrics._get_wave_state, axis=1)
-            
-            # ============================================
-            # Overall Wave Strength - MORE SOPHISTICATED
-            # THIS SHOULD BE INSIDE THE METHOD, NOT AT CLASS LEVEL!
-            # ============================================
-            
-            if all(col in df.columns for col in ['momentum_score', 'acceleration_score', 'rvol_score', 'breakout_score']):
-                # Base calculation
-                base_strength = (
-                    df['momentum_score'].fillna(50) * 0.25 +
-                    df['acceleration_score'].fillna(50) * 0.25 +
-                    df['rvol_score'].fillna(50) * 0.20 +
-                    df['breakout_score'].fillna(50) * 0.20
-                )
+            @staticmethod
+            @PerformanceMonitor.timer(target_time=0.5)
+            def calculate_all_metrics(df: pd.DataFrame) -> pd.DataFrame:
+                """
+                Calculates a comprehensive set of advanced metrics for the DataFrame.
+                """
+                if df.empty:
+                    return df
                 
-                # Trend quality modifier
-                trend_modifier = 1.0
-                if 'trend_quality' in df.columns:
-                    trend_modifier = 0.8 + (df['trend_quality'].fillna(50) / 250)  # 0.8 to 1.2
+                # Money Flow (in millions)
+                if all(col in df.columns for col in ['price', 'volume_1d', 'rvol']):
+                    df['money_flow'] = df['price'].fillna(0) * df['volume_1d'].fillna(0) * df['rvol'].fillna(1.0)
+                    df['money_flow_mm'] = df['money_flow'] / 1_000_000
+                else:
+                    df['money_flow_mm'] = pd.Series(np.nan, index=df.index)
                 
-                # Volume momentum modifier
-                volume_modifier = 1.0
-                if 'vmi' in df.columns:
-                    volume_modifier = 0.9 + (df['vmi'].fillna(1.0).clip(0, 2) / 10)  # 0.9 to 1.1
+                # Volume Momentum Index (VMI)
+                if all(col in df.columns for col in ['vol_ratio_1d_90d', 'vol_ratio_7d_90d', 'vol_ratio_30d_90d', 'vol_ratio_90d_180d']):
+                    df['vmi'] = (
+                        df['vol_ratio_1d_90d'].fillna(1.0) * 4 +
+                        df['vol_ratio_7d_90d'].fillna(1.0) * 3 +
+                        df['vol_ratio_30d_90d'].fillna(1.0) * 2 +
+                        df['vol_ratio_90d_180d'].fillna(1.0) * 1
+                    ) / 10
+                else:
+                    df['vmi'] = pd.Series(np.nan, index=df.index)
                 
-                # Position modifier (penalize overextension)
-                position_modifier = 1.0
-                if 'from_low_pct' in df.columns:
-                    # Reduce strength if too far from support
-                    position_modifier = pd.Series(
-                        np.where(df['from_low_pct'] > 80, 0.9,  # 10% penalty if overextended
-                                np.where(df['from_low_pct'] < 20, 1.1,  # 10% bonus if near support
-                                        1.0)),
-                        index=df.index
+                # Position Tension
+                if all(col in df.columns for col in ['from_low_pct', 'from_high_pct']):
+                    df['position_tension'] = df['from_low_pct'].fillna(50) + abs(df['from_high_pct'].fillna(-50))
+                else:
+                    df['position_tension'] = pd.Series(np.nan, index=df.index)
+                
+                # Momentum Harmony
+                df['momentum_harmony'] = pd.Series(0, index=df.index, dtype=int)
+                
+                if 'ret_1d' in df.columns:
+                    df['momentum_harmony'] += (df['ret_1d'].fillna(0) > 0).astype(int)
+                
+                if all(col in df.columns for col in ['ret_7d', 'ret_30d']):
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        daily_ret_7d = pd.Series(np.where(df['ret_7d'].fillna(0) != 0, df['ret_7d'].fillna(0) / 7, np.nan), index=df.index)
+                        daily_ret_30d = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
+                    df['momentum_harmony'] += ((daily_ret_7d.fillna(-np.inf) > daily_ret_30d.fillna(-np.inf))).astype(int)
+                
+                if all(col in df.columns for col in ['ret_30d', 'ret_3m']):
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        daily_ret_30d_comp = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
+                        daily_ret_3m_comp = pd.Series(np.where(df['ret_3m'].fillna(0) != 0, df['ret_3m'].fillna(0) / 90, np.nan), index=df.index)
+                    df['momentum_harmony'] += ((daily_ret_30d_comp.fillna(-np.inf) > daily_ret_3m_comp.fillna(-np.inf))).astype(int)
+                
+                if 'ret_3m' in df.columns:
+                    df['momentum_harmony'] += (df['ret_3m'].fillna(0) > 0).astype(int)
+                
+                # Wave State
+                df['wave_state'] = df.apply(AdvancedMetrics._get_wave_state, axis=1)
+                
+                # ============================================
+                # Overall Wave Strength - MORE SOPHISTICATED
+                # THIS SHOULD BE INSIDE THE METHOD, NOT AT CLASS LEVEL!
+                # ============================================
+                
+                if all(col in df.columns for col in ['momentum_score', 'acceleration_score', 'rvol_score', 'breakout_score']):
+                    # Base calculation
+                    base_strength = (
+                        df['momentum_score'].fillna(50) * 0.25 +
+                        df['acceleration_score'].fillna(50) * 0.25 +
+                        df['rvol_score'].fillna(50) * 0.20 +
+                        df['breakout_score'].fillna(50) * 0.20
                     )
+                    
+                    # Trend quality modifier
+                    trend_modifier = 1.0
+                    if 'trend_quality' in df.columns:
+                        trend_modifier = 0.8 + (df['trend_quality'].fillna(50) / 250)  # 0.8 to 1.2
+                    
+                    # Volume momentum modifier
+                    volume_modifier = 1.0
+                    if 'vmi' in df.columns:
+                        volume_modifier = 0.9 + (df['vmi'].fillna(1.0).clip(0, 2) / 10)  # 0.9 to 1.1
+                    
+                    # Position modifier (penalize overextension)
+                    position_modifier = 1.0
+                    if 'from_low_pct' in df.columns:
+                        # Reduce strength if too far from support
+                        position_modifier = pd.Series(
+                            np.where(df['from_low_pct'] > 80, 0.9,  # 10% penalty if overextended
+                                    np.where(df['from_low_pct'] < 20, 1.1,  # 10% bonus if near support
+                                            1.0)),
+                            index=df.index
+                        )
+                    
+                    # Harmony bonus
+                    harmony_bonus = 0
+                    if 'momentum_harmony' in df.columns:
+                        harmony_bonus = df['momentum_harmony'].fillna(0) * 2.5  # 0-10 point bonus
+                    
+                    # Calculate final wave strength
+                    df['overall_wave_strength'] = (
+                        base_strength * trend_modifier * volume_modifier * position_modifier + harmony_bonus
+                    ).clip(0, 100)
+                else:
+                    df['overall_wave_strength'] = pd.Series(50, index=df.index)
                 
-                # Harmony bonus
-                harmony_bonus = 0
-                if 'momentum_harmony' in df.columns:
-                    harmony_bonus = df['momentum_harmony'].fillna(0) * 2.5  # 0-10 point bonus
+                # ADD ALL OTHER WAVE METRICS HERE (inside the method)
+                # Wave Velocity, Wave Pressure, Wave Direction, etc.
                 
-                # Calculate final wave strength
-                df['overall_wave_strength'] = (
-                    base_strength * trend_modifier * volume_modifier * position_modifier + harmony_bonus
-                ).clip(0, 100)
-            else:
-                df['overall_wave_strength'] = pd.Series(50, index=df.index)
+                return df  # Don't forget to return df!
             
-            # ADD ALL OTHER WAVE METRICS HERE (inside the method)
-            # Wave Velocity, Wave Pressure, Wave Direction, etc.
-            
-            return df  # Don't forget to return df!
-        
-        @staticmethod
-        def _get_wave_state(row: pd.Series) -> str:
-            """
-            Wave state detection method
-            """
-            # Your wave state logic here
-            # ... (keep the existing or improved wave state logic)
-            return "🌊 FORMING"  # Default return
+            @staticmethod
+            def _get_wave_state(row: pd.Series) -> str:
+                """
+                Wave state detection method
+                """
+                # Your wave state logic here
+                # ... (keep the existing or improved wave state logic)
+                return "🌊 FORMING"  # Default return
         
 # ============================================
 # RANKING ENGINE - OPTIMIZED
