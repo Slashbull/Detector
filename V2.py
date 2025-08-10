@@ -736,8 +736,7 @@ class DataProcessor:
         
         return df
         
-    # ============================================
-    # ADVANCED METRICS CALCULATOR
+# ADVANCED METRICS CALCULATOR
     # ============================================
     
     class AdvancedMetrics:
