@@ -4806,13 +4806,6 @@ def main():
                     if extreme_vol_pct > 5:
                         anomalies.append(f"🚨 {extreme_vol_pct:.0f}% extreme volume")
                 
-                # Check wave imbalance
-                if 'wave_state' in filtered_df.columns:
-                    if wave_counts['BREAKING'] > total_waves * 0.4:
-                        anomalies.append(f"💥 {wave_counts['BREAKING']} breaking")
-                    if wave_counts['CRESTING'] > total_waves * 0.4:
-                        anomalies.append(f"⚠️ {wave_counts['CRESTING']} cresting")
-                
                 # Pattern clustering
                 if 'patterns' in filtered_df.columns:
                     stocks_with_many = len(filtered_df[filtered_df['patterns'].str.count('\|') > 3])
