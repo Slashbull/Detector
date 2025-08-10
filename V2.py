@@ -5518,95 +5518,432 @@ def main():
             # SECTION 4: MARKET INTELLIGENCE
             # ====================================
             
-            st.markdown("#### 🧠 Market Intelligence")
+            st.markdown("#### 🧠 Market Intelligence System")
             
-            intel_cols = st.columns(3)
+            intel_tabs = st.tabs([
+                "🏢 Sector Rotation",
+                "💰 Smart Money Flow",
+                "⚠️ Anomaly Detection"
+            ])
             
-            with intel_cols[0]:
-                # Sector Flow
-                st.markdown("##### 🏢 Sector Leadership")
-                
-                if 'sector' in filtered_df.columns:
-                    sector_strength = filtered_df.groupby('sector').agg({
-                        'master_score': 'mean',
-                        'ticker': 'count',
-                        'money_flow_mm': 'sum' if 'money_flow_mm' in filtered_df.columns else lambda x: 0
-                    })
+            # TAB 1: SECTOR ROTATION INTELLIGENCE
+            with intel_tabs[0]:
+                if 'sector' in filtered_df.columns and 'master_score' in filtered_df.columns:
+                    # Calculate comprehensive sector metrics
+                    sector_analysis = []
                     
-                    sector_strength = sector_strength[sector_strength['ticker'] >= 3]
-                    sector_strength = sector_strength.sort_values('master_score', ascending=False).head(5)
-                    
-                    if len(sector_strength) > 0:
-                        for idx, (sector, row) in enumerate(sector_strength.iterrows()):
-                            emoji = "🥇" if idx == 0 else "🥈" if idx == 1 else "🥉" if idx == 2 else "📊"
+                    for sector in filtered_df['sector'].unique():
+                        if sector != 'Unknown':
+                            sector_df = filtered_df[filtered_df['sector'] == sector]
                             
-                            col1, col2 = st.columns([3, 1])
-                            with col1:
-                                st.caption(f"{emoji} **{sector[:15]}**")
-                            with col2:
-                                st.caption(f"Score: {row['master_score']:.0f}")
-                    else:
-                        st.info("Insufficient sector data")
-            
-            with intel_cols[1]:
-                # Category Flow
-                st.markdown("##### 📊 Category Performance")
-                
-                if 'category' in filtered_df.columns:
-                    cat_performance = filtered_df.groupby('category')['master_score'].agg(['mean', 'count'])
-                    cat_performance = cat_performance.sort_values('mean', ascending=False)
+                            if len(sector_df) >= 3:  # Need minimum stocks for meaningful analysis
+                                # Calculate sector strength metrics
+                                sector_metrics = {
+                                    'Sector': sector[:20],  # Truncate long names
+                                    'Stocks': len(sector_df),
+                                    'Avg Score': sector_df['master_score'].mean(),
+                                    'Top Score': sector_df['master_score'].max()
+                                }
+                                
+                                # Add momentum metrics if available
+                                if 'ret_30d' in sector_df.columns:
+                                    winners = len(sector_df[sector_df['ret_30d'] > 0])
+                                    sector_metrics['Winners'] = f"{winners}/{len(sector_df)}"
+                                    sector_metrics['Avg 30D'] = sector_df['ret_30d'].mean()
+                                
+                                # Add volume metrics if available
+                                if 'rvol' in sector_df.columns:
+                                    active = len(sector_df[sector_df['rvol'] > 2])
+                                    sector_metrics['Active'] = active
+                                    sector_metrics['Avg RVOL'] = sector_df['rvol'].mean()
+                                
+                                # Add money flow if available
+                                if 'money_flow_mm' in sector_df.columns:
+                                    sector_metrics['Flow ₹M'] = sector_df['money_flow_mm'].sum()
+                                
+                                # Calculate rotation score
+                                rotation_score = 0
+                                rotation_signals = []
+                                
+                                # Score components
+                                if sector_metrics['Avg Score'] > filtered_df['master_score'].mean():
+                                    rotation_score += 25
+                                    rotation_signals.append('Score+')
+                                
+                                if 'Avg 30D' in sector_metrics and sector_metrics['Avg 30D'] > 0:
+                                    rotation_score += 25
+                                    rotation_signals.append('Mom+')
+                                
+                                if 'Avg RVOL' in sector_metrics and sector_metrics['Avg RVOL'] > 1.5:
+                                    rotation_score += 25
+                                    rotation_signals.append('Vol+')
+                                
+                                if 'Flow ₹M' in sector_metrics and sector_metrics['Flow ₹M'] > filtered_df['money_flow_mm'].sum() / len(filtered_df['sector'].unique()):
+                                    rotation_score += 25
+                                    rotation_signals.append('Flow+')
+                                
+                                sector_metrics['Rotation Score'] = rotation_score
+                                sector_metrics['Signals'] = ' '.join(rotation_signals) if rotation_signals else 'None'
+                                
+                                sector_analysis.append(sector_metrics)
                     
-                    # Market cap bias indicator
-                    if len(cat_performance) > 0:
-                        small_cap_avg = cat_performance.loc[cat_performance.index.str.contains('Small|Micro', na=False), 'mean'].mean()
-                        large_cap_avg = cat_performance.loc[cat_performance.index.str.contains('Large|Mega', na=False), 'mean'].mean()
+                    if sector_analysis:
+                        # Convert to DataFrame and sort by rotation score
+                        sector_df_display = pd.DataFrame(sector_analysis)
+                        sector_df_display = sector_df_display.sort_values('Rotation Score', ascending=False)
                         
-                        if pd.notna(small_cap_avg) and pd.notna(large_cap_avg):
-                            if small_cap_avg > large_cap_avg + 10:
-                                st.success("🔥 Small Caps Leading")
-                                st.caption(f"Small: {small_cap_avg:.0f} vs Large: {large_cap_avg:.0f}")
-                            elif large_cap_avg > small_cap_avg + 10:
-                                st.warning("🛡️ Large Caps Leading")
-                                st.caption(f"Large: {large_cap_avg:.0f} vs Small: {small_cap_avg:.0f}")
-                            else:
-                                st.info("⚖️ Balanced Market")
-                                st.caption(f"Small: {small_cap_avg:.0f} vs Large: {large_cap_avg:.0f}")
+                        # Split into two columns
+                        col1, col2 = st.columns([3, 2])
                         
-                        # Show top category
-                        if len(cat_performance) > 0:
-                            top_cat = cat_performance.index[0]
-                            st.caption(f"**Leading:** {top_cat}")
+                        with col1:
+                            st.markdown("##### 🔄 **SECTOR ROTATION MAP**")
+                            
+                            # Format the display DataFrame
+                            display_cols = ['Sector', 'Stocks', 'Avg Score', 'Winners', 'Avg 30D', 'Avg RVOL', 'Flow ₹M', 'Rotation Score']
+                            available_cols = [col for col in display_cols if col in sector_df_display.columns]
+                            
+                            sector_formatted = sector_df_display[available_cols].copy()
+                            
+                            # Format numeric columns
+                            if 'Avg Score' in sector_formatted.columns:
+                                sector_formatted['Avg Score'] = sector_formatted['Avg Score'].apply(lambda x: f"{x:.1f}")
+                            if 'Avg 30D' in sector_formatted.columns:
+                                sector_formatted['Avg 30D'] = sector_formatted['Avg 30D'].apply(lambda x: f"{x:+.1f}%")
+                            if 'Avg RVOL' in sector_formatted.columns:
+                                sector_formatted['Avg RVOL'] = sector_formatted['Avg RVOL'].apply(lambda x: f"{x:.1f}x")
+                            if 'Flow ₹M' in sector_formatted.columns:
+                                sector_formatted['Flow ₹M'] = sector_formatted['Flow ₹M'].apply(lambda x: f"{x:.0f}")
+                            
+                            # Add rotation indicator
+                            sector_formatted['Status'] = sector_formatted['Rotation Score'].apply(
+                                lambda x: '🔥 Hot' if x >= 75 else '📈 Rising' if x >= 50 else '➡️ Neutral' if x >= 25 else '📉 Weak'
+                            )
+                            
+                            st.dataframe(
+                                sector_formatted[['Status', 'Sector', 'Stocks', 'Avg Score', 'Winners', 'Avg 30D', 'Flow ₹M']],
+                                use_container_width=True,
+                                hide_index=True,
+                                height=400
+                            )
+                        
+                        with col2:
+                            st.markdown("##### 🏆 **SECTOR LEADERS**")
+                            
+                            # Show top stock from each top sector
+                            leader_data = []
+                            for _, sector_row in sector_df_display.head(5).iterrows():
+                                sector_stocks = filtered_df[filtered_df['sector'] == sector_row['Sector']]
+                                if len(sector_stocks) > 0:
+                                    leader = sector_stocks.nlargest(1, 'master_score').iloc[0]
+                                    leader_data.append({
+                                        'Sector': sector_row['Sector'][:10],
+                                        'Leader': leader['ticker'],
+                                        'Score': f"{leader['master_score']:.0f}",
+                                        'RVOL': f"{leader.get('rvol', 1):.1f}x" if 'rvol' in leader else 'N/A',
+                                        '30D': f"{leader.get('ret_30d', 0):+.1f}%" if 'ret_30d' in leader else 'N/A'
+                                    })
+                            
+                            if leader_data:
+                                leader_df = pd.DataFrame(leader_data)
+                                st.dataframe(leader_df, use_container_width=True, hide_index=True)
+                            
+                            # Rotation summary
+                            st.markdown("**📊 Rotation Status:**")
+                            hot_sectors = len(sector_df_display[sector_df_display['Rotation Score'] >= 75])
+                            rising_sectors = len(sector_df_display[sector_df_display['Rotation Score'] >= 50])
+                            
+                            if hot_sectors > 0:
+                                st.success(f"🔥 {hot_sectors} HOT sectors")
+                            if rising_sectors > hot_sectors:
+                                st.info(f"📈 {rising_sectors - hot_sectors} RISING sectors")
+                            
+                            # Money flow direction
+                            if 'Flow ₹M' in sector_df_display.columns:
+                                top_flow = sector_df_display.nlargest(3, 'Flow ₹M')
+                                st.markdown("**💰 Money Flowing To:**")
+                                for _, sector in top_flow.iterrows():
+                                    st.caption(f"• {sector['Sector']}: ₹{sector['Flow ₹M']:.0f}M")
+                    else:
+                        st.info("Insufficient sector data for analysis")
+                else:
+                    st.info("Sector data not available")
             
-            with intel_cols[2]:
-                # Anomaly Detection
-                st.markdown("##### ⚠️ Market Anomalies")
+            # TAB 2: SMART MONEY FLOW ANALYSIS
+            with intel_tabs[1]:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("##### 💰 **INSTITUTIONAL FOOTPRINTS**")
+                    
+                    # Identify institutional activity patterns
+                    institutional_signals = pd.Series(False, index=filtered_df.index)
+                    inst_score = pd.Series(0, index=filtered_df.index)
+                    
+                    # Signal 1: High volume with controlled price movement
+                    if all(col in filtered_df.columns for col in ['rvol', 'ret_1d']):
+                        signal1 = (filtered_df['rvol'] > 2) & (filtered_df['ret_1d'].abs() < 3)
+                        institutional_signals |= signal1
+                        inst_score[signal1] += 25
+                    
+                    # Signal 2: Sustained volume over multiple periods
+                    if all(col in filtered_df.columns for col in ['vol_ratio_7d_90d', 'vol_ratio_30d_90d']):
+                        signal2 = (filtered_df['vol_ratio_7d_90d'] > 1.5) & (filtered_df['vol_ratio_30d_90d'] > 1.3)
+                        institutional_signals |= signal2
+                        inst_score[signal2] += 25
+                    
+                    # Signal 3: Large money flow
+                    if 'money_flow_mm' in filtered_df.columns:
+                        flow_threshold = filtered_df['money_flow_mm'].quantile(0.8)
+                        signal3 = filtered_df['money_flow_mm'] > flow_threshold
+                        institutional_signals |= signal3
+                        inst_score[signal3] += 25
+                    
+                    # Signal 4: Pattern detection
+                    if 'patterns' in filtered_df.columns:
+                        signal4 = filtered_df['patterns'].str.contains('INSTITUTIONAL|STEALTH|PYRAMID', na=False)
+                        institutional_signals |= signal4
+                        inst_score[signal4] += 25
+                    
+                    institutional_stocks = filtered_df[institutional_signals].copy()
+                    institutional_stocks['inst_score'] = inst_score[institutional_signals]
+                    
+                    if len(institutional_stocks) > 0:
+                        inst_display = institutional_stocks.nlargest(10, 'inst_score')[
+                            ['ticker', 'company_name', 'price', 'rvol', 'money_flow_mm', 'ret_30d', 'inst_score']
+                        ].copy()
+                        
+                        inst_display['Company'] = inst_display['company_name'].str[:15]
+                        inst_display['Price'] = inst_display['price'].apply(lambda x: f"₹{x:.0f}")
+                        inst_display['RVOL'] = inst_display['rvol'].apply(lambda x: f"{x:.1f}x" if pd.notna(x) else "N/A")
+                        inst_display['Flow'] = inst_display['money_flow_mm'].apply(lambda x: f"₹{x:.0f}M" if pd.notna(x) else "N/A")
+                        inst_display['30D'] = inst_display['ret_30d'].apply(lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A")
+                        inst_display['Signal'] = inst_display['inst_score'].apply(
+                            lambda x: '🏦🏦🏦' if x >= 75 else '🏦🏦' if x >= 50 else '🏦'
+                        )
+                        
+                        final_inst = inst_display[['Signal', 'ticker', 'Price', 'RVOL', 'Flow', '30D']]
+                        final_inst.columns = ['📊', 'Ticker', 'Price', 'Vol', 'Flow', '30D']
+                        
+                        st.dataframe(final_inst, use_container_width=True, hide_index=True)
+                        
+                        st.success(f"🏦 Detected {len(institutional_stocks)} stocks with institutional activity")
+                    else:
+                        st.info("No clear institutional footprints detected")
+                
+                with col2:
+                    st.markdown("##### 🔄 **CATEGORY MONEY FLOW**")
+                    
+                    if 'category' in filtered_df.columns:
+                        category_flow = []
+                        
+                        for category in filtered_df['category'].unique():
+                            if category != 'Unknown':
+                                cat_df = filtered_df[filtered_df['category'] == category]
+                                
+                                cat_metrics = {
+                                    'Category': category,
+                                    'Stocks': len(cat_df),
+                                    'Avg Score': cat_df['master_score'].mean() if 'master_score' in cat_df.columns else 0
+                                }
+                                
+                                # Money flow analysis
+                                if 'money_flow_mm' in cat_df.columns:
+                                    cat_metrics['Total Flow'] = cat_df['money_flow_mm'].sum()
+                                    cat_metrics['Avg Flow'] = cat_df['money_flow_mm'].mean()
+                                
+                                # Volume analysis
+                                if 'rvol' in cat_df.columns:
+                                    cat_metrics['Active'] = len(cat_df[cat_df['rvol'] > 2])
+                                
+                                # Momentum
+                                if 'ret_30d' in cat_df.columns:
+                                    cat_metrics['Avg 30D'] = cat_df['ret_30d'].mean()
+                                
+                                category_flow.append(cat_metrics)
+                        
+                        if category_flow:
+                            cat_flow_df = pd.DataFrame(category_flow)
+                            
+                            # Calculate flow score
+                            if 'Total Flow' in cat_flow_df.columns:
+                                cat_flow_df = cat_flow_df.sort_values('Total Flow', ascending=False)
+                            else:
+                                cat_flow_df = cat_flow_df.sort_values('Avg Score', ascending=False)
+                            
+                            # Format display
+                            format_cols = ['Category', 'Stocks', 'Avg Score']
+                            if 'Total Flow' in cat_flow_df.columns:
+                                format_cols.append('Total Flow')
+                                cat_flow_df['Total Flow'] = cat_flow_df['Total Flow'].apply(lambda x: f"₹{x:.0f}M")
+                            if 'Active' in cat_flow_df.columns:
+                                format_cols.append('Active')
+                            if 'Avg 30D' in cat_flow_df.columns:
+                                format_cols.append('Avg 30D')
+                                cat_flow_df['Avg 30D'] = cat_flow_df['Avg 30D'].apply(lambda x: f"{x:+.1f}%")
+                            
+                            cat_flow_df['Avg Score'] = cat_flow_df['Avg Score'].apply(lambda x: f"{x:.1f}")
+                            
+                            st.dataframe(
+                                cat_flow_df[format_cols],
+                                use_container_width=True,
+                                hide_index=True
+                            )
+                            
+                            # Flow direction indicator
+                            if 'Total Flow' in cat_flow_df.columns:
+                                top_flow_cat = cat_flow_df.iloc[0]['Category']
+                                if 'Small' in top_flow_cat or 'Micro' in top_flow_cat:
+                                    st.success("🔥 Risk-On: Money flowing to small caps")
+                                elif 'Large' in top_flow_cat or 'Mega' in top_flow_cat:
+                                    st.warning("🛡️ Risk-Off: Money flowing to large caps")
+                                else:
+                                    st.info("➡️ Neutral: Balanced money flow")
+                    else:
+                        st.info("Category data not available")
+            
+            # TAB 3: ANOMALY DETECTION
+            with intel_tabs[2]:
+                st.markdown("##### ⚠️ **MARKET ANOMALY SCANNER**")
                 
                 anomalies = []
                 
-                # Check for unusual patterns
-                if 'rvol' in filtered_df.columns:
-                    extreme_vol_pct = (len(filtered_df[filtered_df['rvol'] > 5]) / len(filtered_df)) * 100
-                    if extreme_vol_pct > 5:
-                        anomalies.append(f"🚨 {extreme_vol_pct:.0f}% extreme volume")
+                # Anomaly 1: Extreme volume without price movement
+                if all(col in filtered_df.columns for col in ['rvol', 'ret_1d']):
+                    stuck_volume = filtered_df[(filtered_df['rvol'] > 3) & (filtered_df['ret_1d'].abs() < 1)]
+                    if len(stuck_volume) > 5:
+                        anomalies.append({
+                            'Type': '🔴 Volume Trap',
+                            'Signal': 'High volume, no price move',
+                            'Count': len(stuck_volume),
+                            'Examples': ', '.join(stuck_volume['ticker'].head(3).tolist()),
+                            'Action': 'AVOID - Distribution likely'
+                        })
                 
-                # Check wave imbalance
-                if 'wave_state' in filtered_df.columns:
-                    if wave_counts['BREAKING'] > total_waves * 0.4:
-                        anomalies.append(f"💥 {wave_counts['BREAKING']} breaking")
-                    if wave_counts['CRESTING'] > total_waves * 0.4:
-                        anomalies.append(f"⚠️ {wave_counts['CRESTING']} cresting")
+                # Anomaly 2: Too many stocks at 52W high
+                if 'from_high_pct' in filtered_df.columns:
+                    near_highs = filtered_df[filtered_df['from_high_pct'] > -5]
+                    high_percentage = (len(near_highs) / len(filtered_df)) * 100
+                    if high_percentage > 30:
+                        anomalies.append({
+                            'Type': '🟡 Overbought Market',
+                            'Signal': f'{high_percentage:.0f}% near 52W highs',
+                            'Count': len(near_highs),
+                            'Examples': ', '.join(near_highs['ticker'].head(3).tolist()),
+                            'Action': 'CAUTION - Pullback likely'
+                        })
                 
-                # Pattern clustering
+                # Anomaly 3: Divergence between categories
+                if 'category' in filtered_df.columns and 'master_score' in filtered_df.columns:
+                    cat_scores = filtered_df.groupby('category')['master_score'].mean()
+                    if len(cat_scores) > 1:
+                        score_spread = cat_scores.max() - cat_scores.min()
+                        if score_spread > 30:
+                            anomalies.append({
+                                'Type': '🟠 Category Divergence',
+                                'Signal': f'Spread: {score_spread:.0f} points',
+                                'Count': len(cat_scores),
+                                'Examples': f"Best: {cat_scores.idxmax()}, Worst: {cat_scores.idxmin()}",
+                                'Action': 'ROTATE - Move to stronger category'
+                            })
+                
+                # Anomaly 4: Pattern clustering
                 if 'patterns' in filtered_df.columns:
-                    stocks_with_many = len(filtered_df[filtered_df['patterns'].str.count('\|') > 3])
-                    if stocks_with_many > 10:
-                        anomalies.append(f"🎯 {stocks_with_many} multi-patterns")
+                    reversal_patterns = filtered_df[filtered_df['patterns'].str.contains('BULL TRAP|DISTRIBUTION|EXHAUSTION', na=False)]
+                    if len(reversal_patterns) > len(filtered_df) * 0.1:  # More than 10%
+                        anomalies.append({
+                            'Type': '🔴 Reversal Cluster',
+                            'Signal': 'Multiple reversal patterns',
+                            'Count': len(reversal_patterns),
+                            'Examples': ', '.join(reversal_patterns['ticker'].head(3).tolist()),
+                            'Action': 'EXIT - Market topping'
+                        })
+                
+                # Anomaly 5: Extreme breadth
+                if 'ret_30d' in filtered_df.columns:
+                    extreme_winners = filtered_df[filtered_df['ret_30d'] > 50]
+                    extreme_losers = filtered_df[filtered_df['ret_30d'] < -30]
+                    if len(extreme_winners) > len(filtered_df) * 0.2:
+                        anomalies.append({
+                            'Type': '🟡 Euphoria Warning',
+                            'Signal': f'{len(extreme_winners)} stocks up >50%',
+                            'Count': len(extreme_winners),
+                            'Examples': ', '.join(extreme_winners['ticker'].head(3).tolist()),
+                            'Action': 'TRIM - Take partial profits'
+                        })
+                    if len(extreme_losers) > len(filtered_df) * 0.2:
+                        anomalies.append({
+                            'Type': '🟢 Capitulation Signal',
+                            'Signal': f'{len(extreme_losers)} stocks down >30%',
+                            'Count': len(extreme_losers),
+                            'Examples': ', '.join(extreme_losers['ticker'].head(3).tolist()),
+                            'Action': 'BUY - Oversold bounce likely'
+                        })
                 
                 if anomalies:
-                    for anomaly in anomalies[:3]:
-                        st.warning(anomaly)
+                    anomaly_df = pd.DataFrame(anomalies)
+                    
+                    # Color code by severity
+                    def highlight_anomaly(row):
+                        if '🔴' in row['Type']:
+                            return ['background-color: #ffcccc'] * len(row)
+                        elif '🟡' in row['Type']:
+                            return ['background-color: #fff3cd'] * len(row)
+                        elif '🟠' in row['Type']:
+                            return ['background-color: #ffe6cc'] * len(row)
+                        elif '🟢' in row['Type']:
+                            return ['background-color: #d4edda'] * len(row)
+                        return [''] * len(row)
+                    
+                    st.dataframe(
+                        anomaly_df.style.apply(highlight_anomaly, axis=1),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    # Summary
+                    critical = len([a for a in anomalies if '🔴' in a['Type']])
+                    if critical > 0:
+                        st.error(f"⚠️ {critical} CRITICAL anomalies detected - Review immediately!")
                 else:
-                    st.success("✅ No anomalies detected")
+                    st.success("✅ No significant market anomalies detected - Normal market conditions")
+            
+            # Intelligence Summary
+            st.markdown("---")
+            
+            # Calculate intelligence score
+            intel_score = 0
+            intel_factors = []
+            
+            if 'sector_analysis' in locals() and sector_analysis:
+                hot_sectors = len([s for s in sector_analysis if s['Rotation Score'] >= 75])
+                if hot_sectors > 0:
+                    intel_score += 25
+                    intel_factors.append(f"🔥 {hot_sectors} hot sectors")
+            
+            if 'institutional_stocks' in locals() and len(institutional_stocks) > 0:
+                intel_score += 25
+                intel_factors.append(f"🏦 {len(institutional_stocks)} institutional")
+            
+            if 'anomalies' in locals():
+                if not anomalies:
+                    intel_score += 25
+                    intel_factors.append("✅ No anomalies")
+                elif critical == 0:
+                    intel_score += 15
+                    intel_factors.append(f"⚠️ {len(anomalies)} warnings")
+            
+            # Money flow direction
+            if 'cat_flow_df' in locals() and not cat_flow_df.empty:
+                intel_score += 25
+                top_cat = cat_flow_df.iloc[0]['Category']
+                intel_factors.append(f"💰 Flow to {top_cat}")
+            
+            if intel_score >= 75:
+                st.success(f"🧠 **INTELLIGENCE SCORE: {intel_score}/100** | {' | '.join(intel_factors)}")
+            elif intel_score >= 50:
+                st.info(f"🧠 **INTELLIGENCE SCORE: {intel_score}/100** | {' | '.join(intel_factors)}")
+            else:
+                st.warning(f"🧠 **INTELLIGENCE SCORE: {intel_score}/100** | {' | '.join(intel_factors)}")
             
             # ====================================
             # SECTION 5: QUICK INSIGHTS (Bottom)
