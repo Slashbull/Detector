@@ -5945,58 +5945,435 @@ def main():
             else:
                 st.warning(f"🧠 **INTELLIGENCE SCORE: {intel_score}/100** | {' | '.join(intel_factors)}")
             
-            # ====================================
-            # SECTION 5: QUICK INSIGHTS (Bottom)
+           # ====================================
+            # SECTION 5: MARKET INSIGHTS & ACTIONS (Bottom)
             # ====================================
             
             st.markdown("---")
             st.markdown("#### 💡 Market Insights & Actions")
             
+            # FIRST: Define market_mood to fix the error
+            if 'wave_health' in locals():
+                if wave_health > 70:
+                    market_mood = "Risk-On"
+                elif wave_health > 50:
+                    market_mood = "Balanced"
+                else:
+                    market_mood = "Risk-Off"
+            else:
+                # Fallback calculation if wave_health not defined
+                if 'master_score' in filtered_df.columns:
+                    avg_score = filtered_df['master_score'].mean()
+                    if avg_score > 60:
+                        market_mood = "Risk-On"
+                    elif avg_score > 40:
+                        market_mood = "Balanced"
+                    else:
+                        market_mood = "Risk-Off"
+                else:
+                    market_mood = "Unknown"
+            
+            # Create three columns for insights
             insight_col1, insight_col2, insight_col3 = st.columns(3)
             
             with insight_col1:
-                st.info(f"""
-                **📊 Market Summary**
-                • Regime: {market_mood}
-                • Dominant Wave: {max_wave}
-                • Wave Health: {wave_health:.0f}/100
-                • Breadth: {breadth_pct:.0f}% positive
-                """)
+                st.markdown("##### 📊 **MARKET SUMMARY**")
+                
+                # Build comprehensive market summary
+                summary_lines = []
+                
+                # Market mood and regime
+                if market_mood == "Risk-On":
+                    summary_lines.append(f"• **Regime:** 🔥 {market_mood}")
+                    summary_lines.append("• **Bias:** Bullish")
+                elif market_mood == "Balanced":
+                    summary_lines.append(f"• **Regime:** ⚖️ {market_mood}")
+                    summary_lines.append("• **Bias:** Neutral")
+                else:
+                    summary_lines.append(f"• **Regime:** ❄️ {market_mood}")
+                    summary_lines.append("• **Bias:** Bearish")
+                
+                # Wave state summary
+                if 'wave_counts' in locals() and total_waves > 0:
+                    dominant_wave = max(wave_counts, key=wave_counts.get)
+                    wave_pct = (wave_counts[dominant_wave] / total_waves) * 100
+                    summary_lines.append(f"• **Dominant:** {dominant_wave} ({wave_pct:.0f}%)")
+                
+                # Breadth
+                if 'ret_30d' in filtered_df.columns:
+                    breadth_pct = (len(filtered_df[filtered_df['ret_30d'] > 0]) / len(filtered_df)) * 100
+                    summary_lines.append(f"• **Breadth:** {breadth_pct:.0f}% positive")
+                
+                # Activity level
+                if 'rvol' in filtered_df.columns:
+                    high_activity = len(filtered_df[filtered_df['rvol'] > 2])
+                    activity_pct = (high_activity / len(filtered_df)) * 100
+                    if activity_pct > 20:
+                        summary_lines.append(f"• **Activity:** 🔥 High ({activity_pct:.0f}%)")
+                    elif activity_pct > 10:
+                        summary_lines.append(f"• **Activity:** ⚡ Moderate ({activity_pct:.0f}%)")
+                    else:
+                        summary_lines.append(f"• **Activity:** 😴 Low ({activity_pct:.0f}%)")
+                
+                # Display summary
+                st.info("\n".join(summary_lines))
             
             with insight_col2:
-                # Key opportunities
+                st.markdown("##### 🎯 **TOP OPPORTUNITIES**")
+                
                 opportunities = []
+                opp_data = []
                 
+                # Opportunity 1: Breakout candidates
                 if 'breakout_score' in filtered_df.columns:
-                    near_breakout = len(filtered_df[filtered_df['breakout_score'] > 80])
-                    if near_breakout > 5:
-                        opportunities.append(f"🎯 {near_breakout} near breakout")
+                    near_breakout = filtered_df[filtered_df['breakout_score'] > 80]
+                    if len(near_breakout) > 0:
+                        top_breakout = near_breakout.nlargest(1, 'breakout_score').iloc[0]
+                        opportunities.append(f"• **Breakout:** {top_breakout['ticker']} @ ₹{top_breakout['price']:.0f}")
+                        opp_data.append({
+                            'ticker': top_breakout['ticker'],
+                            'type': 'Breakout',
+                            'score': top_breakout['breakout_score']
+                        })
                 
+                # Opportunity 2: Momentum leaders
                 if 'acceleration_score' in filtered_df.columns:
-                    accelerating = len(filtered_df[filtered_df['acceleration_score'] > 80])
-                    if accelerating > 5:
-                        opportunities.append(f"🚀 {accelerating} accelerating")
+                    accelerating = filtered_df[
+                        (filtered_df['acceleration_score'] > 80) & 
+                        (filtered_df.get('momentum_score', 0) > 70)
+                    ]
+                    if len(accelerating) > 0:
+                        top_accel = accelerating.nlargest(1, 'acceleration_score').iloc[0]
+                        opportunities.append(f"• **Momentum:** {top_accel['ticker']} ({top_accel['acceleration_score']:.0f})")
+                        opp_data.append({
+                            'ticker': top_accel['ticker'],
+                            'type': 'Momentum',
+                            'score': top_accel['acceleration_score']
+                        })
+                
+                # Opportunity 3: Volume surges
+                if 'rvol' in filtered_df.columns:
+                    volume_surge = filtered_df[
+                        (filtered_df['rvol'] > 3) & 
+                        (filtered_df.get('ret_1d', 0) > 2)
+                    ]
+                    if len(volume_surge) > 0:
+                        top_vol = volume_surge.nlargest(1, 'rvol').iloc[0]
+                        opportunities.append(f"• **Volume:** {top_vol['ticker']} ({top_vol['rvol']:.1f}x)")
+                        opp_data.append({
+                            'ticker': top_vol['ticker'],
+                            'type': 'Volume',
+                            'score': top_vol['rvol']
+                        })
+                
+                # Opportunity 4: Hidden gems
+                if all(col in filtered_df.columns for col in ['category_percentile', 'percentile']):
+                    hidden = filtered_df[
+                        (filtered_df['category_percentile'] > 85) & 
+                        (filtered_df['percentile'] < 60)
+                    ]
+                    if len(hidden) > 0:
+                        top_hidden = hidden.nlargest(1, 'master_score').iloc[0]
+                        opportunities.append(f"• **Hidden:** {top_hidden['ticker']} (Cat #{int(top_hidden.get('category_rank', 0))})")
+                        opp_data.append({
+                            'ticker': top_hidden['ticker'],
+                            'type': 'Hidden',
+                            'score': top_hidden['category_percentile']
+                        })
                 
                 if opportunities:
-                    st.success(f"""
-                    **🔥 Opportunities**
-                    {chr(10).join(['• ' + opp for opp in opportunities[:3]])}
-                    """)
+                    # Determine action based on market mood
+                    if market_mood == "Risk-On":
+                        action_color = "success"
+                        action_text = f"**ACTION: BUY AGGRESSIVELY**\n" + "\n".join(opportunities[:3])
+                    elif market_mood == "Balanced":
+                        action_color = "info"
+                        action_text = f"**ACTION: BUY SELECTIVELY**\n" + "\n".join(opportunities[:2])
+                    else:
+                        action_color = "warning"
+                        action_text = f"**ACTION: WAIT FOR CONFIRMATION**\n" + "\n".join(opportunities[:1])
+                    
+                    getattr(st, action_color)(action_text)
                 else:
-                    st.success("**🔍 Scanning for opportunities...**")
+                    st.warning("**No clear opportunities**\nWait for better setups")
             
             with insight_col3:
-                # Navigation hints
-                st.warning(f"""
-                **🧭 Explore More**
-                • 🏆 Rankings → Top stocks
-                • 🌊 Wave Radar → Deep wave analysis
-                • 📊 Analysis → Sector/Pattern details
-                • 🔍 Search → Find specific stocks
-                """)
-        
-        else:
-            st.warning("No data available. Please check filters or data source.")
+                st.markdown("##### ⚠️ **RISK ALERTS**")
+                
+                risks = []
+                risk_level = "Low"
+                
+                # Risk 1: Overextended market
+                if 'from_low_pct' in filtered_df.columns:
+                    overextended = len(filtered_df[filtered_df['from_low_pct'] > 80])
+                    overextended_pct = (overextended / len(filtered_df)) * 100
+                    if overextended_pct > 30:
+                        risks.append(f"• 🔴 {overextended} stocks overextended")
+                        risk_level = "High"
+                
+                # Risk 2: Breaking waves
+                if 'wave_counts' in locals() and total_waves > 0:
+                    breaking_pct = (wave_counts['BREAKING'] / total_waves) * 100
+                    if breaking_pct > 40:
+                        risks.append(f"• 🔴 {breaking_pct:.0f}% breaking")
+                        risk_level = "High"
+                    elif breaking_pct > 25:
+                        risks.append(f"• 🟡 {breaking_pct:.0f}% breaking")
+                        if risk_level != "High":
+                            risk_level = "Medium"
+                
+                # Risk 3: Reversal patterns
+                if 'patterns' in filtered_df.columns:
+                    reversal_patterns = filtered_df[
+                        filtered_df['patterns'].str.contains('BULL TRAP|DISTRIBUTION|EXHAUSTION', na=False)
+                    ]
+                    if len(reversal_patterns) > 5:
+                        risks.append(f"• 🟡 {len(reversal_patterns)} reversal signals")
+                        if risk_level != "High":
+                            risk_level = "Medium"
+                
+                # Risk 4: Volume divergence
+                if all(col in filtered_df.columns for col in ['ret_30d', 'vol_ratio_30d_90d']):
+                    divergence = filtered_df[
+                        (filtered_df['ret_30d'] > 20) & 
+                        (filtered_df['vol_ratio_30d_90d'] < 0.8)
+                    ]
+                    if len(divergence) > 3:
+                        risks.append(f"• 🟡 Volume divergence detected")
+                        if risk_level != "High":
+                            risk_level = "Medium"
+                
+                # Display risk assessment
+                if risk_level == "High":
+                    st.error(f"**RISK LEVEL: HIGH**\n" + "\n".join(risks))
+                    st.caption("⚠️ Reduce positions, tighten stops")
+                elif risk_level == "Medium":
+                    st.warning(f"**RISK LEVEL: MEDIUM**\n" + "\n".join(risks))
+                    st.caption("⚠️ Monitor closely, partial profits")
+                else:
+                    st.success("**RISK LEVEL: LOW**\n• ✅ Normal market conditions")
+                    st.caption("Continue with plan")
+            
+            # ACTION MATRIX based on market conditions
+            st.markdown("---")
+            st.markdown("##### 🎬 **RECOMMENDED ACTIONS**")
+            
+            action_cols = st.columns(4)
+            
+            with action_cols[0]:
+                st.markdown("**📈 ENTRY SIGNALS**")
+                
+                entry_candidates = []
+                
+                # Find best entry candidates
+                entry_conditions = pd.Series(True, index=filtered_df.index)
+                
+                if 'wave_state' in filtered_df.columns:
+                    entry_conditions &= ~filtered_df['wave_state'].str.contains('BREAKING', na=False)
+                if 'momentum_score' in filtered_df.columns:
+                    entry_conditions &= filtered_df['momentum_score'] > 60
+                if 'from_low_pct' in filtered_df.columns:
+                    entry_conditions &= filtered_df['from_low_pct'] < 70  # Not overextended
+                if 'trend_quality' in filtered_df.columns:
+                    entry_conditions &= filtered_df['trend_quality'] > 60
+                
+                entry_stocks = filtered_df[entry_conditions]
+                
+                if len(entry_stocks) > 0:
+                    for _, stock in entry_stocks.nlargest(3, 'master_score').iterrows():
+                        # Calculate entry level
+                        entry_price = stock['price']
+                        stop_loss = entry_price * 0.95  # 5% stop
+                        target = entry_price * 1.10  # 10% target
+                        
+                        entry_candidates.append(
+                            f"**{stock['ticker']}**\n"
+                            f"Entry: ₹{entry_price:.0f}\n"
+                            f"Stop: ₹{stop_loss:.0f}\n"
+                            f"Target: ₹{target:.0f}"
+                        )
+                    
+                    if entry_candidates:
+                        st.success("\n---\n".join(entry_candidates[:2]))
+                else:
+                    st.info("No entry signals")
+            
+            with action_cols[1]:
+                st.markdown("**📉 EXIT SIGNALS**")
+                
+                exit_candidates = []
+                
+                # Find stocks to exit
+                exit_conditions = pd.Series(False, index=filtered_df.index)
+                
+                if 'wave_state' in filtered_df.columns:
+                    exit_conditions |= filtered_df['wave_state'].str.contains('BREAKING', na=False)
+                if 'from_low_pct' in filtered_df.columns:
+                    exit_conditions |= filtered_df['from_low_pct'] > 85
+                if 'patterns' in filtered_df.columns:
+                    exit_conditions |= filtered_df['patterns'].str.contains('DISTRIBUTION|EXHAUSTION', na=False)
+                if 'ret_1d' in filtered_df.columns:
+                    exit_conditions |= (filtered_df['ret_1d'] < -5)
+                
+                exit_stocks = filtered_df[exit_conditions]
+                
+                if len(exit_stocks) > 0:
+                    for _, stock in exit_stocks.nlargest(3, 'master_score').iterrows():
+                        reason = []
+                        if 'BREAKING' in str(stock.get('wave_state', '')):
+                            reason.append("Breaking")
+                        if stock.get('from_low_pct', 0) > 85:
+                            reason.append("Overextended")
+                        if 'DISTRIBUTION' in str(stock.get('patterns', '')):
+                            reason.append("Distribution")
+                        
+                        exit_candidates.append(
+                            f"**{stock['ticker']}**\n"
+                            f"Price: ₹{stock['price']:.0f}\n"
+                            f"Reason: {', '.join(reason[:2])}"
+                        )
+                    
+                    if exit_candidates:
+                        st.error("\n---\n".join(exit_candidates[:2]))
+                else:
+                    st.info("No exit signals")
+            
+            with action_cols[2]:
+                st.markdown("**⏰ WATCH LIST**")
+                
+                watch_candidates = []
+                
+                # Find stocks to watch (almost ready)
+                if 'breakout_score' in filtered_df.columns:
+                    watch_stocks = filtered_df[
+                        filtered_df['breakout_score'].between(70, 80)
+                    ].nlargest(3, 'breakout_score')
+                    
+                    for _, stock in watch_stocks.iterrows():
+                        if 'high_52w' in stock and pd.notna(stock['high_52w']):
+                            trigger = stock['high_52w'] * 0.98
+                        else:
+                            trigger = stock['price'] * 1.05
+                        
+                        watch_candidates.append(
+                            f"**{stock['ticker']}**\n"
+                            f"Current: ₹{stock['price']:.0f}\n"
+                            f"Buy >₹{trigger:.0f}"
+                        )
+                
+                if watch_candidates:
+                    st.warning("\n---\n".join(watch_candidates[:2]))
+                else:
+                    st.info("No stocks on watch")
+            
+            with action_cols[3]:
+                st.markdown("**💰 PROFIT BOOKING**")
+                
+                profit_candidates = []
+                
+                # Find stocks for profit booking
+                profit_conditions = pd.Series(False, index=filtered_df.index)
+                
+                if 'ret_30d' in filtered_df.columns:
+                    profit_conditions |= filtered_df['ret_30d'] > 50  # Big winners
+                if 'from_low_pct' in filtered_df.columns:
+                    profit_conditions |= filtered_df['from_low_pct'] > 80
+                if 'patterns' in filtered_df.columns:
+                    profit_conditions |= filtered_df['patterns'].str.contains('CRESTING', na=False)
+                
+                profit_stocks = filtered_df[profit_conditions & (filtered_df.get('master_score', 0) > 60)]
+                
+                if len(profit_stocks) > 0:
+                    for _, stock in profit_stocks.nlargest(3, 'ret_30d').iterrows():
+                        gain = stock.get('ret_30d', 0)
+                        
+                        profit_candidates.append(
+                            f"**{stock['ticker']}**\n"
+                            f"Gain: {gain:+.1f}%\n"
+                            f"Book 50% profit"
+                        )
+                
+                if profit_candidates:
+                    st.info("\n---\n".join(profit_candidates[:2]))
+                else:
+                    st.info("Hold all positions")
+            
+            # Final Strategy Summary
+            st.markdown("---")
+            
+            # Determine overall strategy based on all factors
+            strategy_score = 0
+            strategy_factors = []
+            
+            # Factor 1: Market mood
+            if market_mood == "Risk-On":
+                strategy_score += 40
+                strategy_factors.append("Bullish regime")
+            elif market_mood == "Balanced":
+                strategy_score += 20
+                strategy_factors.append("Neutral regime")
+            else:
+                strategy_factors.append("Bearish regime")
+            
+            # Factor 2: Wave health
+            if 'wave_health' in locals():
+                if wave_health > 70:
+                    strategy_score += 30
+                    strategy_factors.append("Strong waves")
+                elif wave_health > 50:
+                    strategy_score += 15
+                    strategy_factors.append("Moderate waves")
+            
+            # Factor 3: Opportunities vs Risks
+            if 'opp_data' in locals() and len(opp_data) > len(risks):
+                strategy_score += 20
+                strategy_factors.append("More opportunities")
+            elif len(risks) > 3:
+                strategy_score -= 10
+                strategy_factors.append("High risks")
+            
+            # Factor 4: Breadth
+            if 'breadth_pct' in locals() and breadth_pct > 60:
+                strategy_score += 10
+                strategy_factors.append("Good breadth")
+            
+            # Display final strategy recommendation
+            if strategy_score >= 70:
+                st.success(
+                    f"### 🚀 **AGGRESSIVE BUY MODE**\n"
+                    f"**Score: {strategy_score}/100** | {' | '.join(strategy_factors)}\n\n"
+                    f"• Use full position sizes\n"
+                    f"• Focus on CRESTING & BUILDING waves\n"
+                    f"• Target momentum leaders\n"
+                    f"• Hold winners, add on dips"
+                )
+            elif strategy_score >= 40:
+                st.info(
+                    f"### 📊 **SELECTIVE BUY MODE**\n"
+                    f"**Score: {strategy_score}/100** | {' | '.join(strategy_factors)}\n\n"
+                    f"• Use 50-75% position sizes\n"
+                    f"• Focus on BUILDING waves only\n"
+                    f"• Wait for breakout confirmations\n"
+                    f"• Take partial profits on rallies"
+                )
+            elif strategy_score >= 20:
+                st.warning(
+                    f"### ⚖️ **NEUTRAL/CAUTIOUS MODE**\n"
+                    f"**Score: {strategy_score}/100** | {' | '.join(strategy_factors)}\n\n"
+                    f"• Use 25-50% position sizes\n"
+                    f"• Focus on FORMING waves with catalysts\n"
+                    f"• Tight stop losses required\n"
+                    f"• Book profits quickly"
+                )
+            else:
+                st.error(
+                    f"### 🛡️ **DEFENSIVE/CASH MODE**\n"
+                    f"**Score: {strategy_score}/100** | {' | '.join(strategy_factors)}\n\n"
+                    f"• Minimize positions\n"
+                    f"• Hold cash or defensive stocks\n"
+                    f"• Wait for CAPITULATION patterns\n"
+                    f"• Preserve capital is priority"
+                )
     
     # Tab 1: Rankings
     with tabs[1]:
