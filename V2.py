@@ -968,161 +968,131 @@ class AdvancedMetrics:
             return "💥 BREAKING"  # Breakdown
         else:
             return "🔻 COLLAPSING"  # Severe breakdown
-    
-    # ============================================
-    # ENHANCED OVERALL WAVE STRENGTH CALCULATION
-    # Replace in calculate_all_metrics method
-    # ============================================
-    
-    # Overall Wave Strength - MORE SOPHISTICATED
-    if all(col in df.columns for col in ['momentum_score', 'acceleration_score', 'rvol_score', 'breakout_score']):
-        # Base calculation
-        base_strength = (
-            df['momentum_score'].fillna(50) * 0.25 +
-            df['acceleration_score'].fillna(50) * 0.25 +
-            df['rvol_score'].fillna(50) * 0.20 +
-            df['breakout_score'].fillna(50) * 0.20
-        )
-        
-        # Trend quality modifier
-        trend_modifier = 1.0
-        if 'trend_quality' in df.columns:
-            trend_modifier = 0.8 + (df['trend_quality'].fillna(50) / 250)  # 0.8 to 1.2
-        
-        # Volume momentum modifier
-        volume_modifier = 1.0
-        if 'vmi' in df.columns:
-            volume_modifier = 0.9 + (df['vmi'].fillna(1.0).clip(0, 2) / 10)  # 0.9 to 1.1
-        
-        # Position modifier (penalize overextension)
-        position_modifier = 1.0
-        if 'from_low_pct' in df.columns:
-            # Reduce strength if too far from support
-            position_modifier = pd.Series(
-                np.where(df['from_low_pct'] > 80, 0.9,  # 10% penalty if overextended
-                        np.where(df['from_low_pct'] < 20, 1.1,  # 10% bonus if near support
-                                1.0)),
-                index=df.index
-            )
-        
-        # Harmony bonus
-        harmony_bonus = 0
-        if 'momentum_harmony' in df.columns:
-            harmony_bonus = df['momentum_harmony'].fillna(0) * 2.5  # 0-10 point bonus
-        
-        # Calculate final wave strength
-        df['overall_wave_strength'] = (
-            base_strength * trend_modifier * volume_modifier * position_modifier + harmony_bonus
-        ).clip(0, 100)
-    else:
-        df['overall_wave_strength'] = pd.Series(50, index=df.index)
-    
-    # ============================================
-    # ADD NEW WAVE METRICS
-    # Add these after wave_state calculation
-    # ============================================
-    
-    # Wave Velocity (rate of change in wave strength)
-    if 'overall_wave_strength' in df.columns:
-        # Calculate wave acceleration
-        df['wave_velocity'] = 0
-        
-        # Use returns as proxy for velocity
-        if all(col in df.columns for col in ['ret_1d', 'ret_7d', 'ret_30d']):
-            daily_velocity = df['ret_1d'].fillna(0)
-            weekly_velocity = df['ret_7d'].fillna(0) / 7
-            monthly_velocity = df['ret_30d'].fillna(0) / 30
-            
-            df['wave_velocity'] = (
-                daily_velocity * 0.5 +  # Recent weighted more
-                weekly_velocity * 0.3 +
-                monthly_velocity * 0.2
-            ).round(2)
-    
-    # Wave Pressure (likelihood of state change)
-    df['wave_pressure'] = 0
-    if all(col in df.columns for col in ['rvol', 'momentum_harmony', 'position_tension']):
-        # High pressure = likely to change state soon
-        df['wave_pressure'] = (
-            (df['rvol'].fillna(1) - 1) * 25 +  # Volume pressure
-            (4 - df['momentum_harmony'].fillna(2)) * 12.5 +  # Divergence pressure
-            (df['position_tension'].fillna(50) / 100) * 25  # Position pressure
-        ).clip(0, 100)
-    
-    # Wave Direction (bullish/bearish/neutral)
-    df['wave_direction'] = 'NEUTRAL'
-    if all(col in df.columns for col in ['ret_30d', 'momentum_score', 'trend_quality']):
-        bullish_mask = (
-            (df['ret_30d'] > 5) & 
-            (df['momentum_score'] > 60) & 
-            (df['trend_quality'] > 60)
-        )
-        bearish_mask = (
-            (df['ret_30d'] < -5) & 
-            (df['momentum_score'] < 40) & 
-            (df['trend_quality'] < 40)
-        )
-        
-        df.loc[bullish_mask, 'wave_direction'] = '↗️ BULLISH'
-        df.loc[bearish_mask, 'wave_direction'] = '↘️ BEARISH'
-        df.loc[~bullish_mask & ~bearish_mask, 'wave_direction'] = '➡️ NEUTRAL'
-    
-    # ============================================
-    # WAVE STATE TRANSITIONS PREDICTOR
-    # Add this as a new method in AdvancedMetrics
-    # ============================================
+
+        class AdvancedMetrics:
+    """
+    Calculates advanced metrics and indicators using a combination of price,
+    volume, and algorithmically derived scores. Ensures robust calculation
+    by handling potential missing data (NaNs) gracefully.
+    """
     
     @staticmethod
-    def predict_next_wave_state(df: pd.DataFrame) -> pd.DataFrame:
+    @PerformanceMonitor.timer(target_time=0.5)
+    def calculate_all_metrics(df: pd.DataFrame) -> pd.DataFrame:
         """
-        Predicts the likely next wave state transition
+        Calculates a comprehensive set of advanced metrics for the DataFrame.
         """
-        df['next_wave_prediction'] = ''
-        df['transition_probability'] = 0
+        if df.empty:
+            return df
         
-        for idx, row in df.iterrows():
-            current_state = row.get('wave_state', '')
-            wave_velocity = row.get('wave_velocity', 0)
-            wave_pressure = row.get('wave_pressure', 0)
+        # Money Flow (in millions)
+        if all(col in df.columns for col in ['price', 'volume_1d', 'rvol']):
+            df['money_flow'] = df['price'].fillna(0) * df['volume_1d'].fillna(0) * df['rvol'].fillna(1.0)
+            df['money_flow_mm'] = df['money_flow'] / 1_000_000
+        else:
+            df['money_flow_mm'] = pd.Series(np.nan, index=df.index)
+        
+        # Volume Momentum Index (VMI)
+        if all(col in df.columns for col in ['vol_ratio_1d_90d', 'vol_ratio_7d_90d', 'vol_ratio_30d_90d', 'vol_ratio_90d_180d']):
+            df['vmi'] = (
+                df['vol_ratio_1d_90d'].fillna(1.0) * 4 +
+                df['vol_ratio_7d_90d'].fillna(1.0) * 3 +
+                df['vol_ratio_30d_90d'].fillna(1.0) * 2 +
+                df['vol_ratio_90d_180d'].fillna(1.0) * 1
+            ) / 10
+        else:
+            df['vmi'] = pd.Series(np.nan, index=df.index)
+        
+        # Position Tension
+        if all(col in df.columns for col in ['from_low_pct', 'from_high_pct']):
+            df['position_tension'] = df['from_low_pct'].fillna(50) + abs(df['from_high_pct'].fillna(-50))
+        else:
+            df['position_tension'] = pd.Series(np.nan, index=df.index)
+        
+        # Momentum Harmony
+        df['momentum_harmony'] = pd.Series(0, index=df.index, dtype=int)
+        
+        if 'ret_1d' in df.columns:
+            df['momentum_harmony'] += (df['ret_1d'].fillna(0) > 0).astype(int)
+        
+        if all(col in df.columns for col in ['ret_7d', 'ret_30d']):
+            with np.errstate(divide='ignore', invalid='ignore'):
+                daily_ret_7d = pd.Series(np.where(df['ret_7d'].fillna(0) != 0, df['ret_7d'].fillna(0) / 7, np.nan), index=df.index)
+                daily_ret_30d = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
+            df['momentum_harmony'] += ((daily_ret_7d.fillna(-np.inf) > daily_ret_30d.fillna(-np.inf))).astype(int)
+        
+        if all(col in df.columns for col in ['ret_30d', 'ret_3m']):
+            with np.errstate(divide='ignore', invalid='ignore'):
+                daily_ret_30d_comp = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
+                daily_ret_3m_comp = pd.Series(np.where(df['ret_3m'].fillna(0) != 0, df['ret_3m'].fillna(0) / 90, np.nan), index=df.index)
+            df['momentum_harmony'] += ((daily_ret_30d_comp.fillna(-np.inf) > daily_ret_3m_comp.fillna(-np.inf))).astype(int)
+        
+        if 'ret_3m' in df.columns:
+            df['momentum_harmony'] += (df['ret_3m'].fillna(0) > 0).astype(int)
+        
+        # Wave State
+        df['wave_state'] = df.apply(AdvancedMetrics._get_wave_state, axis=1)
+        
+        # ============================================
+        # Overall Wave Strength - MORE SOPHISTICATED
+        # THIS SHOULD BE INSIDE THE METHOD, NOT AT CLASS LEVEL!
+        # ============================================
+        
+        if all(col in df.columns for col in ['momentum_score', 'acceleration_score', 'rvol_score', 'breakout_score']):
+            # Base calculation
+            base_strength = (
+                df['momentum_score'].fillna(50) * 0.25 +
+                df['acceleration_score'].fillna(50) * 0.25 +
+                df['rvol_score'].fillna(50) * 0.20 +
+                df['breakout_score'].fillna(50) * 0.20
+            )
             
-            # Predict based on current state and metrics
-            if 'TSUNAMI' in current_state or 'CRESTING' in current_state:
-                if wave_pressure > 70:
-                    df.loc[idx, 'next_wave_prediction'] = '⚠️ EXHAUSTING'
-                    df.loc[idx, 'transition_probability'] = wave_pressure
-                else:
-                    df.loc[idx, 'next_wave_prediction'] = '🌊🌊 SUSTAINING'
-                    df.loc[idx, 'transition_probability'] = 100 - wave_pressure
-                    
-            elif 'BUILDING' in current_state or 'RISING' in current_state:
-                if wave_velocity > 2 and wave_pressure < 50:
-                    df.loc[idx, 'next_wave_prediction'] = '🌊🌊🌊 CRESTING'
-                    df.loc[idx, 'transition_probability'] = min(wave_velocity * 20, 100)
-                else:
-                    df.loc[idx, 'next_wave_prediction'] = '🌊🌊 BUILDING'
-                    df.loc[idx, 'transition_probability'] = 50
-                    
-            elif 'FORMING' in current_state or 'RIPPLING' in current_state:
-                if wave_velocity > 1 and row.get('rvol', 0) > 2:
-                    df.loc[idx, 'next_wave_prediction'] = '🌊🌊 BUILDING'
-                    df.loc[idx, 'transition_probability'] = wave_velocity * 30
-                else:
-                    df.loc[idx, 'next_wave_prediction'] = '〰️ CONTINUING'
-                    df.loc[idx, 'transition_probability'] = 60
-                    
-            elif 'BREAKING' in current_state or 'COLLAPSING' in current_state:
-                if wave_velocity > 0 and row.get('from_low_pct', 100) < 20:
-                    df.loc[idx, 'next_wave_prediction'] = '🔄 REVERSING'
-                    df.loc[idx, 'transition_probability'] = 40 + wave_velocity * 10
-                else:
-                    df.loc[idx, 'next_wave_prediction'] = '🔻 DECLINING'
-                    df.loc[idx, 'transition_probability'] = 70
-                    
-            else:
-                df.loc[idx, 'next_wave_prediction'] = '❓ UNCERTAIN'
-                df.loc[idx, 'transition_probability'] = 50
+            # Trend quality modifier
+            trend_modifier = 1.0
+            if 'trend_quality' in df.columns:
+                trend_modifier = 0.8 + (df['trend_quality'].fillna(50) / 250)  # 0.8 to 1.2
+            
+            # Volume momentum modifier
+            volume_modifier = 1.0
+            if 'vmi' in df.columns:
+                volume_modifier = 0.9 + (df['vmi'].fillna(1.0).clip(0, 2) / 10)  # 0.9 to 1.1
+            
+            # Position modifier (penalize overextension)
+            position_modifier = 1.0
+            if 'from_low_pct' in df.columns:
+                # Reduce strength if too far from support
+                position_modifier = pd.Series(
+                    np.where(df['from_low_pct'] > 80, 0.9,  # 10% penalty if overextended
+                            np.where(df['from_low_pct'] < 20, 1.1,  # 10% bonus if near support
+                                    1.0)),
+                    index=df.index
+                )
+            
+            # Harmony bonus
+            harmony_bonus = 0
+            if 'momentum_harmony' in df.columns:
+                harmony_bonus = df['momentum_harmony'].fillna(0) * 2.5  # 0-10 point bonus
+            
+            # Calculate final wave strength
+            df['overall_wave_strength'] = (
+                base_strength * trend_modifier * volume_modifier * position_modifier + harmony_bonus
+            ).clip(0, 100)
+        else:
+            df['overall_wave_strength'] = pd.Series(50, index=df.index)
         
-        return df
+        # ADD ALL OTHER WAVE METRICS HERE (inside the method)
+        # Wave Velocity, Wave Pressure, Wave Direction, etc.
+        
+        return df  # Don't forget to return df!
+    
+    @staticmethod
+    def _get_wave_state(row: pd.Series) -> str:
+        """
+        Wave state detection method
+        """
+        # Your wave state logic here
+        # ... (keep the existing or improved wave state logic)
+        return "🌊 FORMING"  # Default return
         
 # ============================================
 # RANKING ENGINE - OPTIMIZED
