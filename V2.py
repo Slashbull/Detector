@@ -737,7 +737,7 @@ class DataProcessor:
         return df
         
 # ============================================
-# ADVANCED METRICS CALCULATOR
+# ADVANCED METRICS CALCULATOR - FIXED WAVE STATE
 # ============================================
 
 class AdvancedMetrics:
@@ -754,12 +754,6 @@ class AdvancedMetrics:
         Calculates a comprehensive set of advanced metrics for the DataFrame.
         All calculations are designed to be vectorized and handle missing data
         without raising errors.
-
-        Args:
-            df (pd.DataFrame): The DataFrame with raw data and core scores.
-
-        Returns:
-            pd.DataFrame: The DataFrame with all calculated advanced metrics added.
         """
         if df.empty:
             return df
@@ -788,68 +782,244 @@ class AdvancedMetrics:
         else:
             df['position_tension'] = pd.Series(np.nan, index=df.index)
         
-        # Momentum Harmony
+        # Momentum Harmony (ENHANCED)
         df['momentum_harmony'] = pd.Series(0, index=df.index, dtype=int)
         
+        # Check 1: Positive 1-day return
         if 'ret_1d' in df.columns:
             df['momentum_harmony'] += (df['ret_1d'].fillna(0) > 0).astype(int)
         
+        # Check 2: 7-day momentum stronger than 30-day average
         if all(col in df.columns for col in ['ret_7d', 'ret_30d']):
             with np.errstate(divide='ignore', invalid='ignore'):
-                daily_ret_7d = pd.Series(np.where(df['ret_7d'].fillna(0) != 0, df['ret_7d'].fillna(0) / 7, np.nan), index=df.index)
-                daily_ret_30d = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
-            df['momentum_harmony'] += ((daily_ret_7d.fillna(-np.inf) > daily_ret_30d.fillna(-np.inf))).astype(int)
+                daily_ret_7d = pd.Series(np.where(df['ret_7d'].fillna(0) != 0, df['ret_7d'].fillna(0) / 7, 0), index=df.index)
+                daily_ret_30d = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, 0), index=df.index)
+            df['momentum_harmony'] += ((daily_ret_7d > daily_ret_30d)).astype(int)
         
+        # Check 3: 30-day momentum stronger than 90-day average
         if all(col in df.columns for col in ['ret_30d', 'ret_3m']):
             with np.errstate(divide='ignore', invalid='ignore'):
-                daily_ret_30d_comp = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, np.nan), index=df.index)
-                daily_ret_3m_comp = pd.Series(np.where(df['ret_3m'].fillna(0) != 0, df['ret_3m'].fillna(0) / 90, np.nan), index=df.index)
-            df['momentum_harmony'] += ((daily_ret_30d_comp.fillna(-np.inf) > daily_ret_3m_comp.fillna(-np.inf))).astype(int)
+                daily_ret_30d_comp = pd.Series(np.where(df['ret_30d'].fillna(0) != 0, df['ret_30d'].fillna(0) / 30, 0), index=df.index)
+                daily_ret_3m_comp = pd.Series(np.where(df['ret_3m'].fillna(0) != 0, df['ret_3m'].fillna(0) / 90, 0), index=df.index)
+            df['momentum_harmony'] += ((daily_ret_30d_comp > daily_ret_3m_comp)).astype(int)
         
+        # Check 4: Positive 3-month return
         if 'ret_3m' in df.columns:
             df['momentum_harmony'] += (df['ret_3m'].fillna(0) > 0).astype(int)
         
-        # Wave State
-        df['wave_state'] = df.apply(AdvancedMetrics._get_wave_state, axis=1)
-
-        # Overall Wave Strength
-        score_cols = ['momentum_score', 'acceleration_score', 'rvol_score', 'breakout_score']
-        if all(col in df.columns for col in score_cols):
-            df['overall_wave_strength'] = (
-                df['momentum_score'].fillna(50) * 0.3 +
-                df['acceleration_score'].fillna(50) * 0.3 +
-                df['rvol_score'].fillna(50) * 0.2 +
-                df['breakout_score'].fillna(50) * 0.2
-            )
-        else:
-            df['overall_wave_strength'] = pd.Series(np.nan, index=df.index)
+        # ENHANCED WAVE STATE CALCULATION
+        df['wave_state'] = df.apply(AdvancedMetrics._get_intelligent_wave_state, axis=1)
+        
+        # Overall Wave Strength (ENHANCED)
+        df['overall_wave_strength'] = df.apply(AdvancedMetrics._calculate_wave_strength, axis=1)
         
         return df
     
     @staticmethod
-    def _get_wave_state(row: pd.Series) -> str:
+    def _get_intelligent_wave_state(row: pd.Series) -> str:
         """
-        Determines the `wave_state` for a single stock based on a set of thresholds.
-        """
-        signals = 0
+        INTELLIGENT Wave State Detection using market psychology
         
-        if row.get('momentum_score', 0) > 70:
-            signals += 1
-        if row.get('volume_score', 0) > 70:
-            signals += 1
-        if row.get('acceleration_score', 0) > 70:
-            signals += 1
+        Philosophy:
+        - FORMING: Accumulation phase, smart money entering
+        - BUILDING: Momentum confirmed, trend established
+        - CRESTING: Euphoria phase, maximum momentum
+        - BREAKING: Distribution/exhaustion, reversal likely
+        """
+        
+        # ====================================
+        # COLLECT ALL SIGNALS
+        # ====================================
+        
+        # Price Momentum Signals
+        momentum_strength = 0
+        if row.get('momentum_score', 0) > 80:
+            momentum_strength = 3
+        elif row.get('momentum_score', 0) > 60:
+            momentum_strength = 2
+        elif row.get('momentum_score', 0) > 40:
+            momentum_strength = 1
+        
+        # Acceleration Signals (Rate of Change)
+        acceleration_strength = 0
+        if row.get('acceleration_score', 0) > 85:
+            acceleration_strength = 3
+        elif row.get('acceleration_score', 0) > 70:
+            acceleration_strength = 2
+        elif row.get('acceleration_score', 0) > 50:
+            acceleration_strength = 1
+        
+        # Volume Signals
+        volume_strength = 0
+        if row.get('rvol', 0) > 3:
+            volume_strength = 3
+        elif row.get('rvol', 0) > 2:
+            volume_strength = 2
+        elif row.get('rvol', 0) > 1.5:
+            volume_strength = 1
+        
+        # Position in Range (52-week)
+        position_strength = 0
+        from_low = row.get('from_low_pct', 50)
+        from_high = row.get('from_high_pct', -50)
+        
+        if from_low > 70 and from_high > -15:  # Near highs
+            position_strength = 3
+        elif from_low > 50:  # Upper half
+            position_strength = 2
+        elif from_low > 30:  # Middle range
+            position_strength = 1
+        
+        # Trend Quality
+        trend_strength = 0
+        if row.get('trend_quality', 0) > 80:
+            trend_strength = 3
+        elif row.get('trend_quality', 0) > 60:
+            trend_strength = 2
+        elif row.get('trend_quality', 0) > 40:
+            trend_strength = 1
+        
+        # Money Flow Intensity
+        flow_strength = 0
+        if row.get('money_flow_mm', 0) > row.get('money_flow_mm', pd.Series([0])).quantile(0.9):
+            flow_strength = 3
+        elif row.get('money_flow_mm', 0) > row.get('money_flow_mm', pd.Series([0])).quantile(0.7):
+            flow_strength = 2
+        elif row.get('money_flow_mm', 0) > row.get('money_flow_mm', pd.Series([0])).quantile(0.5):
+            flow_strength = 1
+        
+        # ====================================
+        # CALCULATE COMPOSITE WAVE SCORE
+        # ====================================
+        
+        # Weighted scoring based on importance
+        composite_score = (
+            momentum_strength * 0.25 +
+            acceleration_strength * 0.20 +
+            volume_strength * 0.20 +
+            position_strength * 0.15 +
+            trend_strength * 0.10 +
+            flow_strength * 0.10
+        )
+        
+        # ====================================
+        # DETECT SPECIAL CONDITIONS
+        # ====================================
+        
+        # Exhaustion Detection (for BREAKING)
+        exhaustion_signals = 0
+        
+        # Price exhaustion: Too far from mean
+        if 'price' in row.index and 'sma_20d' in row.index:
+            if row['sma_20d'] > 0:
+                deviation = (row['price'] - row['sma_20d']) / row['sma_20d']
+                if deviation > 0.15:  # 15% above 20 SMA
+                    exhaustion_signals += 1
+        
+        # Momentum exhaustion: Slowing down
+        if row.get('ret_1d', 0) < 0 and row.get('ret_7d', 0) > 15:
+            exhaustion_signals += 1  # Big move but negative today
+        
+        # Volume exhaustion: Declining on advance
+        if row.get('vol_ratio_1d_90d', 1) < 0.8 and row.get('ret_30d', 0) > 20:
+            exhaustion_signals += 1  # Price up but volume down
+        
+        # Position exhaustion: Too extended
+        if from_low > 85 or from_high > -5:
+            exhaustion_signals += 1  # Near extremes
+        
+        # ====================================
+        # DETERMINE WAVE STATE
+        # ====================================
+        
+        # BREAKING - Market exhaustion or reversal
+        if exhaustion_signals >= 2 or composite_score < 0.8:
+            # Additional checks for BREAKING
+            if (row.get('momentum_score', 0) < 30 or
+                row.get('ret_7d', 0) < -10 or
+                (row.get('ret_1d', 0) < -3 and row.get('rvol', 0) > 2)):
+                return "💥 BREAKING"
+        
+        # CRESTING - Peak momentum, all systems go
+        if composite_score >= 2.3:
+            # Must have strong signals across the board
+            if (momentum_strength >= 2 and
+                acceleration_strength >= 2 and
+                volume_strength >= 2 and
+                position_strength >= 2):
+                return "🌊🌊🌊 CRESTING"
+        
+        # BUILDING - Momentum confirmed, trend established
+        elif composite_score >= 1.5:
+            # Good momentum with some strength
+            if (momentum_strength >= 2 or
+                (acceleration_strength >= 2 and volume_strength >= 1)):
+                return "🌊🌊 BUILDING"
+        
+        # FORMING - Early accumulation
+        elif composite_score >= 0.8:
+            # Some positive signals emerging
+            if (momentum_strength >= 1 or
+                acceleration_strength >= 1 or
+                volume_strength >= 1):
+                return "🌊 FORMING"
+        
+        # Default to BREAKING if weak
+        return "💥 BREAKING"
+    
+    @staticmethod
+    def _calculate_wave_strength(row: pd.Series) -> float:
+        """
+        Calculate overall wave strength (0-100) based on wave state and quality
+        """
+        wave_state = row.get('wave_state', '💥 BREAKING')
+        
+        # Base strength from wave state
+        if 'CRESTING' in wave_state:
+            base_strength = 90
+        elif 'BUILDING' in wave_state:
+            base_strength = 70
+        elif 'FORMING' in wave_state:
+            base_strength = 50
+        else:  # BREAKING
+            base_strength = 30
+        
+        # Quality adjustments
+        quality_bonus = 0
+        
+        # Momentum harmony bonus
+        harmony = row.get('momentum_harmony', 0)
+        quality_bonus += harmony * 2.5  # Max 10 points
+        
+        # Volume confirmation bonus
         if row.get('rvol', 0) > 2:
-            signals += 1
+            quality_bonus += 5
+        elif row.get('rvol', 0) > 1.5:
+            quality_bonus += 2.5
         
-        if signals >= 4:
-            return "🌊🌊🌊 CRESTING"
-        elif signals >= 3:
-            return "🌊🌊 BUILDING"
-        elif signals >= 1:
-            return "🌊 FORMING"
-        else:
-            return "💥 BREAKING"
+        # Trend alignment bonus
+        if row.get('trend_quality', 0) > 80:
+            quality_bonus += 5
+        elif row.get('trend_quality', 0) > 60:
+            quality_bonus += 2.5
+        
+        # Acceleration bonus
+        if row.get('acceleration_score', 0) > 80:
+            quality_bonus += 5
+        elif row.get('acceleration_score', 0) > 60:
+            quality_bonus += 2.5
+        
+        # Calculate final strength
+        final_strength = min(100, base_strength + quality_bonus)
+        
+        # Penalty for breaking state
+        if 'BREAKING' in wave_state:
+            if row.get('ret_7d', 0) < -10:
+                final_strength *= 0.5  # Severe penalty for sharp decline
+            elif row.get('ret_7d', 0) < -5:
+                final_strength *= 0.7
+        
+        return round(final_strength, 1)
         
 # ============================================
 # RANKING ENGINE - OPTIMIZED
@@ -4407,115 +4577,140 @@ def main():
         
         if not filtered_df.empty:
             
+            # In the Summary Tab (tabs[0]), replace the Market Wave State section:
+
             # ====================================
             # SECTION 1: MARKET WAVE PULSE (Philosophy Core)
             # ====================================
-            st.markdown("#### 🌊 Market Wave State")
+            st.markdown("#### 🌊 Market Wave Intelligence System")
             
-            # Calculate wave metrics
-            wave_counts = {
-                'FORMING': len(filtered_df[filtered_df['wave_state'].str.contains('FORMING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
-                'BUILDING': len(filtered_df[filtered_df['wave_state'].str.contains('BUILDING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
-                'CRESTING': len(filtered_df[filtered_df['wave_state'].str.contains('CRESTING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
-                'BREAKING': len(filtered_df[filtered_df['wave_state'].str.contains('BREAKING', na=False)]) if 'wave_state' in filtered_df.columns else 0
+            # Calculate enhanced wave metrics
+            wave_distribution = filtered_df['wave_state'].value_counts()
+            total_stocks = len(filtered_df)
+            
+            # Calculate percentages
+            wave_percentages = {
+                'FORMING': 0,
+                'BUILDING': 0,
+                'CRESTING': 0,
+                'BREAKING': 0
             }
             
-            total_waves = sum(wave_counts.values())
+            for state in wave_distribution.index:
+                if 'FORMING' in state:
+                    wave_percentages['FORMING'] = (wave_distribution[state] / total_stocks) * 100
+                elif 'BUILDING' in state:
+                    wave_percentages['BUILDING'] = (wave_distribution[state] / total_stocks) * 100
+                elif 'CRESTING' in state:
+                    wave_percentages['CRESTING'] = (wave_distribution[state] / total_stocks) * 100
+                elif 'BREAKING' in state:
+                    wave_percentages['BREAKING'] = (wave_distribution[state] / total_stocks) * 100
             
-            # Wave Health Score
-            wave_health = 0
-            if total_waves > 0:
-                wave_health = (
-                    wave_counts['CRESTING'] * 100 +
-                    wave_counts['BUILDING'] * 75 +
-                    wave_counts['FORMING'] * 50 +
-                    wave_counts['BREAKING'] * 25
-                ) / total_waves
+            # Calculate Market Wave Health Score (0-100)
+            wave_health_score = (
+                wave_percentages['CRESTING'] * 1.0 +   # Full weight for cresting
+                wave_percentages['BUILDING'] * 0.75 +   # 75% weight for building
+                wave_percentages['FORMING'] * 0.50 +    # 50% weight for forming
+                wave_percentages['BREAKING'] * 0.0      # No weight for breaking
+            )
             
-            # Visual Wave Flow
-            wave_col1, wave_col2, wave_col3 = st.columns([1, 3, 1])
+            # Determine Market Regime
+            if wave_health_score > 70:
+                market_regime = "🔥 BULLISH TSUNAMI"
+                regime_color = "success"
+                regime_message = "Strong upward momentum across market"
+            elif wave_health_score > 50:
+                market_regime = "🌊 RISING TIDE"
+                regime_color = "info"
+                regime_message = "Positive momentum building"
+            elif wave_health_score > 30:
+                market_regime = "⚖️ CHOPPY WATERS"
+                regime_color = "warning"
+                regime_message = "Mixed signals, be selective"
+            else:
+                market_regime = "🌪️ STORM WARNING"
+                regime_color = "error"
+                regime_message = "Defensive positioning recommended"
             
-            with wave_col1:
-                # Wave Health Meter
-                st.markdown("**Wave Strength**")
+            # Display Wave Intelligence
+            col1, col2, col3 = st.columns([1, 2, 1])
+            
+            with col1:
+                st.metric(
+                    "Wave Health Score",
+                    f"{wave_health_score:.0f}/100",
+                    f"{market_regime}",
+                    help="Composite health of market momentum"
+                )
                 
-                # Color-coded health indicator
-                if wave_health > 70:
-                    st.success(f"## 🔥 {wave_health:.0f}")
-                    st.caption("**BULLISH WAVES**")
-                    market_mood = "Risk-On"
-                elif wave_health > 50:
-                    st.warning(f"## ⚡ {wave_health:.0f}")
-                    st.caption("**NEUTRAL WAVES**")
-                    market_mood = "Balanced"
-                else:
-                    st.error(f"## ❄️ {wave_health:.0f}")
-                    st.caption("**BEARISH WAVES**")
-                    market_mood = "Risk-Off"
-                
-                # Add quick insight
-                if wave_counts['CRESTING'] > wave_counts['FORMING'] * 2:
-                    st.caption("⚠️ Many cresting")
-                elif wave_counts['FORMING'] > wave_counts['CRESTING'] * 2:
-                    st.caption("🌱 New waves forming")
+                # Detailed breakdown
+                st.caption("**Wave Distribution:**")
+                for state, pct in wave_percentages.items():
+                    if pct > 0:
+                        emoji = "🌊🌊🌊" if state == "CRESTING" else "🌊🌊" if state == "BUILDING" else "🌊" if state == "FORMING" else "💥"
+                        st.caption(f"{emoji} {state}: {pct:.1f}%")
             
-            with wave_col2:
-                # Interactive Wave Distribution
+            with col2:
+                # Enhanced Wave Flow Visualization
                 fig = go.Figure()
                 
-                # Create funnel chart for wave flow
-                stages = ['🌊 FORMING', '🌊🌊 BUILDING', '🌊🌊🌊 CRESTING', '💥 BREAKING']
-                values = [wave_counts['FORMING'], wave_counts['BUILDING'], wave_counts['CRESTING'], wave_counts['BREAKING']]
-                colors = ['#3498db', '#f39c12', '#2ecc71', '#e74c3c']
+                # Create waterfall chart showing wave progression
+                colors = ['#e74c3c', '#f39c12', '#3498db', '#2ecc71']  # Breaking, Forming, Building, Cresting
                 
-                # Horizontal bar chart for wave flow
-                fig.add_trace(go.Bar(
-                    y=stages,
+                states = ['💥 BREAKING', '🌊 FORMING', '🌊🌊 BUILDING', '🌊🌊🌊 CRESTING']
+                values = [
+                    wave_percentages['BREAKING'],
+                    wave_percentages['FORMING'],
+                    wave_percentages['BUILDING'],
+                    wave_percentages['CRESTING']
+                ]
+                
+                fig.add_trace(go.Funnel(
+                    y=states,
                     x=values,
-                    orientation='h',
-                    text=[f"{v} ({v/total_waves*100:.0f}%)" if total_waves > 0 else f"{v}" for v in values],
-                    textposition='auto',
-                    marker_color=colors,
-                    hovertemplate='%{y}<br>Count: %{x}<br>%{text}<extra></extra>'
+                    textposition="inside",
+                    textinfo="value+percent initial",
+                    opacity=0.85,
+                    marker={"color": colors},
+                    connector={"line": {"color": "royalblue", "dash": "dot", "width": 3}}
                 ))
                 
                 fig.update_layout(
-                    height=150,
-                    margin=dict(t=0, b=0, l=0, r=0),
+                    title=f"Market Wave Distribution - {market_regime}",
+                    height=250,
+                    margin=dict(t=30, b=0, l=0, r=0),
                     showlegend=False,
-                    template='plotly_white',
-                    xaxis_title="",
-                    yaxis_title="",
-                    xaxis=dict(showgrid=False),
-                    yaxis=dict(showgrid=False)
+                    template='plotly_white'
                 )
                 
                 st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-                
-                # Dominant wave insight
-                max_wave = max(wave_counts, key=wave_counts.get)
-                st.caption(f"📍 **Dominant State:** {max_wave} ({wave_counts[max_wave]} stocks, {wave_counts[max_wave]/total_waves*100:.0f}%)")
             
-            with wave_col3:
-                # Quick Actions (Connect to other tabs)
-                st.markdown("**Quick Actions**")
+            with col3:
+                # Wave Momentum Indicators
+                st.markdown("**📊 Wave Analytics**")
                 
-                if st.button("🌊 Deep Wave Analysis", key="summary_wave_btn"):
-                    st.info("👉 Go to Wave Radar tab for detailed wave analysis")
+                # Calculate wave transition momentum
+                cresting_stocks = filtered_df[filtered_df['wave_state'].str.contains('CRESTING', na=False)]
+                if len(cresting_stocks) > 0:
+                    avg_cresting_score = cresting_stocks['master_score'].mean()
+                    st.metric("Cresting Avg", f"{avg_cresting_score:.1f}", "Peak Zone")
                 
-                if st.button("🏆 View Rankings", key="summary_rank_btn"):
-                    st.info("👉 Go to Rankings tab for top stocks")
+                # Wave velocity (how fast stocks are moving through states)
+                building_stocks = filtered_df[filtered_df['wave_state'].str.contains('BUILDING', na=False)]
+                if len(building_stocks) > 0:
+                    building_with_accel = building_stocks[building_stocks['acceleration_score'] > 70]
+                    wave_velocity = (len(building_with_accel) / len(building_stocks)) * 100
+                    st.metric("Wave Velocity", f"{wave_velocity:.0f}%", "→ Cresting")
                 
-                # Market regime
-                regime, metrics = MarketIntelligence.detect_market_regime(filtered_df)
-                if "RISK-ON" in regime:
-                    st.success(f"🔥 {market_mood} Market")
-                elif "RISK-OFF" in regime:
-                    st.warning(f"🛡️ {market_mood} Market")
+                # Risk indicator
+                breaking_stocks = filtered_df[filtered_df['wave_state'].str.contains('BREAKING', na=False)]
+                risk_level = (len(breaking_stocks) / total_stocks) * 100
+                if risk_level > 40:
+                    st.error(f"⚠️ HIGH RISK: {risk_level:.0f}%")
+                elif risk_level > 25:
+                    st.warning(f"⚠️ CAUTION: {risk_level:.0f}%")
                 else:
-                    st.info(f"😴 {market_mood} Market")
-            
-            st.markdown("---")
+                    st.success(f"✅ LOW RISK: {risk_level:.0f}%")
             
             # ====================================
             # SECTION 2: KEY MARKET METRICS (Clean Grid)
