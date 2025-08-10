@@ -5879,7 +5879,7 @@ def main():
                 # Check for reversal patterns
                 if 'patterns' in wave_filtered_df.columns:
                     # Define critical reversal patterns
-                    reversal_patterns = ['BULL TRAP', 'CAPITULATION', 'DISTRIBUTION']
+                    reversal_patterns = ['🪤 BULL TRAP', '💣 CAPITULATION', '⚠️ DISTRIBUTION']
                     
                     # Find stocks with reversal patterns
                     reversal_mask = wave_filtered_df['patterns'].str.contains(
