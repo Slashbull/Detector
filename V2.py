@@ -737,9 +737,9 @@ class DataProcessor:
         return df
         
 # ADVANCED METRICS CALCULATOR
-    # ============================================
+# ============================================
     
-    class AdvancedMetrics:
+class AdvancedMetrics:
         """
         Calculates advanced metrics and indicators using a combination of price,
         volume, and algorithmically derived scores. Ensures robust calculation
