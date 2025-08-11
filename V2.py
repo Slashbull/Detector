@@ -1,2139 +1,427 @@
 """
-Wave Detection Ultimate 3.0 - PRODUCTION READY VERSION
-=======================================================
+Wave Detection Ultimate 3.0 - FINAL ENHANCED PRODUCTION VERSION
+===============================================================
 Professional Stock Ranking System with Advanced Analytics
-Optimized for Streamlit Community Cloud Deployment
+All bugs fixed, optimized for Streamlit Community Cloud
+Enhanced with all valuable features from previous versions
 
-Version: 3.0.0-FINAL
-Last Updated: December 2024
-Status: PRODUCTION READY
+Version: 3.1.0-PROFESSIONAL
+Last Updated: August 2025
+Status: PRODUCTION READY - All Issues Fixed
 """
 
 # ============================================
 # IMPORTS AND SETUP
 # ============================================
 
-# --------------- Standard Library ---------------
-import gc  # Memory management and garbage collection
-import json  # JSON parsing for structured logging
-import logging  # Application logging and debugging
-import re  # Regular expressions for URL parsing
-import sys  # System-specific parameters
-import time  # Performance timing and delays
-import warnings  # Warning suppression for clean output
-from collections import OrderedDict  # Ordered dictionaries for preserving sequence
-from datetime import datetime, timezone, timedelta  # Date/time operations
-from functools import wraps  # Decorator utilities for performance monitoring
-from logging.handlers import RotatingFileHandler  # Log file rotation
-from pathlib import Path  # File path operations
-from typing import Dict, List, Tuple, Optional, Any  # Type hints for better code quality
-from contextlib import contextmanager  # Context manager utilities
+# Standard library imports
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
+from datetime import datetime, timezone, timedelta
+import logging
+from typing import Dict, List, Tuple, Optional, Any, Union, Set
+from dataclasses import dataclass, field
+from functools import lru_cache, wraps
+import time
+from io import BytesIO
+import warnings
+import gc
+import re # For dynamic URL parsing
+import hashlib # For intelligent cache versioning
+import requests # For robust data loading
+from requests.adapters import HTTPAdapter # For connection pooling
+from urllib3.util.retry import Retry # For retry logic
+from collections import defaultdict # For performance metric tracking
 
-# --------------- Data Processing ---------------
-import numpy as np  # Numerical operations and array processing
-import pandas as pd  # DataFrame operations and data manipulation
+# Suppress warnings for clean production output.
+warnings.filterwarnings('ignore')
 
-# --------------- Visualization ---------------
-import plotly.express as px  # Quick statistical visualizations
-import plotly.graph_objects as go  # Advanced interactive charts
+# Set NumPy to ignore floating point errors for robust calculations.
+np.seterr(all='ignore')
 
-# --------------- Streamlit Core ---------------
-import streamlit as st  # Main Streamlit framework
-
-# --------------- Data Classes ---------------
-from dataclasses import dataclass, field  # Configuration and data structures
-
-# --------------- Export Functionality ---------------
-# Lazy import - only loaded when needed for exports
-def get_bytesio():
-    """Lazy load BytesIO only when creating exports"""
-    from io import BytesIO
-    return BytesIO
-
-# --------------- HTTP Requests (if actually needed) ---------------
-# Uncomment ONLY if you implement actual HTTP retry logic
-# import requests
-# from requests.adapters import HTTPAdapter
-# from urllib3.util.retry import Retry
-
-# def create_session_with_retries():
-#     """Create HTTP session with connection pooling and retry logic"""
-#     session = requests.Session()
-#     retry_strategy = Retry(
-#         total=3,
-#         backoff_factor=1,
-#         status_forcelist=[429, 500, 502, 503, 504],
-#     )
-#     adapter = HTTPAdapter(max_retries=retry_strategy, pool_connections=10, pool_maxsize=10)
-#     session.mount("http://", adapter)
-#     session.mount("https://", adapter)
-#     return session
-
-# ============================================
-# ENVIRONMENT SETUP
-# ============================================
-
-# Suppress warnings for production
-warnings.filterwarnings('ignore', category=FutureWarning)
-warnings.filterwarnings('ignore', category=DeprecationWarning)
-
-# Configure NumPy for stability
-np.seterr(divide='ignore', invalid='ignore')  # Handle division by zero gracefully
-
-# Set random seed for reproducibility
+# Set random seed for reproducibility of any random-based operations.
 np.random.seed(42)
-
-# ============================================
-# PRODUCTION FLAGS
-# ============================================
-
-# Set production mode (disable in development)
-PRODUCTION_MODE = True
-DEBUG_MODE = not PRODUCTION_MODE
-
-# Configure behavior based on mode
-if PRODUCTION_MODE:
-    # Production settings
-    LOG_LEVEL = logging.WARNING
-    SHOW_ERRORS = False
-    ENABLE_PROFILING = False
-else:
-    # Development settings
-    LOG_LEVEL = logging.DEBUG
-    SHOW_ERRORS = True
-    ENABLE_PROFILING = True
-
-# ============================================
-# PANDAS CONFIGURATION
-# ============================================
-
-# Optimize pandas display and performance
-pd.set_option('display.max_columns', None)  # Show all columns in debug mode
-pd.set_option('display.width', None)  # No width restriction
-pd.set_option('display.max_colwidth', 50)  # Limit column width for readability
-pd.set_option('mode.chained_assignment', None)  # Disable SettingWithCopyWarning
-pd.set_option('compute.use_numexpr', True)  # Use numexpr for acceleration
-pd.set_option('compute.use_bottleneck', True)  # Use bottleneck for acceleration
 
 # ============================================
 # LOGGING CONFIGURATION
 # ============================================
 
-# ============================================
-# LOG CONFIGURATION SETTINGS
-# ============================================
-
-class LogConfig:
-    """Centralized logging configuration"""
-    
-    # Log levels for different components
-    LEVELS = {
-        'main': logging.INFO,
-        'data': logging.INFO,
-        'scoring': logging.WARNING,
-        'filter': logging.WARNING,
-        'export': logging.INFO,
-        'ui': logging.WARNING,
-        'performance': logging.DEBUG,
-        'error': logging.ERROR
-    }
-    
-    # Log format templates
-    FORMATS = {
-        'detailed': '%(asctime)s | %(name)s | %(levelname)s | %(funcName)s:%(lineno)d | %(message)s',
-        'simple': '%(asctime)s | %(levelname)s | %(message)s',
-        'json': '{"time":"%(asctime)s","level":"%(levelname)s","module":"%(name)s","message":"%(message)s"}',
-        'performance': '%(asctime)s | PERF | %(message)s | %(duration).3fs'
-    }
-    
-    # File settings
-    LOG_DIR = Path('logs')
-    MAX_BYTES = 10 * 1024 * 1024  # 10MB per file
-    BACKUP_COUNT = 5  # Keep 5 backup files
-    
-    # Performance thresholds (seconds)
-    SLOW_QUERY_THRESHOLD = 1.0
-    SLOW_RENDER_THRESHOLD = 0.5
-    SLOW_CALCULATION_THRESHOLD = 2.0
-
-# ============================================
-# CUSTOM LOG FILTERS
-# ============================================
-
-class PerformanceFilter(logging.Filter):
-    """Filter to add performance context to log records"""
-    
-    def filter(self, record):
-        # Add performance context if available
-        if hasattr(record, 'duration'):
-            record.duration = getattr(record, 'duration', 0)
-        else:
-            record.duration = 0
-        return True
-
-class ErrorCountFilter(logging.Filter):
-    """Track error counts for monitoring"""
-    
-    def __init__(self):
-        super().__init__()
-        self.error_count = 0
-        self.warning_count = 0
-    
-    def filter(self, record):
-        if record.levelno >= logging.ERROR:
-            self.error_count += 1
-        elif record.levelno >= logging.WARNING:
-            self.warning_count += 1
-        return True
-
-# ============================================
-# CUSTOM FORMATTERS
-# ============================================
-
-class ColoredFormatter(logging.Formatter):
-    """Colored output for console logging"""
-    
-    COLORS = {
-        'DEBUG': '\033[36m',    # Cyan
-        'INFO': '\033[32m',     # Green
-        'WARNING': '\033[33m',  # Yellow
-        'ERROR': '\033[31m',    # Red
-        'CRITICAL': '\033[35m', # Magenta
-        'RESET': '\033[0m'      # Reset
-    }
-    
-    def format(self, record):
-        if not sys.stderr.isatty():
-            return super().format(record)
-        
-        levelname = record.levelname
-        if levelname in self.COLORS:
-            record.levelname = f"{self.COLORS[levelname]}{levelname}{self.COLORS['RESET']}"
-        return super().format(record)
-
-class StructuredFormatter(logging.Formatter):
-    """JSON structured logging for production"""
-    
-    def format(self, record):
-        log_obj = {
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'level': record.levelname,
-            'logger': record.name,
-            'module': record.module,
-            'function': record.funcName,
-            'line': record.lineno,
-            'message': record.getMessage(),
-            'process_id': record.process,
-            'thread_id': record.thread
-        }
-        
-        # Add extra fields
-        if hasattr(record, 'user_id'):
-            log_obj['user_id'] = record.user_id
-        if hasattr(record, 'session_id'):
-            log_obj['session_id'] = record.session_id
-        if hasattr(record, 'duration'):
-            log_obj['duration_ms'] = record.duration * 1000
-        if hasattr(record, 'error_code'):
-            log_obj['error_code'] = record.error_code
-            
-        return json.dumps(log_obj)
-
-# ============================================
-# LOGGER FACTORY
-# ============================================
-
-class LoggerFactory:
-    """Factory for creating configured loggers"""
-    
-    _loggers = {}
-    _initialized = False
-    
-    @classmethod
-    def setup(cls, production_mode: bool = True):
-        """Initialize logging system"""
-        if cls._initialized:
-            return
-        
-        # Create logs directory if needed
-        if production_mode:
-            LogConfig.LOG_DIR.mkdir(exist_ok=True)
-        
-        # Configure root logger
-        root_logger = logging.getLogger()
-        root_logger.setLevel(logging.DEBUG)
-        root_logger.handlers = []
-        
-        # Add console handler
-        console_handler = cls._create_console_handler(production_mode)
-        root_logger.addHandler(console_handler)
-        
-        # Add file handler in production
-        if production_mode:
-            file_handler = cls._create_file_handler()
-            root_logger.addHandler(file_handler)
-            
-            # Add error file handler
-            error_handler = cls._create_error_handler()
-            root_logger.addHandler(error_handler)
-        
-        cls._initialized = True
-    
-    @classmethod
-    def get_logger(cls, name: str, level: str = None) -> logging.Logger:
-        """Get or create a configured logger"""
-        if name not in cls._loggers:
-            logger = logging.getLogger(name)
-            
-            # Set level from config or parameter
-            if level:
-                logger.setLevel(getattr(logging, level.upper()))
-            else:
-                # Extract component from name and use config
-                component = name.split('.')[0] if '.' in name else 'main'
-                logger.setLevel(LogConfig.LEVELS.get(component, logging.INFO))
-            
-            cls._loggers[name] = logger
-        
-        return cls._loggers[name]
-    
-    @staticmethod
-    def _create_console_handler(production_mode: bool) -> logging.StreamHandler:
-        """Create console handler with appropriate formatter"""
-        handler = logging.StreamHandler(sys.stdout)
-        
-        if production_mode:
-            formatter = logging.Formatter(
-                LogConfig.FORMATS['simple'],
-                datefmt='%H:%M:%S'
-            )
-        else:
-            formatter = ColoredFormatter(
-                LogConfig.FORMATS['detailed'],
-                datefmt='%H:%M:%S'
-            )
-        
-        handler.setFormatter(formatter)
-        handler.addFilter(PerformanceFilter())
-        return handler
-    
-    @staticmethod
-    def _create_file_handler() -> RotatingFileHandler:
-        """Create rotating file handler for general logs"""
-        handler = RotatingFileHandler(
-            LogConfig.LOG_DIR / 'wave_detection.log',
-            maxBytes=LogConfig.MAX_BYTES,
-            backupCount=LogConfig.BACKUP_COUNT
-        )
-        handler.setLevel(logging.INFO)
-        
-        formatter = StructuredFormatter() if PRODUCTION_MODE else logging.Formatter(
-            LogConfig.FORMATS['detailed'],
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        handler.setFormatter(formatter)
-        return handler
-    
-    @staticmethod
-    def _create_error_handler() -> RotatingFileHandler:
-        """Create rotating file handler for errors only"""
-        handler = RotatingFileHandler(
-            LogConfig.LOG_DIR / 'errors.log',
-            maxBytes=LogConfig.MAX_BYTES,
-            backupCount=LogConfig.BACKUP_COUNT
-        )
-        handler.setLevel(logging.ERROR)
-        
-        formatter = logging.Formatter(
-            LogConfig.FORMATS['detailed'],
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        handler.setFormatter(formatter)
-        handler.addFilter(ErrorCountFilter())
-        return handler
-
-# ============================================
-# LOGGING DECORATORS
-# ============================================
-
-def log_execution(level=logging.DEBUG, include_args=False, include_result=False):
-    """Decorator to log function execution"""
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            logger = LoggerFactory.get_logger(func.__module__)
-            
-            # Log entry
-            msg = f"Entering {func.__name__}"
-            if include_args:
-                msg += f" with args={args}, kwargs={kwargs}"
-            logger.log(level, msg)
-            
-            # Execute function
-            start_time = time.perf_counter()
-            try:
-                result = func(*args, **kwargs)
-                duration = time.perf_counter() - start_time
-                
-                # Log success
-                msg = f"Completed {func.__name__} in {duration:.3f}s"
-                if include_result:
-                    msg += f" with result={result}"
-                logger.log(level, msg, extra={'duration': duration})
-                
-                # Warn if slow
-                if duration > LogConfig.SLOW_QUERY_THRESHOLD:
-                    logger.warning(f"{func.__name__} took {duration:.3f}s (threshold: {LogConfig.SLOW_QUERY_THRESHOLD}s)")
-                
-                return result
-                
-            except Exception as e:
-                duration = time.perf_counter() - start_time
-                logger.error(f"Error in {func.__name__} after {duration:.3f}s: {str(e)}", exc_info=True)
-                raise
-        
-        return wrapper
-    return decorator
-
-def log_performance(threshold: float = None):
-    """Decorator specifically for performance monitoring"""
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            logger = LoggerFactory.get_logger('performance')
-            
-            start_time = time.perf_counter()
-            start_memory = get_memory_usage() if 'get_memory_usage' in globals() else 0
-            
-            try:
-                result = func(*args, **kwargs)
-                
-                duration = time.perf_counter() - start_time
-                memory_delta = (get_memory_usage() if 'get_memory_usage' in globals() else 0) - start_memory
-                
-                # Log performance metrics
-                logger.debug(
-                    f"{func.__name__} | Duration: {duration:.3f}s | Memory Δ: {memory_delta:.1f}MB",
-                    extra={'duration': duration, 'memory_delta': memory_delta}
-                )
-                
-                # Check threshold
-                if threshold and duration > threshold:
-                    logger.warning(f"Performance threshold exceeded: {func.__name__} took {duration:.3f}s (limit: {threshold}s)")
-                
-                # Store metrics
-                if 'performance_metrics' in st.session_state:
-                    if func.__name__ not in st.session_state.performance_metrics:
-                        st.session_state.performance_metrics[func.__name__] = []
-                    st.session_state.performance_metrics[func.__name__].append({
-                        'duration': duration,
-                        'memory_delta': memory_delta,
-                        'timestamp': datetime.now(timezone.utc)
-                    })
-                
-                return result
-                
-            except Exception as e:
-                logger.error(f"Performance monitoring failed for {func.__name__}: {str(e)}")
-                raise
-        
-        return wrapper
-    return decorator
-
-# ============================================
-# CONTEXT MANAGERS
-# ============================================
-
-@contextmanager
-def log_context(operation: str, logger_name: str = 'main'):
-    """Context manager for logging operations"""
-    logger = LoggerFactory.get_logger(logger_name)
-    
-    logger.info(f"Starting: {operation}")
-    start_time = time.perf_counter()
-    
-    try:
-        yield logger
-        duration = time.perf_counter() - start_time
-        logger.info(f"Completed: {operation} ({duration:.3f}s)")
-        
-    except Exception as e:
-        duration = time.perf_counter() - start_time
-        logger.error(f"Failed: {operation} after {duration:.3f}s - {str(e)}")
-        raise
-
-@contextmanager
-def suppress_logs(level=logging.WARNING):
-    """Temporarily suppress logs below specified level"""
-    root_logger = logging.getLogger()
-    original_level = root_logger.level
-    root_logger.setLevel(level)
-    try:
-        yield
-    finally:
-        root_logger.setLevel(original_level)
-
-# ============================================
-# LOGGING UTILITIES
-# ============================================
-
-def log_dataframe_info(df: pd.DataFrame, name: str = "DataFrame", logger_name: str = 'data'):
-    """Log detailed DataFrame information"""
-    logger = LoggerFactory.get_logger(logger_name)
-    
-    logger.info(f"{name} Info:")
-    logger.info(f"  Shape: {df.shape}")
-    logger.info(f"  Memory: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
-    logger.info(f"  Columns: {', '.join(df.columns[:10])}{'...' if len(df.columns) > 10 else ''}")
-    logger.info(f"  Dtypes: {df.dtypes.value_counts().to_dict()}")
-    logger.info(f"  Nulls: {df.isnull().sum().sum()}")
-
-def log_error_with_context(error: Exception, context: Dict[str, Any], logger_name: str = 'error'):
-    """Log error with additional context"""
-    logger = LoggerFactory.get_logger(logger_name)
-    
-    error_info = {
-        'error_type': type(error).__name__,
-        'error_message': str(error),
-        'context': context,
-        'timestamp': datetime.now(timezone.utc).isoformat()
-    }
-    
-    logger.error(f"Error occurred: {json.dumps(error_info, default=str)}")
-    
-    # Store in session state for debugging
-    if 'error_log' not in st.session_state:
-        st.session_state.error_log = []
-    st.session_state.error_log.append(error_info)
-
-# ============================================
-# INITIALIZE LOGGING SYSTEM
-# ============================================
-
-# Setup logging based on mode
-LoggerFactory.setup(production_mode=PRODUCTION_MODE)
-
-# Create main application logger
-logger = LoggerFactory.get_logger('wave_detection.main')
-
-# Create specialized loggers
-data_logger = LoggerFactory.get_logger('wave_detection.data')
-scoring_logger = LoggerFactory.get_logger('wave_detection.scoring')
-filter_logger = LoggerFactory.get_logger('wave_detection.filter')
-export_logger = LoggerFactory.get_logger('wave_detection.export')
-ui_logger = LoggerFactory.get_logger('wave_detection.ui')
-perf_logger = LoggerFactory.get_logger('wave_detection.performance')
-
-# Log initialization
-logger.info("Logging system initialized successfully")
-logger.info(f"Production Mode: {PRODUCTION_MODE}")
-logger.info(f"Log Level: {logging.getLevelName(logger.level)}")
-
-# ============================================
-# PERFORMANCE CONSTANTS
-# ============================================
-
-# Memory management thresholds
-MEMORY_CLEANUP_THRESHOLD = 500  # Trigger cleanup after processing 500 rows
-CACHE_CLEANUP_INTERVAL = 300  # Clean cache every 5 minutes
-
-# Data processing limits
-MAX_ROWS_DISPLAY = 1000  # Maximum rows to display in UI
-MAX_EXPORT_ROWS = 10000  # Maximum rows for Excel export
-CHUNK_SIZE = 100  # Process data in chunks for large datasets
-
-# Performance targets (in seconds)
-TARGET_LOAD_TIME = 2.0
-TARGET_PROCESS_TIME = 1.0
-TARGET_RENDER_TIME = 0.5
-
-# ============================================
-# GLOBAL STATE INITIALIZATION
-# ============================================
-
-# Initialize performance tracking
-if 'performance_metrics' not in st.session_state:
-    st.session_state.performance_metrics = OrderedDict()
-
-# Initialize error tracking
-if 'error_log' not in st.session_state:
-    st.session_state.error_log = []
-
-# Track import time for performance monitoring
-IMPORT_TIME = time.perf_counter()
-
-# ============================================
-# UTILITY FUNCTIONS
-# ============================================
-
-def cleanup_memory(force: bool = False) -> None:
-    """
-    Perform memory cleanup when needed.
-    
-    Args:
-        force: Force garbage collection regardless of thresholds
-    """
-    if force or (time.time() % CACHE_CLEANUP_INTERVAL < 1):
-        gc.collect()
-        logger.debug("Memory cleanup performed")
-
-def safe_import(module_name: str, package: str = None):
-    """
-    Safely import optional modules with fallback.
-    
-    Args:
-        module_name: Name of module to import
-        package: Package name if different from module
-    
-    Returns:
-        Module or None if import fails
-    """
-    try:
-        import importlib
-        return importlib.import_module(module_name, package)
-    except ImportError:
-        logger.warning(f"Optional module {module_name} not available")
-        return None
-
-def get_memory_usage() -> float:
-    """
-    Get current memory usage in MB.
-    
-    Returns:
-        Memory usage in megabytes
-    """
-    import psutil
-    process = psutil.Process()
-    return process.memory_info().rss / 1024 / 1024
-
-# ============================================
-# VALIDATION CHECKS
-# ============================================
-
-def validate_environment() -> bool:
-    """
-    Validate that all required packages are available and configured correctly.
-    
-    Returns:
-        True if environment is valid, False otherwise
-    """
-    required_modules = {
-        'streamlit': st,
-        'pandas': pd,
-        'numpy': np,
-        'plotly': go
-    }
-    
-    for name, module in required_modules.items():
-        if module is None:
-            logger.error(f"Required module {name} is not available")
-            return False
-    
-    # Check Streamlit version
-    try:
-        st_version = st.__version__
-        major, minor = map(int, st_version.split('.')[:2])
-        if major < 1 or (major == 1 and minor < 28):
-            logger.warning(f"Streamlit version {st_version} is outdated. Please upgrade to 1.28+")
-    except Exception as e:
-        logger.warning(f"Could not verify Streamlit version: {e}")
-    
-    return True
-
-# ============================================
-# INITIALIZATION LOG
-# ============================================
-
-# Log successful import
-import_duration = time.perf_counter() - IMPORT_TIME
-logger.info(f"Imports completed in {import_duration:.3f}s")
-
-# Validate environment on import
-if not validate_environment():
-    logger.error("Environment validation failed. Some features may not work correctly.")
-
-# ============================================
-# DEVELOPMENT/DEBUG HELPERS
-# ============================================
-
-def debug_dataframe(df: pd.DataFrame, name: str = "DataFrame") -> None:
-    """
-    Print debug information about a dataframe (only in debug mode).
-    
-    Args:
-        df: DataFrame to debug
-        name: Name for logging
-    """
-    if st.session_state.get('debug_mode', False):
-        logger.debug(f"{name} shape: {df.shape}")
-        logger.debug(f"{name} memory: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
-        logger.debug(f"{name} dtypes: {df.dtypes.value_counts().to_dict()}")
-        logger.debug(f"{name} nulls: {df.isnull().sum().sum()}")
-
-# ============================================
-# PRODUCTION FLAGS
-# ============================================
-
-# Set production mode (disable in development)
-PRODUCTION_MODE = True
-DEBUG_MODE = not PRODUCTION_MODE
-
-# Configure behavior based on mode
-if PRODUCTION_MODE:
-    # Production settings
-    LOG_LEVEL = logging.WARNING
-    SHOW_ERRORS = False
-    ENABLE_PROFILING = False
-else:
-    # Development settings
-    LOG_LEVEL = logging.DEBUG
-    SHOW_ERRORS = True
-    ENABLE_PROFILING = True
-
-# Apply log level
-logger.setLevel(LOG_LEVEL)
+# Configure production-ready logging with a clear format.
+log_level = logging.INFO
+logging.basicConfig(
+    level=log_level,
+    format='%(asctime)s | %(name)s | %(levelname)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 # ============================================
 # CONFIGURATION AND CONSTANTS
 # ============================================
 
 @dataclass(frozen=True)
-class ScoreWeights:
-    """Master score component weights (must sum to 1.0)"""
-    POSITION: float = 0.30    # 30% - Price position strength
-    VOLUME: float = 0.25       # 25% - Volume intensity
-    MOMENTUM: float = 0.15     # 15% - Price momentum
-    ACCELERATION: float = 0.10 # 10% - Momentum acceleration
-    BREAKOUT: float = 0.10     # 10% - Breakout probability
-    RVOL: float = 0.10        # 10% - Relative volume
+class Config:
+    """System configuration with validated weights and thresholds"""
     
-    def __post_init__(self):
-        """Validate weights sum to 1.0"""
-        total = sum([self.POSITION, self.VOLUME, self.MOMENTUM, 
-                    self.ACCELERATION, self.BREAKOUT, self.RVOL])
-        if abs(total - 1.0) > 0.001:
-            raise ValueError(f"Score weights must sum to 1.0, got {total}")
-
-@dataclass(frozen=True)
-class DataConfig:
-    """Data source and processing configuration"""
-    
-    # Google Sheets defaults
-    DEFAULT_SHEET_ID: str = "1OEQ_qxL4lXbO9LlKWDGlDju2yQC1iYvOYeXF3mTQuJM"
+    # Data source - Default configuration
+    DEFAULT_SHEET_URL: str = "https://docs.google.com/spreadsheets/d/1OEQ_qxL4lXbO9LlKWDGlDju2yQC1iYvOYeXF3mTQuJM/edit?usp=sharing"
     DEFAULT_GID: str = "1823439984"
     
-    # Data validation
-    CRITICAL_COLUMNS: Tuple[str, ...] = ('ticker', 'price', 'volume_1d')
-    IMPORTANT_COLUMNS: Tuple[str, ...] = (
-        'category', 'sector', 'industry', 'company_name',
-        'rvol', 'pe', 'eps_current', 'eps_change_pct',
-        'ret_1d', 'ret_7d', 'ret_30d', 'ret_3m', 'ret_6m', 'ret_1y',
-        'from_low_pct', 'from_high_pct',
-        'sma_20d', 'sma_50d', 'sma_200d'
-    )
+    # Cache settings - Dynamic refresh
+    CACHE_TTL: int = 900  # 15 minutes for better data freshness
+    STALE_DATA_HOURS: int = 24
     
-    # Data processing limits
-    MIN_VALID_ROWS: int = 10
-    MAX_DISPLAY_ROWS: int = 1000
-    MAX_EXPORT_ROWS: int = 10000
+    # Master Score 3.0 weights (total = 100%)
+    POSITION_WEIGHT: float = 0.30
+    VOLUME_WEIGHT: float = 0.25
+    MOMENTUM_WEIGHT: float = 0.15
+    ACCELERATION_WEIGHT: float = 0.10
+    BREAKOUT_WEIGHT: float = 0.10
+    RVOL_WEIGHT: float = 0.10
     
-    # Data quality thresholds
-    MIN_DATA_QUALITY: float = 0.6  # 60% minimum completeness
-    OUTLIER_STD_THRESHOLD: float = 4.0  # Remove beyond 4 std devs
-
-@dataclass(frozen=True)
-class PerformanceConfig:
-    """Performance and optimization settings"""
-    
-    # Cache settings
-    CACHE_TTL_SECONDS: int = 900  # 15 minutes
-    CACHE_VERSION: str = "3.0.0"
-    USE_PERSISTENT_CACHE: bool = True
-    
-    # Processing chunks for large datasets
-    CHUNK_SIZE: int = 100
-    PARALLEL_THRESHOLD: int = 500  # Use parallel processing above this
-    
-    # Memory management
-    MEMORY_CLEANUP_INTERVAL: int = 300  # 5 minutes
-    MAX_MEMORY_MB: int = 512  # Maximum memory usage
-    
-    # API/Network settings
-    REQUEST_TIMEOUT: int = 30  # seconds
-    MAX_RETRIES: int = 3
-    RETRY_DELAY: float = 1.0  # seconds
-
-@dataclass(frozen=True)
-class UIConfig:
-    """User interface configuration"""
-    
-    # Display defaults
+    # Display settings
     DEFAULT_TOP_N: int = 50
-    AVAILABLE_TOP_N: Tuple[int, ...] = (10, 20, 50, 100, 200, 500, 1000)
+    AVAILABLE_TOP_N: List[int] = field(default_factory=lambda: [10, 20, 50, 100, 200, 500])
     
-    # Chart settings
-    CHART_HEIGHT: int = 400
-    CHART_COLOR_SCHEME: str = "RdYlGn"
-    MAX_CHART_POINTS: int = 100
+    # Critical columns (app fails without these)
+    CRITICAL_COLUMNS: List[str] = field(default_factory=lambda: ['ticker', 'price', 'volume_1d'])
     
-    # Table settings
-    TABLE_HEIGHT_PER_ROW: int = 35
-    TABLE_MAX_HEIGHT: int = 600
-    TABLE_DECIMAL_PLACES: int = 1
+    # Important columns (degraded experience without) - FIX: REMOVED DUPLICATES
+    IMPORTANT_COLUMNS: List[str] = field(default_factory=lambda: [
+        'category', 'sector', 'industry',
+        'rvol', 'pe', 'eps_current', 'eps_change_pct',
+        'sma_20d', 'sma_50d', 'sma_200d',
+        'ret_1d', 'ret_7d', 'ret_30d', 'from_low_pct', 'from_high_pct',
+        'vol_ratio_1d_90d', 'vol_ratio_7d_90d', 'vol_ratio_30d_90d',
+        'vol_ratio_1d_180d', 'vol_ratio_7d_180d', 'vol_ratio_30d_180d',
+        'vol_ratio_90d_180d'
+    ])
     
-    # UI refresh settings
-    AUTO_REFRESH: bool = False
-    REFRESH_INTERVAL: int = 60  # seconds
+    # All percentage columns for consistent handling
+    PERCENTAGE_COLUMNS: List[str] = field(default_factory=lambda: [
+        'from_low_pct', 'from_high_pct',
+        'ret_1d', 'ret_3d', 'ret_7d', 'ret_30d', 
+        'ret_3m', 'ret_6m', 'ret_1y', 'ret_3y', 'ret_5y',
+        'eps_change_pct'
+    ])
     
-    # Theme colors
-    COLORS = {
-        'primary': '#667eea',
-        'secondary': '#764ba2',
-        'success': '#22c55e',
-        'warning': '#f59e0b',
-        'danger': '#ef4444',
-        'info': '#3b82f6'
-    }
-
-@dataclass(frozen=True)
-class PatternConfig:
-    """Pattern detection thresholds and settings"""
+    # Volume ratio columns
+    VOLUME_RATIO_COLUMNS: List[str] = field(default_factory=lambda: [
+        'vol_ratio_1d_90d', 'vol_ratio_7d_90d', 'vol_ratio_30d_90d',
+        'vol_ratio_1d_180d', 'vol_ratio_7d_180d', 'vol_ratio_30d_180d',
+        'vol_ratio_90d_180d'
+    ])
     
-    # Pattern detection thresholds
-    THRESHOLDS = {
-        'category_leader': 85,      # Top 15% in category
-        'hidden_gem': 80,           # High category, low overall
-        'acceleration': 75,         # Strong acceleration
-        'institutional': 70,        # Institutional interest
-        'volume_explosion': 3.0,    # 3x normal volume
-        'momentum_shift': 70,       # Momentum reversal
-        'breakout_imminent': 80,    # Near breakout
-        'trend_leader': 75,         # Leading trend
-        'oversold_bounce': 30,      # Oversold reversal
-        'bullish_divergence': 60,   # Price/volume divergence
-        'accumulation': 65,         # Smart money accumulating
-        'distribution': 35,         # Smart money distributing
-        'short_squeeze': 85,        # Potential squeeze
-        'gap_fill': 5.0,           # Gap percentage
-        'golden_cross': 1.0,        # MA crossover threshold
-        'death_cross': -1.0,        # MA crossover threshold
-        'support_bounce': 5.0,      # Near support level
-        'resistance_test': 95.0,    # Near resistance
-        'range_breakout': 90,       # Breaking range
-        'mean_reversion': 2.0,      # Standard deviations
-        'momentum_burst': 80,       # Sudden momentum
-        'volume_dry_up': 0.5,       # Low volume
-        'trend_exhaustion': 15,     # Trend ending
-        'perfect_storm': 4          # Multiple signals minimum
-    }
+    # Pattern thresholds
+    PATTERN_THRESHOLDS: Dict[str, float] = field(default_factory=lambda: {
+        "category_leader": 90,
+        "hidden_gem": 80,
+        "acceleration": 85,
+        "institutional": 75,
+        "vol_explosion": 95,
+        "breakout_ready": 80,
+        "market_leader": 95,
+        "momentum_wave": 75,
+        "liquid_leader": 80,
+        "long_strength": 80,
+        "52w_high_approach": 90,
+        "52w_low_bounce": 85,
+        "golden_zone": 85,
+        "vol_accumulation": 80,
+        "momentum_diverge": 90,
+        "range_compress": 75,
+        "stealth": 70,
+        "vampire": 85,
+        "perfect_storm": 80,
+        "bull_trap": 90,           # High confidence for shorting
+        "capitulation": 95,        # Extreme events only
+        "runaway_gap": 85,         # Strong continuation
+        "rotation_leader": 80,     # Sector relative strength
+        "distribution_top": 85,    # High confidence tops
+        "velocity_squeeze": 85,
+        "volume_divergence": 90,
+        "golden_cross": 80,
+        "exhaustion": 90,
+        "pyramid": 75,
+        "vacuum": 85,
+    })
     
-    # Pattern importance weights (for ranking)
-    WEIGHTS = {
-        'PERFECT STORM': 1.0,
-        'VOL EXPLOSION': 0.9,
-        'BREAKOUT READY': 0.85,
-        'CAT LEADER': 0.8,
-        'INSTITUTIONAL': 0.75,
-        'MOMENTUM SHIFT': 0.7,
-        'HIDDEN GEM': 0.65
-    }
+    # Value bounds for data validation
+    VALUE_BOUNDS: Dict[str, Tuple[float, float]] = field(default_factory=lambda: {
+        'price': (0.01, 1_000_000),
+        'rvol': (0.01, 1_000_000.0),
+        'pe': (-10000, 10000),
+        'returns': (-99.99, 9999.99),
+        'volume': (0, 1e12)
+    })
     
-    # Pattern display settings
-    MAX_PATTERNS_DISPLAY: int = 5
-    PATTERN_SEPARATOR: str = " | "
-
-@dataclass(frozen=True)
-class FilterConfig:
-    """Filter system configuration"""
+    # Performance thresholds
+    PERFORMANCE_TARGETS: Dict[str, float] = field(default_factory=lambda: {
+        'data_processing': 2.0,
+        'filtering': 0.2,
+        'pattern_detection': 0.5,
+        'export_generation': 1.0,
+        'search': 0.05
+    })
     
-    # Quick filter presets
-    QUICK_FILTERS = {
-        'top_gainers': {'momentum_score': 80, 'ret_30d': 0},
-        'volume_surges': {'rvol': 3.0, 'volume_score': 70},
-        'breakout_ready': {'breakout_score': 80, 'from_high_pct': -10},
-        'hidden_gems': {'category_percentile': 80, 'percentile': 70}
-    }
+    # Market categories (Indian market specific)
+    MARKET_CATEGORIES: List[str] = field(default_factory=lambda: [
+        'Mega Cap', 'Large Cap', 'Mid Cap', 'Small Cap', 'Micro Cap'
+    ])
     
-    # Filter limits
-    MAX_ACTIVE_FILTERS: int = 20
-    MIN_RESULTS_WARNING: int = 5
-    
-    # Tier definitions
-    EPS_TIERS = {
-        'Negative': (-float('inf'), 0),
-        'Low (0-2)': (0, 2),
-        'Medium (2-5)': (2, 5),
-        'High (5-10)': (5, 10),
-        'Very High (10+)': (10, float('inf'))
-    }
-    
-    PE_TIERS = {
-        'Negative/Zero': (-float('inf'), 0),
-        'Low (0-15)': (0, 15),
-        'Fair (15-25)': (15, 25),
-        'High (25-40)': (25, 40),
-        'Very High (40+)': (40, float('inf'))
-    }
-    
-    PRICE_TIERS = {
-        'Penny (<10)': (0, 10),
-        'Low (10-100)': (10, 100),
-        'Mid (100-1000)': (100, 1000),
-        'High (1000-5000)': (1000, 5000),
-        'Premium (5000+)': (5000, float('inf'))
-    }
-
-@dataclass(frozen=True)
-class ExportConfig:
-    """Export and reporting configuration"""
-    
-    # Export templates
-    TEMPLATES = {
-        'full': {
-            'sheets': ['Overview', 'Technical', 'Fundamental', 'Patterns', 'Signals', 'Statistics'],
-            'max_rows': 10000
+    # Tier definitions with proper boundaries
+    TIERS: Dict[str, Dict[str, Tuple[float, float]]] = field(default_factory=lambda: {
+        "eps": {
+            "Loss": (-float('inf'), 0),
+            "0-5": (0, 5),
+            "5-10": (5, 10),
+            "10-20": (10, 20),
+            "20-50": (20, 50),
+            "50-100": (50, 100),
+            "100+": (100, float('inf'))
         },
-        'day_trader': {
-            'sheets': ['Intraday', 'Volume', 'Momentum', 'Signals'],
-            'max_rows': 500,
-            'focus_columns': ['ticker', 'price', 'ret_1d', 'rvol', 'momentum_score']
+        "pe": {
+            "Negative/NA": (-float('inf'), 0),
+            "0-10": (0, 10),
+            "10-15": (10, 15),
+            "15-20": (15, 20),
+            "20-30": (20, 30),
+            "30-50": (30, 50),
+            "50+": (50, float('inf'))
         },
-        'swing_trader': {
-            'sheets': ['Weekly', 'Patterns', 'Technical', 'Breakouts'],
-            'max_rows': 1000,
-            'focus_columns': ['ticker', 'price', 'ret_7d', 'ret_30d', 'patterns']
-        },
-        'investor': {
-            'sheets': ['Fundamental', 'Sectors', 'Long-term', 'Quality'],
-            'max_rows': 2000,
-            'focus_columns': ['ticker', 'pe', 'eps_current', 'ret_1y', 'category']
+        "price": {
+            "0-100": (0, 100),
+            "100-250": (100, 250),
+            "250-500": (250, 500),
+            "500-1000": (500, 1000),
+            "1000-2500": (1000, 2500),
+            "2500-5000": (2500, 5000),
+            "5000+": (5000, float('inf'))
         }
-    }
+    })
     
-    # Excel formatting
-    EXCEL_STYLES = {
-        'header': {'bold': True, 'bg_color': '#667eea', 'font_color': 'white'},
-        'positive': {'font_color': '#22c55e'},
-        'negative': {'font_color': '#ef4444'},
-        'highlight': {'bg_color': '#fef3c7'}
-    }
-    
-    # Report settings
-    INCLUDE_CHARTS: bool = True
-    INCLUDE_SUMMARY: bool = True
-    DATE_FORMAT: str = '%Y-%m-%d %H:%M:%S'
+    # Metric Tooltips for better UX
+    METRIC_TOOLTIPS: Dict[str, str] = field(default_factory=lambda: {
+        'vmi': 'Volume Momentum Index: Weighted volume trend score (higher = stronger volume momentum)',
+        'position_tension': 'Range position stress: Distance from 52W low + distance from 52W high',
+        'momentum_harmony': 'Multi-timeframe alignment: 0-4 score showing consistency across periods',
+        'overall_wave_strength': 'Composite wave score: Combined momentum, acceleration, RVOL & breakout',
+        'money_flow_mm': 'Money Flow in millions: Price × Volume × RVOL / 1M',
+        'master_score': 'Overall ranking score (0-100) combining all factors',
+        'acceleration_score': 'Rate of momentum change (0-100)',
+        'breakout_score': 'Probability of price breakout (0-100)',
+        'trend_quality': 'SMA alignment quality (0-100)',
+        'liquidity_score': 'Trading liquidity measure (0-100)'
+    })
 
-@dataclass(frozen=True)
-class ValidationConfig:
-    """Data validation rules"""
-    
-    # Numeric column validation
-    NUMERIC_COLUMNS = {
-        'price': (0, 1000000),
-        'volume_1d': (0, float('inf')),
-        'pe': (-1000, 1000),
-        'eps_current': (-100, 100),
-        'ret_1d': (-50, 50),
-        'ret_7d': (-75, 75),
-        'ret_30d': (-90, 90),
-        'rvol': (0, 100),
-        'master_score': (0, 100)
-    }
-    
-    # Required value checks
-    REQUIRED_VALUES = {
-        'ticker': lambda x: isinstance(x, str) and len(x) > 0,
-        'price': lambda x: isinstance(x, (int, float)) and x > 0,
-        'volume_1d': lambda x: isinstance(x, (int, float)) and x >= 0
-    }
-    
-    # Category validations
-    VALID_CATEGORIES = ('Large Cap', 'Mid Cap', 'Small Cap', 'Micro Cap', 'Nano Cap')
-    VALID_TRENDS = ('Uptrend', 'Downtrend', 'Sideways', 'Volatile')
-
-# ============================================
-# RUNTIME CONFIGURATION
-# ============================================
-
-class RuntimeConfig:
-    """Mutable runtime configuration"""
-    
-    def __init__(self):
-        self.debug_mode = False
-        self.performance_tracking = True
-        self.error_reporting = True
-        self.auto_save = False
-        self.theme = 'light'
-        self.timezone = timezone.utc
-        self.locale = 'en_US'
-        self.currency_symbol = '₹'
-        self.number_format = 'indian'  # or 'western'
-    
-    def update(self, **kwargs):
-        """Update runtime configuration"""
-        for key, value in kwargs.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
-                logger.info(f"Runtime config updated: {key}={value}")
-            else:
-                logger.warning(f"Unknown runtime config: {key}")
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Export configuration as dictionary"""
-        return {
-            'debug_mode': self.debug_mode,
-            'performance_tracking': self.performance_tracking,
-            'error_reporting': self.error_reporting,
-            'auto_save': self.auto_save,
-            'theme': self.theme,
-            'timezone': str(self.timezone),
-            'locale': self.locale,
-            'currency_symbol': self.currency_symbol,
-            'number_format': self.number_format
-        }
-
-# ============================================
-# CONFIGURATION INSTANCES
-# ============================================
-
-# Create immutable configuration instances
-SCORE_WEIGHTS = ScoreWeights()
-DATA_CONFIG = DataConfig()
-PERFORMANCE_CONFIG = PerformanceConfig()
-UI_CONFIG = UIConfig()
-PATTERN_CONFIG = PatternConfig()
-FILTER_CONFIG = FilterConfig()
-EXPORT_CONFIG = ExportConfig()
-VALIDATION_CONFIG = ValidationConfig()
-
-# Create mutable runtime configuration
-RUNTIME_CONFIG = RuntimeConfig()
-
-# ============================================
-# CONFIGURATION VALIDATION
-# ============================================
-
-def validate_configuration() -> bool:
-    """Validate all configuration settings"""
-    try:
-        # Validate score weights
-        assert abs(sum([
-            SCORE_WEIGHTS.POSITION, SCORE_WEIGHTS.VOLUME,
-            SCORE_WEIGHTS.MOMENTUM, SCORE_WEIGHTS.ACCELERATION,
-            SCORE_WEIGHTS.BREAKOUT, SCORE_WEIGHTS.RVOL
-        ]) - 1.0) < 0.001, "Score weights must sum to 1.0"
-        
-        # Validate data config
-        assert DATA_CONFIG.MIN_VALID_ROWS > 0, "MIN_VALID_ROWS must be positive"
-        assert DATA_CONFIG.MAX_DISPLAY_ROWS > DATA_CONFIG.MIN_VALID_ROWS
-        
-        # Validate performance config
-        assert PERFORMANCE_CONFIG.CACHE_TTL_SECONDS > 0
-        assert PERFORMANCE_CONFIG.CHUNK_SIZE > 0
-        
-        # Validate UI config
-        assert UI_CONFIG.DEFAULT_TOP_N in UI_CONFIG.AVAILABLE_TOP_N
-        
-        logger.info("Configuration validation passed")
-        return True
-        
-    except AssertionError as e:
-        logger.error(f"Configuration validation failed: {e}")
-        return False
-
-# ============================================
-# CONFIGURATION HELPERS
-# ============================================
-
-def get_config_value(path: str, default: Any = None) -> Any:
-    """
-    Get configuration value by dot notation path.
-    Example: get_config_value('SCORE_WEIGHTS.POSITION')
-    """
-    try:
-        parts = path.split('.')
-        obj = globals()[parts[0]]
-        for part in parts[1:]:
-            obj = getattr(obj, part)
-        return obj
-    except (KeyError, AttributeError):
-        logger.warning(f"Config path not found: {path}, using default: {default}")
-        return default
-
-def format_number(value: float, number_type: str = 'general') -> str:
-    """Format number based on locale and type"""
-    if RUNTIME_CONFIG.number_format == 'indian':
-        if number_type == 'currency':
-            return f"{RUNTIME_CONFIG.currency_symbol}{value:,.0f}"
-        elif number_type == 'percentage':
-            return f"{value:.1f}%"
-        else:
-            return f"{value:,.1f}"
-    else:
-        if number_type == 'currency':
-            return f"${value:,.2f}"
-        elif number_type == 'percentage':
-            return f"{value:.1f}%"
-        else:
-            return f"{value:,.2f}"
-
-# ============================================
-# VALIDATE ON IMPORT
-# ============================================
-
-# Validate configuration on module import
-if not validate_configuration():
-    logger.error("Invalid configuration detected. Using defaults.")
-
-# Log configuration summary
-logger.info(f"Configuration loaded: {len(SCORE_WEIGHTS.__annotations__)} score weights")
-logger.info(f"Cache TTL: {PERFORMANCE_CONFIG.CACHE_TTL_SECONDS}s")
-logger.info(f"Default display: {UI_CONFIG.DEFAULT_TOP_N} rows")
-logger.info(f"Pattern thresholds: {len(PATTERN_CONFIG.THRESHOLDS)} patterns")
+# Global configuration instance
+CONFIG = Config()
 
 # ============================================
 # PERFORMANCE MONITORING
 # ============================================
 
 class PerformanceMonitor:
-    """
-    Advanced performance monitoring with automatic profiling,
-    bottleneck detection, and optimization suggestions.
-    """
-    
-    # Performance thresholds (seconds)
-    THRESHOLDS = {
-        'data_load': 2.0,
-        'data_process': 1.0,
-        'score_calculation': 0.5,
-        'pattern_detection': 0.5,
-        'filter_apply': 0.1,
-        'render': 0.5,
-        'export': 3.0,
-        'search': 0.2
-    }
-    
-    # Performance grades
-    GRADES = {
-        'excellent': 0.5,   # Under 50% of threshold
-        'good': 0.75,       # Under 75% of threshold
-        'acceptable': 1.0,  # At threshold
-        'slow': 1.5,        # 50% over threshold
-        'critical': 2.0     # 2x threshold
-    }
+    """Track and report performance metrics"""
     
     @staticmethod
-    def timer(operation: str = None, threshold: float = None, 
-             track_memory: bool = True, log_level: int = logging.DEBUG):
-        """
-        Performance timing decorator with automatic threshold detection.
-        
-        Args:
-            operation: Operation name (auto-detected if None)
-            threshold: Performance threshold in seconds
-            track_memory: Whether to track memory usage
-            log_level: Logging level for performance data
-        """
+    def timer(target_time: Optional[float] = None):
+        """Performance timing decorator with target comparison"""
         def decorator(func):
-            nonlocal operation, threshold
-            
-            # Auto-detect operation name
-            if operation is None:
-                operation = func.__name__
-            
-            # Auto-detect threshold
-            if threshold is None:
-                threshold = PerformanceMonitor.THRESHOLDS.get(
-                    operation, 
-                    PERFORMANCE_CONFIG.SLOW_QUERY_THRESHOLD if 'PERFORMANCE_CONFIG' in globals() else 1.0
-                )
-            
             @wraps(func)
             def wrapper(*args, **kwargs):
-                # Start monitoring
-                start_time = time.perf_counter()
-                start_memory = 0
-                
-                if track_memory:
-                    try:
-                        import psutil
-                        process = psutil.Process()
-                        start_memory = process.memory_info().rss / 1024 / 1024  # MB
-                    except:
-                        track_memory = False
-                
-                # Track function call
-                call_id = f"{operation}_{int(time.time() * 1000)}"
-                
+                start = time.perf_counter()
                 try:
-                    # Execute function
                     result = func(*args, **kwargs)
+                    elapsed = time.perf_counter() - start
                     
-                    # Calculate metrics
-                    duration = time.perf_counter() - start_time
-                    memory_delta = 0
+                    # Log if exceeds target
+                    if target_time and elapsed > target_time:
+                        logger.warning(f"{func.__name__} took {elapsed:.2f}s (target: {target_time}s)")
+                    elif elapsed > 1.0:
+                        logger.info(f"{func.__name__} completed in {elapsed:.2f}s")
                     
-                    if track_memory:
-                        try:
-                            import psutil
-                            process = psutil.Process()
-                            end_memory = process.memory_info().rss / 1024 / 1024
-                            memory_delta = end_memory - start_memory
-                        except:
-                            pass
-                    
-                    # Determine performance grade
-                    grade = PerformanceMonitor._get_grade(duration, threshold)
-                    
-                    # Log performance
-                    log_msg = f"[PERF] {operation}: {duration:.3f}s"
-                    if memory_delta:
-                        log_msg += f" | Δ Memory: {memory_delta:+.1f}MB"
-                    log_msg += f" | Grade: {grade}"
-                    
-                    # Choose log level based on performance
-                    if grade == 'excellent':
-                        perf_logger.log(log_level, log_msg)
-                    elif grade in ['good', 'acceptable']:
-                        perf_logger.info(log_msg)
-                    elif grade == 'slow':
-                        perf_logger.warning(log_msg)
-                    else:  # critical
-                        perf_logger.error(log_msg)
-                    
-                    # Store metrics in session state
-                    PerformanceMonitor._store_metrics(
-                        operation, duration, memory_delta, grade, call_id
-                    )
-                    
-                    # Check for performance degradation
-                    PerformanceMonitor._check_degradation(operation)
+                    # Store timing
+                    if 'performance_metrics' not in st.session_state:
+                        st.session_state.performance_metrics = {}
+                    st.session_state.performance_metrics[func.__name__] = elapsed
                     
                     return result
-                    
                 except Exception as e:
-                    duration = time.perf_counter() - start_time
-                    perf_logger.error(
-                        f"[PERF] {operation} FAILED after {duration:.3f}s: {str(e)}"
-                    )
-                    
-                    # Store failure metrics
-                    PerformanceMonitor._store_metrics(
-                        operation, duration, 0, 'failed', call_id, failed=True
-                    )
+                    elapsed = time.perf_counter() - start
+                    logger.error(f"{func.__name__} failed after {elapsed:.2f}s: {str(e)}")
                     raise
-            
             return wrapper
         return decorator
-    
-    @staticmethod
-    def _get_grade(duration: float, threshold: float) -> str:
-        """Determine performance grade based on duration and threshold"""
-        ratio = duration / threshold
-        
-        for grade, max_ratio in PerformanceMonitor.GRADES.items():
-            if ratio <= max_ratio:
-                return grade
-        return 'critical'
-    
-    @staticmethod
-    def _store_metrics(operation: str, duration: float, memory_delta: float, 
-                      grade: str, call_id: str, failed: bool = False):
-        """Store performance metrics in session state"""
-        if 'performance_metrics' not in st.session_state:
-            st.session_state.performance_metrics = OrderedDict()
-        
-        if operation not in st.session_state.performance_metrics:
-            st.session_state.performance_metrics[operation] = {
-                'calls': [],
-                'total_duration': 0,
-                'total_memory': 0,
-                'failure_count': 0,
-                'grades': {'excellent': 0, 'good': 0, 'acceptable': 0, 'slow': 0, 'critical': 0}
-            }
-        
-        metrics = st.session_state.performance_metrics[operation]
-        
-        # Store call details (keep last 100)
-        metrics['calls'].append({
-            'id': call_id,
-            'timestamp': datetime.now(timezone.utc),
-            'duration': duration,
-            'memory_delta': memory_delta,
-            'grade': grade if not failed else 'failed',
-            'failed': failed
-        })
-        
-        if len(metrics['calls']) > 100:
-            metrics['calls'] = metrics['calls'][-100:]
-        
-        # Update aggregates
-        metrics['total_duration'] += duration
-        metrics['total_memory'] += memory_delta
-        
-        if failed:
-            metrics['failure_count'] += 1
-        else:
-            metrics['grades'][grade] += 1
-    
-    @staticmethod
-    def _check_degradation(operation: str):
-        """Check for performance degradation trends"""
-        if 'performance_metrics' not in st.session_state:
-            return
-        
-        metrics = st.session_state.performance_metrics.get(operation, {})
-        calls = metrics.get('calls', [])
-        
-        if len(calls) < 10:
-            return
-        
-        # Check last 10 calls vs previous 10
-        recent_calls = calls[-10:]
-        previous_calls = calls[-20:-10] if len(calls) >= 20 else calls[:10]
-        
-        recent_avg = np.mean([c['duration'] for c in recent_calls])
-        previous_avg = np.mean([c['duration'] for c in previous_calls])
-        
-        # Detect significant degradation (>20% slower)
-        if recent_avg > previous_avg * 1.2:
-            degradation_pct = ((recent_avg - previous_avg) / previous_avg) * 100
-            perf_logger.warning(
-                f"Performance degradation detected for {operation}: "
-                f"{degradation_pct:.1f}% slower than baseline"
-            )
-    
-    @staticmethod
-    def get_summary(operation: str = None) -> Dict[str, Any]:
-        """
-        Get performance summary for an operation or all operations.
-        
-        Args:
-            operation: Specific operation or None for all
-            
-        Returns:
-            Dictionary with performance statistics
-        """
-        if 'performance_metrics' not in st.session_state:
-            return {}
-        
-        if operation:
-            metrics = st.session_state.performance_metrics.get(operation, {})
-            if not metrics:
-                return {}
-            
-            calls = metrics.get('calls', [])
-            if not calls:
-                return {}
-            
-            durations = [c['duration'] for c in calls if not c.get('failed')]
-            
-            return {
-                'operation': operation,
-                'total_calls': len(calls),
-                'failure_rate': metrics['failure_count'] / len(calls) if calls else 0,
-                'avg_duration': np.mean(durations) if durations else 0,
-                'min_duration': np.min(durations) if durations else 0,
-                'max_duration': np.max(durations) if durations else 0,
-                'p50_duration': np.percentile(durations, 50) if durations else 0,
-                'p95_duration': np.percentile(durations, 95) if durations else 0,
-                'total_memory': metrics['total_memory'],
-                'grades': metrics['grades']
-            }
-        else:
-            # Summary for all operations
-            all_summaries = {}
-            for op in st.session_state.performance_metrics:
-                all_summaries[op] = PerformanceMonitor.get_summary(op)
-            return all_summaries
-    
-    @staticmethod
-    def display_dashboard():
-        """Display performance dashboard in Streamlit"""
-        if 'performance_metrics' not in st.session_state or not st.session_state.performance_metrics:
-            st.info("No performance data available yet")
-            return
-        
-        st.markdown("### 📊 Performance Dashboard")
-        
-        # Overall statistics
-        col1, col2, col3, col4 = st.columns(4)
-        
-        all_calls = []
-        for metrics in st.session_state.performance_metrics.values():
-            all_calls.extend(metrics.get('calls', []))
-        
-        if all_calls:
-            total_duration = sum(c['duration'] for c in all_calls)
-            avg_duration = np.mean([c['duration'] for c in all_calls])
-            failure_rate = sum(1 for c in all_calls if c.get('failed')) / len(all_calls)
-            
-            with col1:
-                st.metric("Total Operations", f"{len(all_calls):,}")
-            with col2:
-                st.metric("Total Time", f"{total_duration:.1f}s")
-            with col3:
-                st.metric("Avg Duration", f"{avg_duration:.3f}s")
-            with col4:
-                st.metric("Failure Rate", f"{failure_rate:.1%}")
-        
-        # Per-operation breakdown
-        st.markdown("#### Operation Performance")
-        
-        data = []
-        for operation, metrics in st.session_state.performance_metrics.items():
-            calls = metrics.get('calls', [])
-            if calls:
-                durations = [c['duration'] for c in calls if not c.get('failed')]
-                if durations:
-                    data.append({
-                        'Operation': operation,
-                        'Calls': len(calls),
-                        'Avg (s)': np.mean(durations),
-                        'Min (s)': np.min(durations),
-                        'Max (s)': np.max(durations),
-                        'P95 (s)': np.percentile(durations, 95),
-                        'Failures': metrics['failure_count'],
-                        'Grade': PerformanceMonitor._get_overall_grade(metrics['grades'])
-                    })
-        
-        if data:
-            df = pd.DataFrame(data)
-            st.dataframe(
-                df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    'Avg (s)': st.column_config.NumberColumn(format='%.3f'),
-                    'Min (s)': st.column_config.NumberColumn(format='%.3f'),
-                    'Max (s)': st.column_config.NumberColumn(format='%.3f'),
-                    'P95 (s)': st.column_config.NumberColumn(format='%.3f'),
-                }
-            )
-    
-    @staticmethod
-    def _get_overall_grade(grades: Dict[str, int]) -> str:
-        """Calculate overall grade from grade distribution"""
-        total = sum(grades.values())
-        if total == 0:
-            return 'N/A'
-        
-        # Weighted score
-        weights = {
-            'excellent': 1.0,
-            'good': 0.8,
-            'acceptable': 0.6,
-            'slow': 0.3,
-            'critical': 0.0
-        }
-        
-        score = sum(grades[g] * weights.get(g, 0) for g in grades) / total
-        
-        if score >= 0.8:
-            return '🟢 Excellent'
-        elif score >= 0.6:
-            return '🟡 Good'
-        elif score >= 0.4:
-            return '🟠 Fair'
-        else:
-            return '🔴 Poor'
-    
-    @staticmethod
-    def optimize_suggestions() -> List[str]:
-        """Generate optimization suggestions based on performance data"""
-        suggestions = []
-        
-        if 'performance_metrics' not in st.session_state:
-            return suggestions
-        
-        for operation, metrics in st.session_state.performance_metrics.items():
-            calls = metrics.get('calls', [])
-            if len(calls) < 5:
-                continue
-            
-            durations = [c['duration'] for c in calls if not c.get('failed')]
-            if not durations:
-                continue
-            
-            avg_duration = np.mean(durations)
-            threshold = PerformanceMonitor.THRESHOLDS.get(operation, 1.0)
-            
-            # Check if consistently slow
-            if avg_duration > threshold * 1.5:
-                suggestions.append(
-                    f"⚠️ {operation} is running {avg_duration/threshold:.1f}x slower than expected. "
-                    f"Consider optimizing or caching."
-                )
-            
-            # Check for high variance
-            if len(durations) > 1:
-                cv = np.std(durations) / avg_duration if avg_duration > 0 else 0
-                if cv > 0.5:
-                    suggestions.append(
-                        f"📊 {operation} has high variance (CV={cv:.1f}). "
-                        f"Performance is inconsistent."
-                    )
-            
-            # Check failure rate
-            failure_rate = metrics['failure_count'] / len(calls) if calls else 0
-            if failure_rate > 0.1:
-                suggestions.append(
-                    f"❌ {operation} has {failure_rate:.1%} failure rate. "
-                    f"Needs error handling improvement."
-                )
-        
-        return suggestions
-
-# Create specialized logger for performance
-perf_logger = LoggerFactory.get_logger('wave_detection.performance')
 
 # ============================================
 # DATA VALIDATION AND SANITIZATION
 # ============================================
 
-class DataValidationError(Exception):
-    """Custom exception for data validation errors"""
-    pass
-
 class DataValidator:
     """
-    Comprehensive data validation and sanitization system.
-    Handles validation, cleaning, type conversion, and quality reporting.
+    Comprehensive data validation and sanitization.
+    This class ensures data integrity, handles missing or invalid values gracefully,
+    and reports on all correction actions taken.
     """
     
-    # Validation statistics tracking
-    validation_stats = {
-        'total_validations': 0,
-        'total_errors_fixed': 0,
-        'total_warnings': 0,
-        'last_validation': None
-    }
-    
     @staticmethod
-    @PerformanceMonitor.timer(operation='data_validation')
-    def validate_and_sanitize(df: pd.DataFrame, 
-                             strict: bool = False,
-                             auto_fix: bool = True) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    def validate_dataframe(df: pd.DataFrame, required_cols: List[str], context: str) -> Tuple[bool, str]:
         """
-        Complete validation and sanitization pipeline.
-        
+        Validates the structure and basic quality of a DataFrame.
+
         Args:
-            df: DataFrame to validate and sanitize
-            strict: If True, raise errors instead of warnings
-            auto_fix: If True, automatically fix issues where possible
-            
+            df (pd.DataFrame): The DataFrame to validate.
+            required_cols (List[str]): A list of columns that must be present.
+            context (str): A descriptive string for logging and error messages.
+
         Returns:
-            Tuple of (cleaned_df, validation_report)
+            Tuple[bool, str]: A boolean indicating validity and a message.
         """
-        if df is None or df.empty:
-            raise DataValidationError("DataFrame is empty or None")
+        if df is None:
+            return False, f"{context}: DataFrame is None"
         
-        validation_report = {
-            'timestamp': datetime.now(timezone.utc),
-            'original_shape': df.shape,
-            'errors': [],
-            'warnings': [],
-            'fixes_applied': [],
-            'quality_score': 100.0,
-            'column_reports': {}
-        }
+        if df.empty:
+            return False, f"{context}: DataFrame is empty"
         
-        # Create a copy to avoid modifying original
-        df = df.copy()
-        original_rows = len(df)
-        
-        try:
-            # Step 1: Structure validation
-            df, structure_report = DataValidator._validate_structure(df, strict)
-            validation_report['structure'] = structure_report
-            
-            # Step 2: Column validation
-            df, column_report = DataValidator._validate_columns(df, auto_fix)
-            validation_report['column_reports'] = column_report
-            
-            # Step 3: Data type validation and conversion
-            df, type_report = DataValidator._validate_and_convert_types(df, auto_fix)
-            validation_report['type_conversions'] = type_report
-            
-            # Step 4: Value range validation
-            df, range_report = DataValidator._validate_ranges(df, auto_fix)
-            validation_report['range_validations'] = range_report
-            
-            # Step 5: Remove duplicates
-            df, duplicate_report = DataValidator._remove_duplicates(df, auto_fix)
-            validation_report['duplicate_removal'] = duplicate_report
-            
-            # Step 6: Handle missing values
-            df, missing_report = DataValidator._handle_missing_values(df, auto_fix)
-            validation_report['missing_values'] = missing_report
-            
-            # Step 7: Detect and handle outliers
-            df, outlier_report = DataValidator._handle_outliers(df, auto_fix)
-            validation_report['outliers'] = outlier_report
-            
-            # Step 8: Validate business rules
-            df, business_report = DataValidator._validate_business_rules(df, auto_fix)
-            validation_report['business_rules'] = business_report
-            
-            # Step 9: Data consistency checks
-            df, consistency_report = DataValidator._check_consistency(df, auto_fix)
-            validation_report['consistency'] = consistency_report
-            
-            # Calculate quality score
-            validation_report['quality_score'] = DataValidator._calculate_quality_score(
-                df, validation_report
-            )
-            
-            # Final shape
-            validation_report['final_shape'] = df.shape
-            validation_report['rows_removed'] = original_rows - len(df)
-            
-            # Update statistics
-            DataValidator.validation_stats['total_validations'] += 1
-            DataValidator.validation_stats['total_errors_fixed'] += len(validation_report.get('fixes_applied', []))
-            DataValidator.validation_stats['total_warnings'] += len(validation_report.get('warnings', []))
-            DataValidator.validation_stats['last_validation'] = datetime.now(timezone.utc)
-            
-            # Log summary
-            data_logger.info(
-                f"Validation complete: {len(df)} rows, "
-                f"Quality: {validation_report['quality_score']:.1f}%, "
-                f"Fixes: {len(validation_report.get('fixes_applied', []))}"
-            )
-            
-            return df, validation_report
-            
-        except Exception as e:
-            logger.error(f"Validation failed: {str(e)}")
-            if strict:
-                raise DataValidationError(f"Validation failed: {str(e)}")
-            validation_report['errors'].append(str(e))
-            return df, validation_report
-    
-    @staticmethod
-    def _validate_structure(df: pd.DataFrame, strict: bool) -> Tuple[pd.DataFrame, Dict]:
-        """Validate DataFrame structure"""
-        report = {
-            'critical_columns_missing': [],
-            'important_columns_missing': [],
-            'rows_before': len(df),
-            'rows_after': len(df)
-        }
-        
-        # Check critical columns
-        missing_critical = [col for col in DATA_CONFIG.CRITICAL_COLUMNS if col not in df.columns]
+        # Check for critical columns defined in CONFIG
+        missing_critical = [col for col in CONFIG.CRITICAL_COLUMNS if col not in df.columns]
         if missing_critical:
-            error_msg = f"Critical columns missing: {missing_critical}"
-            if strict:
-                raise DataValidationError(error_msg)
-            report['critical_columns_missing'] = missing_critical
-            logger.error(error_msg)
-        
-        # Check important columns
-        missing_important = [col for col in DATA_CONFIG.IMPORTANT_COLUMNS if col not in df.columns]
-        if missing_important:
-            report['important_columns_missing'] = missing_important
-            logger.warning(f"Important columns missing: {missing_important[:5]}...")
-        
-        # Remove completely empty rows
-        before = len(df)
-        df = df.dropna(how='all')
-        removed = before - len(df)
-        if removed > 0:
-            report['empty_rows_removed'] = removed
-            logger.info(f"Removed {removed} empty rows")
-        
-        # Remove rows missing critical data
-        for col in DATA_CONFIG.CRITICAL_COLUMNS:
-            if col in df.columns:
-                before = len(df)
-                df = df.dropna(subset=[col])
-                removed = before - len(df)
-                if removed > 0:
-                    report[f'rows_missing_{col}'] = removed
-        
-        report['rows_after'] = len(df)
-        return df, report
-    
-    @staticmethod
-    def _validate_columns(df: pd.DataFrame, auto_fix: bool) -> Tuple[pd.DataFrame, Dict]:
-        """Validate and standardize column names"""
-        report = {}
-        
-        # Standardize column names
-        original_columns = df.columns.tolist()
-        df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
-        
-        # Track renamed columns
-        renamed = [(orig, new) for orig, new in zip(original_columns, df.columns) if orig != new]
-        if renamed:
-            report['columns_renamed'] = renamed
-            logger.info(f"Renamed {len(renamed)} columns")
-        
-        # Remove duplicate columns
-        duplicate_cols = df.columns[df.columns.duplicated()].tolist()
-        if duplicate_cols and auto_fix:
-            df = df.loc[:, ~df.columns.duplicated()]
-            report['duplicate_columns_removed'] = duplicate_cols
-            logger.warning(f"Removed duplicate columns: {duplicate_cols}")
-        
-        return df, report
-    
-    @staticmethod
-    def _validate_and_convert_types(df: pd.DataFrame, auto_fix: bool) -> Tuple[pd.DataFrame, Dict]:
-        """Validate and convert data types"""
-        report = {
-            'conversions': {},
-            'failed_conversions': {}
-        }
-        
-        # Define expected types
-        type_mappings = {
-            'price': 'float64',
-            'volume_1d': 'float64',
-            'volume_7d': 'float64',
-            'volume_30d': 'float64',
-            'volume_90d': 'float64',
-            'volume_180d': 'float64',
-            'pe': 'float64',
-            'eps_current': 'float64',
-            'eps_last_qtr': 'float64',
-            'ret_1d': 'float64',
-            'ret_7d': 'float64',
-            'ret_30d': 'float64',
-            'ret_3m': 'float64',
-            'ret_6m': 'float64',
-            'ret_1y': 'float64',
-            'ret_3y': 'float64',
-            'ret_5y': 'float64',
-            'rvol': 'float64',
-            'from_low_pct': 'float64',
-            'from_high_pct': 'float64',
-            'sma_20d': 'float64',
-            'sma_50d': 'float64',
-            'sma_200d': 'float64',
-            'ticker': 'string',
-            'company_name': 'string',
-            'category': 'category',
-            'sector': 'category',
-            'industry': 'category'
-        }
-        
-        for col, expected_type in type_mappings.items():
-            if col not in df.columns:
-                continue
-            
-            current_type = df[col].dtype
-            
-            if auto_fix and str(current_type) != expected_type:
-                try:
-                    if expected_type == 'float64':
-                        # Handle percentage strings
-                        if df[col].dtype == 'object':
-                            df[col] = df[col].astype(str).str.replace('%', '').str.replace(',', '')
-                        df[col] = pd.to_numeric(df[col], errors='coerce')
-                        
-                    elif expected_type == 'string':
-                        df[col] = df[col].astype(str).str.strip()
-                        
-                    elif expected_type == 'category':
-                        df[col] = df[col].astype('category')
-                    
-                    report['conversions'][col] = f"{current_type} -> {expected_type}"
-                    
-                except Exception as e:
-                    report['failed_conversions'][col] = str(e)
-                    logger.warning(f"Failed to convert {col}: {e}")
-        
-        return df, report
-    
-    @staticmethod
-    def _validate_ranges(df: pd.DataFrame, auto_fix: bool) -> Tuple[pd.DataFrame, Dict]:
-        """Validate value ranges for numeric columns"""
-        report = {
-            'out_of_range': {},
-            'capped_values': {}
-        }
-        
-        # Use validation config
-        for col, (min_val, max_val) in VALIDATION_CONFIG.NUMERIC_COLUMNS.items():
-            if col not in df.columns or df[col].dtype not in ['float64', 'int64']:
-                continue
-            
-            # Find out of range values
-            out_of_range_mask = (df[col] < min_val) | (df[col] > max_val)
-            out_of_range_count = out_of_range_mask.sum()
-            
-            if out_of_range_count > 0:
-                report['out_of_range'][col] = int(out_of_range_count)
-                
-                if auto_fix:
-                    # Cap values at min/max
-                    df.loc[df[col] < min_val, col] = min_val
-                    df.loc[df[col] > max_val, col] = max_val
-                    report['capped_values'][col] = int(out_of_range_count)
-                    logger.info(f"Capped {out_of_range_count} values in {col}")
-        
-        # Special validation for percentages
-        percentage_cols = ['ret_1d', 'ret_7d', 'ret_30d', 'ret_3m', 'ret_6m', 'ret_1y']
-        for col in percentage_cols:
-            if col in df.columns:
-                # Convert if stored as decimals (0.1 instead of 10%)
-                if df[col].abs().max() < 2:  # Likely decimal format
-                    df[col] = df[col] * 100
-                    report[f'{col}_converted'] = 'decimal to percentage'
-        
-        return df, report
-    
-    @staticmethod
-    def _remove_duplicates(df: pd.DataFrame, auto_fix: bool) -> Tuple[pd.DataFrame, Dict]:
-        """Remove duplicate rows"""
-        report = {
-            'duplicates_found': 0,
-            'duplicates_removed': 0
-        }
+            return False, f"{context}: Missing critical columns: {missing_critical}"
         
         # Check for duplicate tickers
-        if 'ticker' in df.columns:
-            duplicates = df['ticker'].duplicated()
-            report['duplicates_found'] = int(duplicates.sum())
-            
-            if auto_fix and duplicates.sum() > 0:
-                # Keep the row with the most recent data (highest volume or newest price)
-                if 'volume_1d' in df.columns:
-                    df = df.sort_values('volume_1d', ascending=False).drop_duplicates('ticker', keep='first')
-                else:
-                    df = df.drop_duplicates('ticker', keep='last')
-                
-                report['duplicates_removed'] = report['duplicates_found']
-                logger.info(f"Removed {report['duplicates_removed']} duplicate tickers")
+        duplicates = df['ticker'].duplicated().sum()
+        if duplicates > 0:
+            logger.warning(f"{context}: Found {duplicates} duplicate tickers")
         
-        return df, report
+        # Calculate data completeness
+        total_cells = len(df) * len(df.columns)
+        filled_cells = df.notna().sum().sum()
+        completeness = (filled_cells / total_cells * 100) if total_cells > 0 else 0
+        
+        if completeness < 50:
+            logger.warning(f"{context}: Low data completeness ({completeness:.1f}%)")
+        
+        # Update session state with data quality metrics
+        if 'data_quality' not in st.session_state:
+            st.session_state.data_quality = {}
+        
+        st.session_state.data_quality.update({
+            'completeness': completeness,
+            'total_rows': len(df),
+            'total_columns': len(df.columns),
+            'duplicate_tickers': duplicates,
+            'context': context,
+            'timestamp': datetime.now(timezone.utc)
+        })
+        
+        logger.info(f"{context}: Validated {len(df)} rows, {len(df.columns)} columns, {completeness:.1f}% complete")
+        return True, "Valid"
+
+    @staticmethod
+    def clean_numeric_value(value: Any, is_percentage: bool = False, bounds: Optional[Tuple[float, float]] = None) -> Optional[float]:
+        """
+        Cleans, converts, and validates a single numeric value.
+        
+        Args:
+            value (Any): The value to clean.
+            is_percentage (bool): Flag to handle percentage symbols.
+            bounds (Optional[Tuple[float, float]]): A tuple (min, max) to clip the value.
+            
+        Returns:
+            Optional[float]: The cleaned float value, or np.nan if invalid.
+        """
+        # FIX: Removed col_name parameter that was not used
+        if pd.isna(value) or value == '' or value is None:
+            return np.nan
+        
+        try:
+            # Convert to string for cleaning
+            cleaned = str(value).strip()
+            
+            # Identify and handle invalid string representations
+            if cleaned.upper() in ['', '-', 'N/A', 'NA', 'NAN', 'NONE', '#VALUE!', '#ERROR!', '#DIV/0!', 'INF', '-INF']:
+                return np.nan
+            
+            # Remove symbols and spaces
+            cleaned = cleaned.replace('₹', '').replace('$', '').replace(',', '').replace(' ', '').replace('%', '')
+            
+            # Convert to float
+            result = float(cleaned)
+            
+            # Apply bounds if specified
+            if bounds:
+                min_val, max_val = bounds
+                if result < min_val or result > max_val:
+                    logger.debug(f"Value {result} outside bounds [{min_val}, {max_val}]")
+                    result = np.clip(result, min_val, max_val)
+            
+            # Check for unreasonable values
+            if np.isnan(result) or np.isinf(result):
+                return np.nan
+            
+            return result
+            
+        except (ValueError, TypeError, AttributeError):
+            return np.nan
     
     @staticmethod
-    def _handle_missing_values(df: pd.DataFrame, auto_fix: bool) -> Tuple[pd.DataFrame, Dict]:
-        """Handle missing values intelligently"""
-        report = {
-            'missing_before': {},
-            'missing_after': {},
-            'imputation_methods': {}
-        }
+    def sanitize_string(value: Any, default: str = "Unknown") -> str:
+        """
+        Cleans and sanitizes a string value, returning a default if invalid.
         
-        # Track missing values before
-        for col in df.columns:
-            missing_count = df[col].isnull().sum()
-            if missing_count > 0:
-                report['missing_before'][col] = int(missing_count)
-        
-        if auto_fix:
-            # Numeric columns: fill with appropriate values
-            numeric_cols = df.select_dtypes(include=[np.number]).columns
+        Args:
+            value (Any): The value to sanitize.
+            default (str): The default value to return if invalid.
             
-            for col in numeric_cols:
-                if df[col].isnull().sum() > 0:
-                    if 'volume' in col or col == 'rvol':
-                        # Volume columns: fill with 0
-                        df[col].fillna(0, inplace=True)
-                        report['imputation_methods'][col] = 'filled with 0'
-                    elif 'ret' in col or 'pct' in col:
-                        # Return/percentage columns: fill with 0
-                        df[col].fillna(0, inplace=True)
-                        report['imputation_methods'][col] = 'filled with 0'
-                    elif col in ['pe', 'eps_current', 'eps_last_qtr']:
-                        # Fundamental data: keep as NaN (will be handled by filters)
-                        report['imputation_methods'][col] = 'kept as NaN'
-                    else:
-                        # Other numeric: fill with median
-                        median_val = df[col].median()
-                        df[col].fillna(median_val, inplace=True)
-                        report['imputation_methods'][col] = f'filled with median ({median_val:.2f})'
-            
-            # Categorical columns: fill with 'Unknown'
-            categorical_cols = df.select_dtypes(include=['object', 'category']).columns
-            for col in categorical_cols:
-                if df[col].isnull().sum() > 0:
-                    df[col].fillna('Unknown', inplace=True)
-                    report['imputation_methods'][col] = 'filled with Unknown'
+        Returns:
+            str: The sanitized string.
+        """
+        if pd.isna(value) or value is None:
+            return default
         
-        # Track missing values after
-        for col in df.columns:
-            missing_count = df[col].isnull().sum()
-            if missing_count > 0:
-                report['missing_after'][col] = int(missing_count)
+        cleaned = str(value).strip()
+        if cleaned.upper() in ['', 'N/A', 'NA', 'NAN', 'NONE', 'NULL', '-']:
+            return default
         
-        return df, report
+        # Remove excessive whitespace
+        cleaned = ' '.join(cleaned.split())
+        
+        return cleaned
     
     @staticmethod
-    def _handle_outliers(df: pd.DataFrame, auto_fix: bool) -> Tuple[pd.DataFrame, Dict]:
-        """Detect and handle statistical outliers"""
-        report = {
-            'outliers_detected': {},
-            'outliers_handled': {}
-        }
+    def validate_numeric_columns(df: pd.DataFrame, columns: List[str]) -> Dict[str, int]:
+        """
+        Validates numeric columns and returns a count of invalid values per column.
         
-        # Columns where outliers are meaningful (don't remove)
-        exclude_from_outlier_removal = ['ticker', 'company_name', 'category', 'sector', 'industry']
-        
-        # Columns where extreme values are expected
-        allow_extreme = ['rvol', 'volume_1d', 'ret_1d', 'ret_7d', 'ret_30d']
-        
-        numeric_cols = df.select_dtypes(include=[np.number]).columns
-        
-        for col in numeric_cols:
-            if col in exclude_from_outlier_removal:
-                continue
+        Args:
+            df (pd.DataFrame): The DataFrame to validate.
+            columns (List[str]): List of columns to validate.
             
-            # Calculate statistics
-            Q1 = df[col].quantile(0.25)
-            Q3 = df[col].quantile(0.75)
-            IQR = Q3 - Q1
-            
-            # Define outlier bounds
-            if col in allow_extreme:
-                # More lenient for volatile columns
-                multiplier = 5.0
-            else:
-                multiplier = DATA_CONFIG.OUTLIER_STD_THRESHOLD
-            
-            lower_bound = Q1 - multiplier * IQR
-            upper_bound = Q3 + multiplier * IQR
-            
-            # Detect outliers
-            outliers = ((df[col] < lower_bound) | (df[col] > upper_bound))
-            outlier_count = outliers.sum()
-            
-            if outlier_count > 0:
-                report['outliers_detected'][col] = int(outlier_count)
-                
-                if auto_fix and col not in allow_extreme:
-                    # Cap outliers at bounds
-                    df.loc[df[col] < lower_bound, col] = lower_bound
-                    df.loc[df[col] > upper_bound, col] = upper_bound
-                    report['outliers_handled'][col] = f'capped {outlier_count} values'
+        Returns:
+            Dict[str, int]: Dictionary mapping column names to invalid value counts.
+        """
+        invalid_counts = {}
         
-        return df, report
-    
-    @staticmethod
-    def _validate_business_rules(df: pd.DataFrame, auto_fix: bool) -> Tuple[pd.DataFrame, Dict]:
-        """Validate business-specific rules"""
-        report = {
-            'rule_violations': {},
-            'fixes_applied': []
-        }
-        
-        # Rule 1: Price must be positive
-        if 'price' in df.columns:
-            invalid_price = df['price'] <= 0
-            if invalid_price.sum() > 0:
-                report['rule_violations']['negative_price'] = int(invalid_price.sum())
-                if auto_fix:
-                    df = df[~invalid_price]
-                    report['fixes_applied'].append('removed negative price rows')
-        
-        # Rule 2: Volume cannot be negative
-        volume_cols = [col for col in df.columns if 'volume' in col.lower()]
-        for col in volume_cols:
-            if col in df.columns and df[col].dtype in ['float64', 'int64']:
-                invalid = df[col] < 0
-                if invalid.sum() > 0:
-                    report['rule_violations'][f'negative_{col}'] = int(invalid.sum())
-                    if auto_fix:
-                        df.loc[invalid, col] = 0
-                        report['fixes_applied'].append(f'set negative {col} to 0')
-        
-        # Rule 3: Percentage returns should be reasonable (-100% to +1000%)
-        return_cols = [col for col in df.columns if 'ret_' in col]
-        for col in return_cols:
+        for col in columns:
             if col in df.columns:
-                unreasonable = (df[col] < -100) | (df[col] > 1000)
-                if unreasonable.sum() > 0:
-                    report['rule_violations'][f'unreasonable_{col}'] = int(unreasonable.sum())
-                    if auto_fix:
-                        df = df[~unreasonable]
-                        report['fixes_applied'].append(f'removed unreasonable {col} values')
+                # Count non-numeric values
+                try:
+                    pd.to_numeric(df[col], errors='coerce')
+                    invalid_count = df[col].apply(
+                        lambda x: not isinstance(x, (int, float, np.number)) and pd.notna(x)
+                    ).sum()
+                    
+                    if invalid_count > 0:
+                        invalid_counts[col] = invalid_count
+                        logger.warning(f"Column '{col}' has {invalid_count} non-numeric values")
+                except Exception as e:
+                    logger.error(f"Error validating column '{col}': {str(e)}")
         
-        # Rule 4: RVOL should be positive
-        if 'rvol' in df.columns:
-            invalid_rvol = df['rvol'] < 0
-            if invalid_rvol.sum() > 0:
-                report['rule_violations']['negative_rvol'] = int(invalid_rvol.sum())
-                if auto_fix:
-                    df.loc[invalid_rvol, 'rvol'] = 0
-                    report['fixes_applied'].append('set negative rvol to 0')
-        
-        # Rule 5: Category validation
-        if 'category' in df.columns:
-            valid_categories = VALIDATION_CONFIG.VALID_CATEGORIES
-            invalid_category = ~df['category'].isin(valid_categories)
-            if invalid_category.sum() > 0:
-                report['rule_violations']['invalid_category'] = int(invalid_category.sum())
-                if auto_fix:
-                    df.loc[invalid_category, 'category'] = 'Unknown'
-                    report['fixes_applied'].append('set invalid categories to Unknown')
-        
-        return df, report
-    
-    @staticmethod
-    def _check_consistency(df: pd.DataFrame, auto_fix: bool) -> Tuple[pd.DataFrame, Dict]:
-        """Check data consistency and relationships"""
-        report = {
-            'inconsistencies': {},
-            'fixes': []
-        }
-        
-        # Check: from_low_pct should be >= 0
-        if 'from_low_pct' in df.columns:
-            inconsistent = df['from_low_pct'] < 0
-            if inconsistent.sum() > 0:
-                report['inconsistencies']['negative_from_low'] = int(inconsistent.sum())
-                if auto_fix:
-                    df.loc[inconsistent, 'from_low_pct'] = 0
-                    report['fixes'].append('fixed negative from_low_pct')
-        
-        # Check: from_high_pct should be <= 0 (or negative)
-        if 'from_high_pct' in df.columns:
-            inconsistent = df['from_high_pct'] > 0
-            if inconsistent.sum() > 0:
-                report['inconsistencies']['positive_from_high'] = int(inconsistent.sum())
-                if auto_fix:
-                    df.loc[inconsistent, 'from_high_pct'] = -abs(df.loc[inconsistent, 'from_high_pct'])
-                    report['fixes'].append('fixed positive from_high_pct')
-        
-        # Check: SMA relationships (SMA_20 should vary around price)
-        if 'price' in df.columns and 'sma_20d' in df.columns:
-            # SMA shouldn't be more than 50% different from price
-            large_diff = abs(df['sma_20d'] - df['price']) / df['price'] > 0.5
-            if large_diff.sum() > 0:
-                report['inconsistencies']['sma_price_mismatch'] = int(large_diff.sum())
-        
-        return df, report
-    
-    @staticmethod
-    def _calculate_quality_score(df: pd.DataFrame, validation_report: Dict) -> float:
-        """Calculate overall data quality score (0-100)"""
-        score = 100.0
-        penalties = []
-        
-        # Penalty for missing critical columns
-        critical_missing = len(validation_report.get('structure', {}).get('critical_columns_missing', []))
-        if critical_missing > 0:
-            penalty = critical_missing * 20
-            penalties.append(('critical_columns', penalty))
-            score -= penalty
-        
-        # Penalty for missing important columns
-        important_missing = len(validation_report.get('structure', {}).get('important_columns_missing', []))
-        if important_missing > 0:
-            penalty = min(important_missing * 2, 20)
-            penalties.append(('important_columns', penalty))
-            score -= penalty
-        
-        # Penalty for removed rows
-        rows_removed = validation_report.get('rows_removed', 0)
-        original_rows = validation_report.get('original_shape', (1, 0))[0]
-        if original_rows > 0:
-            removal_ratio = rows_removed / original_rows
-            if removal_ratio > 0.1:  # More than 10% removed
-                penalty = min(removal_ratio * 30, 30)
-                penalties.append(('row_removal', penalty))
-                score -= penalty
-        
-        # Penalty for missing values
-        missing_after = validation_report.get('missing_values', {}).get('missing_after', {})
-        if missing_after:
-            total_cells = df.shape[0] * df.shape[1]
-            total_missing = sum(missing_after.values())
-            missing_ratio = total_missing / total_cells if total_cells > 0 else 0
-            if missing_ratio > 0.05:  # More than 5% missing
-                penalty = min(missing_ratio * 100, 20)
-                penalties.append(('missing_values', penalty))
-                score -= penalty
-        
-        # Penalty for data type conversion failures
-        failed_conversions = len(validation_report.get('type_conversions', {}).get('failed_conversions', {}))
-        if failed_conversions > 0:
-            penalty = min(failed_conversions * 3, 15)
-            penalties.append(('type_conversions', penalty))
-            score -= penalty
-        
-        # Penalty for outliers
-        outliers = validation_report.get('outliers', {}).get('outliers_detected', {})
-        if outliers:
-            total_outliers = sum(outliers.values())
-            outlier_ratio = total_outliers / (len(df) * len(outliers)) if len(df) > 0 else 0
-            if outlier_ratio > 0.02:  # More than 2% outliers
-                penalty = min(outlier_ratio * 50, 10)
-                penalties.append(('outliers', penalty))
-                score -= penalty
-        
-        # Penalty for business rule violations
-        violations = validation_report.get('business_rules', {}).get('rule_violations', {})
-        if violations:
-            penalty = min(len(violations) * 2, 10)
-            penalties.append(('business_rules', penalty))
-            score -= penalty
-        
-        # Log penalties
-        if penalties:
-            logger.debug(f"Quality penalties: {penalties}")
-        
-        return max(score, 0.0)
-    
-    @staticmethod
-    def get_validation_summary(validation_report: Dict) -> str:
-        """Generate human-readable validation summary"""
-        if not validation_report:
-            return "No validation report available"
-        
-        lines = [
-            "📊 Data Validation Summary",
-            "=" * 40,
-            f"Quality Score: {validation_report.get('quality_score', 0):.1f}%",
-            f"Original Shape: {validation_report.get('original_shape', 'N/A')}",
-            f"Final Shape: {validation_report.get('final_shape', 'N/A')}",
-            f"Rows Removed: {validation_report.get('rows_removed', 0)}",
-            ""
-        ]
-        
-        # Add key issues
-        if validation_report.get('errors'):
-            lines.append("❌ Errors:")
-            for error in validation_report['errors'][:5]:
-                lines.append(f"  - {error}")
-        
-        if validation_report.get('warnings'):
-            lines.append("⚠️ Warnings:")
-            for warning in validation_report['warnings'][:5]:
-                lines.append(f"  - {warning}")
-        
-        if validation_report.get('fixes_applied'):
-            lines.append("✅ Fixes Applied:")
-            for fix in validation_report['fixes_applied'][:5]:
-                lines.append(f"  - {fix}")
-        
-        return "\n".join(lines)
-
-# ============================================
-# END OF DATA VALIDATION AND SANITIZATION
-# ============================================
-
-# ============================================
-# FINAL SETUP COMPLETION
-# ============================================
-
-# Mark all setup sections as complete
-SETUP_COMPLETE = True
-
-# Log final configuration summary
-logger.info("=" * 50)
-logger.info("APPLICATION SETUP COMPLETE")
-logger.info(f"Production Mode: {PRODUCTION_MODE}")
-logger.info(f"Debug Mode: {DEBUG_MODE}")
-logger.info(f"Log Level: {logging.getLevelName(LOG_LEVEL)}")
-logger.info(f"Configuration loaded: All dataclasses initialized")
-logger.info(f"Performance monitoring: Enabled with thresholds")
-logger.info(f"Data validation: Full pipeline ready")
-logger.info("=" * 50)
+        return invalid_counts
         
 # ============================================
 # SMART CACHING WITH VERSIONING
