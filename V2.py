@@ -5479,115 +5479,332 @@ def main():
                 st.markdown("#### 🔍 Pattern Discoveries & Market Insights")
                 
                 if 'patterns' in filtered_df.columns:
-                    # Pattern frequency analysis
-                    pattern_freq = {}
-                    pattern_stocks = {}
+                    # ========================================
+                    # PATTERN FREQUENCY & IMPACT TABLE
+                    # ========================================
                     
-                    for patterns_str in filtered_df['patterns'].dropna():
-                        if patterns_str:
-                            for pattern in patterns_str.split(' | '):
+                    # Build pattern analysis
+                    pattern_analysis = []
+                    
+                    # Count patterns and find example stocks
+                    for idx, row in filtered_df.iterrows():
+                        if row['patterns'] and row['patterns'] != '':
+                            patterns = str(row['patterns']).split(' | ')
+                            for pattern in patterns:
                                 pattern = pattern.strip()
                                 if pattern:
-                                    pattern_freq[pattern] = pattern_freq.get(pattern, 0) + 1
-                                    if pattern not in pattern_stocks:
-                                        pattern_stocks[pattern] = []
-                    
-                    # Build pattern examples
-                    for idx, row in filtered_df.iterrows():
-                        if row['patterns']:
-                            for pattern in row['patterns'].split(' | '):
-                                pattern = pattern.strip()
-                                if pattern in pattern_stocks and len(pattern_stocks[pattern]) < 3:
-                                    pattern_stocks[pattern].append(row['ticker'])
-                    
-                    if pattern_freq:
-                        # Sort patterns by frequency
-                        sorted_patterns = sorted(pattern_freq.items(), key=lambda x: x[1], reverse=True)
-                        
-                        # Critical patterns vs Regular patterns
-                        critical_patterns = ['🔥 CAT LEADER', '⛈️ PERFECT STORM', '⚡ VOL EXPLOSION', 
-                                            '🚀 ACCELERATING', '🎯 BREAKOUT', '🧛 VAMPIRE',
-                                            '💣 CAPITULATION', '🪤 BULL TRAP', '⚠️ DISTRIBUTION']
-                        
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.markdown("**🎯 Critical Pattern Signals**")
-                            critical_found = []
-                            
-                            for pattern, count in sorted_patterns:
-                                if any(crit in pattern for crit in critical_patterns):
-                                    examples = pattern_stocks.get(pattern, [])
-                                    critical_found.append({
-                                        'Pattern': pattern,
-                                        'Count': count,
-                                        'Examples': ', '.join(examples[:3]),
-                                        'Alert': '🔴 HOT' if count > 10 else '🟡 WARM' if count > 5 else '🟢 COOL'
+                                    pattern_analysis.append({
+                                        'pattern': pattern,
+                                        'ticker': row['ticker'],
+                                        'score': row['master_score'],
+                                        'ret_30d': row.get('ret_30d', 0),
+                                        'rvol': row.get('rvol', 1),
+                                        'price': row['price']
                                     })
-                            
-                            if critical_found:
-                                crit_df = pd.DataFrame(critical_found[:8])
-                                st.dataframe(crit_df, use_container_width=True, hide_index=True)
-                            else:
-                                st.info("No critical patterns active")
+                    
+                    if pattern_analysis:
+                        pattern_df = pd.DataFrame(pattern_analysis)
                         
-                        with col2:
+                        # Aggregate pattern statistics
+                        pattern_stats = pattern_df.groupby('pattern').agg({
+                            'ticker': ['count', lambda x: list(x.head(3))],  # Count and top 3 tickers
+                            'score': 'mean',
+                            'ret_30d': 'mean',
+                            'rvol': 'mean'
+                        }).round(2)
+                        
+                        pattern_stats.columns = ['Count', 'Top Stocks', 'Avg Score', 'Avg 30D%', 'Avg RVOL']
+                        pattern_stats = pattern_stats.sort_values('Count', ascending=False)
+                        
+                        # Classify patterns
+                        def classify_pattern(pattern_name):
+                            bullish = ['ACCELERATING', 'BREAKOUT', 'MOMENTUM', 'LEADER', 'GEM', 'GOLDEN', 'RISING', 'CRESTING']
+                            bearish = ['TRAP', 'DISTRIBUTION', 'EXHAUSTION', 'BREAKING', 'FALLING']
+                            reversal = ['CAPITULATION', 'BOUNCE', 'TURNAROUND', 'ROTATION']
+                            extreme = ['PERFECT STORM', 'VOL EXPLOSION', 'VAMPIRE']
+                            
+                            if any(word in pattern_name for word in extreme):
+                                return "⚡ EXTREME", "#ff4444"
+                            elif any(word in pattern_name for word in bullish):
+                                return "📈 BULLISH", "#00cc88"
+                            elif any(word in pattern_name for word in bearish):
+                                return "📉 BEARISH", "#ff6666"
+                            elif any(word in pattern_name for word in reversal):
+                                return "🔄 REVERSAL", "#ffaa00"
+                            else:
+                                return "➡️ NEUTRAL", "#888888"
+                        
+                        # Build display dataframe
+                        display_patterns = []
+                        for pattern, row in pattern_stats.head(15).iterrows():
+                            pattern_type, color = classify_pattern(pattern)
+                            
+                            # Determine strength
+                            if row['Count'] > 20:
+                                strength = "🔥🔥🔥"
+                            elif row['Count'] > 10:
+                                strength = "🔥🔥"
+                            elif row['Count'] > 5:
+                                strength = "🔥"
+                            else:
+                                strength = "•"
+                            
+                            # Format top stocks list
+                            top_stocks = ', '.join(row['Top Stocks'][:3]) if isinstance(row['Top Stocks'], list) else ''
+                            
+                            display_patterns.append({
+                                'Strength': strength,
+                                'Pattern': pattern,
+                                'Type': pattern_type,
+                                'Count': int(row['Count']),
+                                'Top Stocks': top_stocks,
+                                'Avg Score': row['Avg Score'],
+                                'Avg 30D%': row['Avg 30D%'],
+                                'Avg RVOL': row['Avg RVOL']
+                            })
+                        
+                        patterns_display_df = pd.DataFrame(display_patterns)
+                        
+                        # Display main pattern table
+                        st.markdown("##### 📊 **Active Pattern Signals**")
+                        
+                        st.dataframe(
+                            patterns_display_df,
+                            use_container_width=True,
+                            hide_index=True,
+                            height=400,
+                            column_config={
+                                'Strength': st.column_config.TextColumn('', width='small'),
+                                'Pattern': st.column_config.TextColumn('Pattern', width='medium'),
+                                'Type': st.column_config.TextColumn('Type', width='small'),
+                                'Count': st.column_config.NumberColumn('Stocks', format='%d', width='small'),
+                                'Top Stocks': st.column_config.TextColumn('Leading Stocks', width='large'),
+                                'Avg Score': st.column_config.ProgressColumn(
+                                    'Avg Score',
+                                    min_value=0,
+                                    max_value=100,
+                                    format='%.0f',
+                                    width='small'
+                                ),
+                                'Avg 30D%': st.column_config.NumberColumn('Avg 30D%', format='%.1f%%', width='small'),
+                                'Avg RVOL': st.column_config.NumberColumn('Avg Vol', format='%.1fx', width='small')
+                            }
+                        )
+                        
+                        st.markdown("---")
+                        
+                        # ========================================
+                        # PATTERN INSIGHTS DASHBOARD
+                        # ========================================
+                        st.markdown("##### 💡 **Market Insights from Patterns**")
+                        
+                        # Calculate pattern bias
+                        pattern_groups = patterns_display_df.groupby('Type')['Count'].sum()
+                        total_patterns = pattern_groups.sum()
+                        
+                        # Create insights columns
+                        insight_col1, insight_col2, insight_col3 = st.columns(3)
+                        
+                        with insight_col1:
                             st.markdown("**📊 Pattern Distribution**")
                             
-                            # Pattern categories
-                            pattern_categories = {
-                                'Bullish': 0,
-                                'Bearish': 0,
-                                'Neutral': 0,
-                                'Reversal': 0
-                            }
-                            
-                            bullish_keywords = ['ACCELERATING', 'BREAKOUT', 'MOMENTUM', 'LEADER', 'GEM', 'GOLDEN']
-                            bearish_keywords = ['TRAP', 'DISTRIBUTION', 'EXHAUSTION', 'BREAKING']
-                            reversal_keywords = ['CAPITULATION', 'BOUNCE', 'TURNAROUND', 'ROTATION']
-                            
-                            for pattern, count in sorted_patterns:
-                                if any(word in pattern for word in bullish_keywords):
-                                    pattern_categories['Bullish'] += count
-                                elif any(word in pattern for word in bearish_keywords):
-                                    pattern_categories['Bearish'] += count
-                                elif any(word in pattern for word in reversal_keywords):
-                                    pattern_categories['Reversal'] += count
+                            for pattern_type, count in pattern_groups.items():
+                                pct = (count / total_patterns) * 100 if total_patterns > 0 else 0
+                                
+                                if 'BULLISH' in pattern_type:
+                                    st.success(f"{pattern_type}: {count} ({pct:.0f}%)")
+                                elif 'BEARISH' in pattern_type:
+                                    st.error(f"{pattern_type}: {count} ({pct:.0f}%)")
+                                elif 'EXTREME' in pattern_type:
+                                    st.warning(f"{pattern_type}: {count} ({pct:.0f}%)")
+                                elif 'REVERSAL' in pattern_type:
+                                    st.info(f"{pattern_type}: {count} ({pct:.0f}%)")
                                 else:
-                                    pattern_categories['Neutral'] += count
+                                    st.caption(f"{pattern_type}: {count} ({pct:.0f}%)")
+                        
+                        with insight_col2:
+                            st.markdown("**🎯 Critical Patterns Active**")
                             
-                            # Display pattern bias
-                            total_patterns = sum(pattern_categories.values())
-                            if total_patterns > 0:
-                                for category, count in pattern_categories.items():
-                                    pct = (count / total_patterns) * 100
-                                    
-                                    if category == 'Bullish':
-                                        emoji = "📈"
-                                        color = "success"
-                                    elif category == 'Bearish':
-                                        emoji = "📉"
-                                        color = "error"
-                                    elif category == 'Reversal':
-                                        emoji = "🔄"
-                                        color = "warning"
-                                    else:
-                                        emoji = "➡️"
-                                        color = "info"
-                                    
-                                    getattr(st, color)(f"{emoji} **{category}**: {count} ({pct:.0f}%)")
+                            # Find critical patterns
+                            critical_patterns = [
+                                ('⛈️ PERFECT STORM', 'success'),
+                                ('⚡ VOL EXPLOSION', 'error'),
+                                ('🚀 ACCELERATING', 'info'),
+                                ('🪤 BULL TRAP', 'warning'),
+                                ('💣 CAPITULATION', 'success'),
+                                ('⚠️ DISTRIBUTION', 'error')
+                            ]
                             
-                            # Market insight based on patterns
-                            st.markdown("**💡 Pattern Insight**")
+                            critical_found = False
+                            for pattern_name, alert_type in critical_patterns:
+                                if pattern_name in patterns_display_df['Pattern'].values:
+                                    pattern_row = patterns_display_df[patterns_display_df['Pattern'] == pattern_name]
+                                    if not pattern_row.empty:
+                                        count = pattern_row.iloc[0]['Count']
+                                        stocks = pattern_row.iloc[0]['Top Stocks']
+                                        
+                                        getattr(st, alert_type)(
+                                            f"**{pattern_name}** ({count})\n{stocks}"
+                                        )
+                                        critical_found = True
+                                        break  # Show only top 3 critical patterns
                             
-                            if pattern_categories['Bullish'] > pattern_categories['Bearish'] * 2:
-                                st.success("Strong bullish bias - Favor long positions")
-                            elif pattern_categories['Bearish'] > pattern_categories['Bullish'] * 2:
-                                st.error("Strong bearish bias - Reduce exposure")
-                            elif pattern_categories['Reversal'] > total_patterns * 0.3:
-                                st.warning("High reversal activity - Expect volatility")
+                            if not critical_found:
+                                st.info("No critical patterns detected")
+                        
+                        with insight_col3:
+                            st.markdown("**📈 Market Bias Signal**")
+                            
+                            # Calculate overall bias
+                            bullish_count = pattern_groups.get('📈 BULLISH', 0)
+                            bearish_count = pattern_groups.get('📉 BEARISH', 0)
+                            extreme_count = pattern_groups.get('⚡ EXTREME', 0)
+                            reversal_count = pattern_groups.get('🔄 REVERSAL', 0)
+                            
+                            if extreme_count > 10:
+                                st.error(
+                                    "**⚡ EXTREME ACTIVITY**\n"
+                                    "High volatility expected\n"
+                                    "Use tight risk management"
+                                )
+                            elif bullish_count > bearish_count * 2:
+                                st.success(
+                                    "**📈 STRONG BULLISH BIAS**\n"
+                                    f"Ratio: {bullish_count}:{bearish_count}\n"
+                                    "Favor long positions"
+                                )
+                            elif bearish_count > bullish_count * 2:
+                                st.error(
+                                    "**📉 STRONG BEARISH BIAS**\n"
+                                    f"Ratio: {bearish_count}:{bullish_count}\n"
+                                    "Reduce exposure"
+                                )
+                            elif reversal_count > total_patterns * 0.3:
+                                st.warning(
+                                    "**🔄 REVERSAL ZONE**\n"
+                                    "Market at inflection point\n"
+                                    "Wait for confirmation"
+                                )
                             else:
-                                st.info("Mixed signals - Stay selective")
+                                st.info(
+                                    "**➡️ MIXED SIGNALS**\n"
+                                    f"Bull: {bullish_count} | Bear: {bearish_count}\n"
+                                    "Stay selective"
+                                )
+                        
+                        st.markdown("---")
+                        
+                        # ========================================
+                        # TOP PATTERN PLAYS
+                        # ========================================
+                        st.markdown("##### 🏆 **Top Stocks by Pattern Type**")
+                        
+                        # Create pattern type tabs
+                        pattern_tabs = st.tabs(["📈 Bullish Leaders", "⚡ Extreme Movers", "🔄 Reversal Plays"])
+                        
+                        with pattern_tabs[0]:  # Bullish Leaders
+                            bullish_patterns = ['🚀 ACCELERATING', '🎯 BREAKOUT', '🌊 MOMENTUM WAVE', '🔥 CAT LEADER', '💎 HIDDEN GEM']
+                            bullish_stocks = filtered_df[
+                                filtered_df['patterns'].str.contains('|'.join(bullish_patterns), na=False, regex=True)
+                            ].nlargest(5, 'master_score')
+                            
+                            if len(bullish_stocks) > 0:
+                                bullish_display = []
+                                for _, stock in bullish_stocks.iterrows():
+                                    # Find which bullish patterns this stock has
+                                    stock_patterns = []
+                                    for bp in bullish_patterns:
+                                        if bp in str(stock['patterns']):
+                                            stock_patterns.append(bp.split(' ')[0])  # Just emoji
+                                    
+                                    bullish_display.append({
+                                        'Signals': ' '.join(stock_patterns[:3]),
+                                        'Ticker': stock['ticker'],
+                                        'Company': str(stock.get('company_name', ''))[:25],
+                                        'Score': stock['master_score'],
+                                        'Price': stock['price'],
+                                        '30D%': stock.get('ret_30d', 0),
+                                        'RVOL': stock.get('rvol', 1),
+                                        'Entry': stock['price']
+                                    })
+                                
+                                st.dataframe(
+                                    pd.DataFrame(bullish_display),
+                                    use_container_width=True,
+                                    hide_index=True,
+                                    column_config={
+                                        'Signals': st.column_config.TextColumn('', width='small'),
+                                        'Ticker': st.column_config.TextColumn('Ticker', width='small'),
+                                        'Company': st.column_config.TextColumn('Company', width='medium'),
+                                        'Score': st.column_config.ProgressColumn('Score', min_value=0, max_value=100, format='%.0f', width='small'),
+                                        'Price': st.column_config.NumberColumn('Price', format='₹%.0f', width='small'),
+                                        '30D%': st.column_config.NumberColumn('30D%', format='%.1f%%', width='small'),
+                                        'RVOL': st.column_config.NumberColumn('RVOL', format='%.1fx', width='small'),
+                                        'Entry': st.column_config.NumberColumn('Entry', format='₹%.0f', width='small')
+                                    }
+                                )
+                            else:
+                                st.info("No bullish pattern stocks found")
+                        
+                        with pattern_tabs[1]:  # Extreme Movers
+                            extreme_patterns = ['⛈️ PERFECT STORM', '⚡ VOL EXPLOSION', '🧛 VAMPIRE']
+                            extreme_stocks = filtered_df[
+                                filtered_df['patterns'].str.contains('|'.join(extreme_patterns), na=False, regex=True)
+                            ].nlargest(5, 'master_score')
+                            
+                            if len(extreme_stocks) > 0:
+                                extreme_display = []
+                                for _, stock in extreme_stocks.iterrows():
+                                    extreme_display.append({
+                                        'Alert': '⚡⚡⚡' if stock['rvol'] > 5 else '⚡⚡' if stock['rvol'] > 3 else '⚡',
+                                        'Ticker': stock['ticker'],
+                                        'Company': str(stock.get('company_name', ''))[:25],
+                                        'RVOL': stock.get('rvol', 1),
+                                        '1D%': stock.get('ret_1d', 0),
+                                        'Flow ₹M': stock.get('money_flow_mm', 0),
+                                        'Pattern': str(stock['patterns'])[:30]
+                                    })
+                                
+                                st.dataframe(
+                                    pd.DataFrame(extreme_display),
+                                    use_container_width=True,
+                                    hide_index=True
+                                )
+                            else:
+                                st.info("No extreme pattern stocks found")
+                        
+                        with pattern_tabs[2]:  # Reversal Plays
+                            reversal_patterns = ['💣 CAPITULATION', '🔄 52W LOW BOUNCE', '⚡ TURNAROUND']
+                            reversal_stocks = filtered_df[
+                                filtered_df['patterns'].str.contains('|'.join(reversal_patterns), na=False, regex=True)
+                            ].nlargest(5, 'master_score')
+                            
+                            if len(reversal_stocks) > 0:
+                                reversal_display = []
+                                for _, stock in reversal_stocks.iterrows():
+                                    reversal_display.append({
+                                        'Signal': '🔄',
+                                        'Ticker': stock['ticker'],
+                                        'Company': str(stock.get('company_name', ''))[:25],
+                                        'From Low': stock.get('from_low_pct', 0),
+                                        '7D%': stock.get('ret_7d', 0),
+                                        'Score': stock['master_score'],
+                                        'Risk/Reward': 'High' if stock.get('from_low_pct', 0) < 10 else 'Medium'
+                                    })
+                                
+                                st.dataframe(
+                                    pd.DataFrame(reversal_display),
+                                    use_container_width=True,
+                                    hide_index=True
+                                )
+                            else:
+                                st.info("No reversal pattern stocks found")
+                    
+                    else:
+                        st.info("No patterns detected in current dataset")
+                
+                else:
+                    st.info("Pattern data not available")
             
             # TAB 4: MONEY FLOW
             with discovery_tabs[3]:
