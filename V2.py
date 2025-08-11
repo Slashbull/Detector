@@ -6912,299 +6912,299 @@ def main():
     
     # Tab 1: Rankings
     # ====================================
-# RANKINGS TAB - ENHANCED DATAFRAME ONLY
-# ====================================
-with tabs[1]:
-    st.markdown("### 📊 Smart Stock Rankings")
-    
-    # Filters row - YOUR EXACT FILTERS
-    filter_cols = st.columns([2, 2, 2, 2, 1])
-    
-    with filter_cols[0]:
-        min_score = st.number_input(
-            "Min Score", 
-            min_value=0, 
-            max_value=100, 
-            value=50,
-            step=5,
-            key='ranking_min_score'
-        )
-    
-    with filter_cols[1]:
-        # YOUR TREND QUALITY FILTER
-        trend_filter = st.selectbox(
-            "Trend Quality",
-            ["All", "Strong Up", "Up", "Neutral", "Down", "Strong Down"],
-            key='ranking_trend_filter'
-        )
-    
-    with filter_cols[2]:
-        wave_filter = st.selectbox(
-            "Wave State",
-            ["All", "FORMING", "RISING", "PEAKING", "BREAKING"],
-            key='ranking_wave_filter'
-        )
-    
-    with filter_cols[3]:
-        pattern_filter = st.selectbox(
-            "Pattern Type",
-            ["All", "Momentum", "Breakout", "Institutional", "Reversal"],
-            key='ranking_pattern_filter'
-        )
-    
-    with filter_cols[4]:
-        st.markdown("")  # Spacer
-        search_ticker = st.text_input("🔍", placeholder="Search...", key='ranking_search')
-    
-    # Apply filters to dataframe
-    ranking_df = filtered_df.copy()
-    
-    # Score filter
-    ranking_df = ranking_df[ranking_df['master_score'] >= min_score]
-    
-    # Trend filter - YOUR EXACT LOGIC
-    if trend_filter != "All":
-        if trend_filter == "Strong Up":
-            ranking_df = ranking_df[
-                (ranking_df['sma_20d'] > ranking_df['sma_50d']) &
-                (ranking_df['sma_50d'] > ranking_df['sma_200d']) &
-                (ranking_df['ret_30d'] > 10)
-            ]
-        elif trend_filter == "Up":
-            ranking_df = ranking_df[
-                (ranking_df['sma_20d'] > ranking_df['sma_50d']) &
-                (ranking_df['ret_30d'] > 0)
-            ]
-        elif trend_filter == "Down":
-            ranking_df = ranking_df[
-                (ranking_df['sma_20d'] < ranking_df['sma_50d']) &
-                (ranking_df['ret_30d'] < 0)
-            ]
-        elif trend_filter == "Strong Down":
-            ranking_df = ranking_df[
-                (ranking_df['sma_20d'] < ranking_df['sma_50d']) &
-                (ranking_df['sma_50d'] < ranking_df['sma_200d']) &
-                (ranking_df['ret_30d'] < -10)
-            ]
-    
-    # Wave filter
-    if wave_filter != "All" and 'wave_state' in ranking_df.columns:
-        ranking_df = ranking_df[ranking_df['wave_state'] == wave_filter]
-    
-    # Pattern filter
-    if pattern_filter != "All" and 'patterns' in ranking_df.columns:
-        pattern_map = {
-            "Momentum": "MOMENTUM|ACCELERATING|RUNAWAY",
-            "Breakout": "BREAKOUT|EXPANSION|SURGE",
-            "Institutional": "INSTITUTIONAL|STEALTH|PYRAMID",
-            "Reversal": "REVERSAL|EXHAUSTION|CAPITULATION"
-        }
-        if pattern_filter in pattern_map:
-            ranking_df = ranking_df[
-                ranking_df['patterns'].str.contains(
-                    pattern_map[pattern_filter], 
-                    na=False, 
-                    regex=True
-                )
-            ]
-    
-    # Search filter
-    if search_ticker:
-        search_term = search_ticker.upper()
-        ranking_df = ranking_df[
-            ranking_df['ticker'].str.contains(search_term, na=False) |
-            ranking_df['company_name'].str.contains(search_term, na=False, case=False)
-        ]
-    
-    # Sort by master score
-    ranking_df = ranking_df.sort_values('master_score', ascending=False)
-    
-    # Add rank column
-    ranking_df['rank'] = range(1, len(ranking_df) + 1)
-    
-    # Calculate Trend column - YOUR EXACT LOGIC
-    def get_trend(row):
-        if row['sma_20d'] > row['sma_50d'] > row['sma_200d']:
-            return "↗️ Strong Up"
-        elif row['sma_20d'] > row['sma_50d']:
-            return "↗️ Up"
-        elif row['sma_20d'] < row['sma_50d'] < row['sma_200d']:
-            return "↘️ Strong Down"
-        elif row['sma_20d'] < row['sma_50d']:
-            return "↘️ Down"
-        else:
-            return "→ Neutral"
-    
-    if all(col in ranking_df.columns for col in ['sma_20d', 'sma_50d', 'sma_200d']):
-        ranking_df['trend'] = ranking_df.apply(get_trend, axis=1)
-    else:
-        ranking_df['trend'] = "→ Neutral"
-    
-    # Calculate VMI (Velocity Momentum Indicator) - YOUR FORMULA
-    if all(col in ranking_df.columns for col in ['ret_7d', 'ret_30d']):
-        ranking_df['vmi'] = (
-            (ranking_df['ret_7d'] / 7) / 
-            (ranking_df['ret_30d'] / 30 + 0.001)  # Avoid division by zero
-        ).round(2)
-    else:
-        ranking_df['vmi'] = 1.0
-    
-    # Prepare display columns - NEW ORDER WITH WAVE AFTER SCORE
-    display_df = pd.DataFrame({
-        'Rank': ranking_df['rank'],
-        'Company': ranking_df['company_name'].str[:30],  # Truncate long names
-        'Ticker': ranking_df['ticker'],
-        'Score': ranking_df['master_score'].round(1),
-        'Wave': ranking_df.get('wave_state', 'N/A'),  # MOVED HERE AFTER SCORE
-        'Trend': ranking_df['trend'],
-        'VMI': ranking_df['vmi'],
-        'Category': ranking_df.get('category', 'N/A'),
-        'Sector': ranking_df.get('sector', 'N/A').str[:15],  # Truncate
-        'Price': ranking_df['price'],
-        '1D%': ranking_df.get('ret_1d', 0).round(1),
-        '7D%': ranking_df.get('ret_7d', 0).round(1),
-        '30D%': ranking_df.get('ret_30d', 0).round(1),
-        'Volume': ranking_df.get('volume_30d', 0),
-        'RVOL': ranking_df.get('rvol', 1).round(2),
-        'Flow ₹M': ranking_df.get('money_flow_mm', 0).round(1),
-        'Patterns': ranking_df.get('patterns', '').str[:30]  # Truncate
-    })
-    
-    # Display metrics
-    metric_cols = st.columns(5)
-    with metric_cols[0]:
-        st.metric("Total Ranked", len(display_df))
-    with metric_cols[1]:
-        st.metric("Avg Score", f"{display_df['Score'].mean():.1f}")
-    with metric_cols[2]:
-        high_score = len(display_df[display_df['Score'] > 70])
-        st.metric("High Score (>70)", high_score)
-    with metric_cols[3]:
-        if 'VMI' in display_df.columns:
-            accelerating = len(display_df[display_df['VMI'] > 1.5])
-            st.metric("Accelerating", accelerating)
-    with metric_cols[4]:
-        if 'Wave' in display_df.columns:
-            rising = len(display_df[display_df['Wave'] == 'RISING'])
-            st.metric("Rising Waves", rising)
-    
-    st.markdown("---")
-    
-    # Display the enhanced dataframe with column configuration
-    st.dataframe(
-        display_df,
-        use_container_width=True,
-        height=600,
-        column_config={
-            'Rank': st.column_config.NumberColumn(
-                'Rank',
-                help="Overall ranking",
-                width="small"
-            ),
-            'Company': st.column_config.TextColumn(
-                'Company',
-                help="Company name",
-                width="large"
-            ),
-            'Ticker': st.column_config.TextColumn(
-                'Ticker',
-                help="Stock symbol",
-                width="small"
-            ),
-            'Score': st.column_config.ProgressColumn(
-                'Score',
-                help="Master score (0-100)",
-                format="%.1f",
-                min_value=0,
-                max_value=100,
-                width="small"
-            ),
-            'Wave': st.column_config.TextColumn(
-                'Wave',
-                help="Wave state: FORMING/RISING/PEAKING/BREAKING",
-                width="small"
-            ),
-            'Trend': st.column_config.TextColumn(
-                'Trend',
-                help="Trend direction based on moving averages",
-                width="medium"
-            ),
-            'VMI': st.column_config.NumberColumn(
-                'VMI',
-                help="Velocity Momentum - >1.5 is accelerating",
-                format="%.2f",
-                width="small"
-            ),
-            'Category': st.column_config.TextColumn(
-                'Category',
-                help="Market cap category",
-                width="small"
-            ),
-            'Sector': st.column_config.TextColumn(
-                'Sector',
-                help="Industry sector",
-                width="medium"
-            ),
-            'Price': st.column_config.NumberColumn(
-                'Price',
-                help="Current price",
-                format="₹%.0f",
-                width="small"
-            ),
-            '1D%': st.column_config.NumberColumn(
-                '1D%',
-                help="1-day return",
-                format="%.1f%%",
-                width="small"
-            ),
-            '7D%': st.column_config.NumberColumn(
-                '7D%',
-                help="7-day return",
-                format="%.1f%%",
-                width="small"
-            ),
-            '30D%': st.column_config.NumberColumn(
-                '30D%',
-                help="30-day return",
-                format="%.1f%%",
-                width="small"
-            ),
-            'Volume': st.column_config.NumberColumn(
-                'Volume',
-                help="30-day average volume",
-                format="%.0f",
-                width="small"
-            ),
-            'RVOL': st.column_config.NumberColumn(
-                'RVOL',
-                help="Relative volume",
-                format="%.2fx",
-                width="small"
-            ),
-            'Flow ₹M': st.column_config.NumberColumn(
-                'Flow ₹M',
-                help="Money flow in millions",
-                format="₹%.1f M",
-                width="small"
-            ),
-            'Patterns': st.column_config.TextColumn(
-                'Patterns',
-                help="Detected patterns",
-                width="medium"
+    # RANKINGS TAB - ENHANCED DATAFRAME ONLY
+    # ====================================
+    with tabs[1]:
+        st.markdown("### 📊 Smart Stock Rankings")
+        
+        # Filters row - YOUR EXACT FILTERS
+        filter_cols = st.columns([2, 2, 2, 2, 1])
+        
+        with filter_cols[0]:
+            min_score = st.number_input(
+                "Min Score", 
+                min_value=0, 
+                max_value=100, 
+                value=50,
+                step=5,
+                key='ranking_min_score'
             )
-        }
-    )
-    
-    # Download button - YOUR EXACT STYLE
-    if len(display_df) > 0:
-        csv = display_df.to_csv(index=False)
-        st.download_button(
-            label="📥 Download Rankings CSV",
-            data=csv,
-            file_name=f"stock_rankings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-            help="Download the current rankings as CSV"
+        
+        with filter_cols[1]:
+            # YOUR TREND QUALITY FILTER
+            trend_filter = st.selectbox(
+                "Trend Quality",
+                ["All", "Strong Up", "Up", "Neutral", "Down", "Strong Down"],
+                key='ranking_trend_filter'
+            )
+        
+        with filter_cols[2]:
+            wave_filter = st.selectbox(
+                "Wave State",
+                ["All", "FORMING", "RISING", "PEAKING", "BREAKING"],
+                key='ranking_wave_filter'
+            )
+        
+        with filter_cols[3]:
+            pattern_filter = st.selectbox(
+                "Pattern Type",
+                ["All", "Momentum", "Breakout", "Institutional", "Reversal"],
+                key='ranking_pattern_filter'
+            )
+        
+        with filter_cols[4]:
+            st.markdown("")  # Spacer
+            search_ticker = st.text_input("🔍", placeholder="Search...", key='ranking_search')
+        
+        # Apply filters to dataframe
+        ranking_df = filtered_df.copy()
+        
+        # Score filter
+        ranking_df = ranking_df[ranking_df['master_score'] >= min_score]
+        
+        # Trend filter - YOUR EXACT LOGIC
+        if trend_filter != "All":
+            if trend_filter == "Strong Up":
+                ranking_df = ranking_df[
+                    (ranking_df['sma_20d'] > ranking_df['sma_50d']) &
+                    (ranking_df['sma_50d'] > ranking_df['sma_200d']) &
+                    (ranking_df['ret_30d'] > 10)
+                ]
+            elif trend_filter == "Up":
+                ranking_df = ranking_df[
+                    (ranking_df['sma_20d'] > ranking_df['sma_50d']) &
+                    (ranking_df['ret_30d'] > 0)
+                ]
+            elif trend_filter == "Down":
+                ranking_df = ranking_df[
+                    (ranking_df['sma_20d'] < ranking_df['sma_50d']) &
+                    (ranking_df['ret_30d'] < 0)
+                ]
+            elif trend_filter == "Strong Down":
+                ranking_df = ranking_df[
+                    (ranking_df['sma_20d'] < ranking_df['sma_50d']) &
+                    (ranking_df['sma_50d'] < ranking_df['sma_200d']) &
+                    (ranking_df['ret_30d'] < -10)
+                ]
+        
+        # Wave filter
+        if wave_filter != "All" and 'wave_state' in ranking_df.columns:
+            ranking_df = ranking_df[ranking_df['wave_state'] == wave_filter]
+        
+        # Pattern filter
+        if pattern_filter != "All" and 'patterns' in ranking_df.columns:
+            pattern_map = {
+                "Momentum": "MOMENTUM|ACCELERATING|RUNAWAY",
+                "Breakout": "BREAKOUT|EXPANSION|SURGE",
+                "Institutional": "INSTITUTIONAL|STEALTH|PYRAMID",
+                "Reversal": "REVERSAL|EXHAUSTION|CAPITULATION"
+            }
+            if pattern_filter in pattern_map:
+                ranking_df = ranking_df[
+                    ranking_df['patterns'].str.contains(
+                        pattern_map[pattern_filter], 
+                        na=False, 
+                        regex=True
+                    )
+                ]
+        
+        # Search filter
+        if search_ticker:
+            search_term = search_ticker.upper()
+            ranking_df = ranking_df[
+                ranking_df['ticker'].str.contains(search_term, na=False) |
+                ranking_df['company_name'].str.contains(search_term, na=False, case=False)
+            ]
+        
+        # Sort by master score
+        ranking_df = ranking_df.sort_values('master_score', ascending=False)
+        
+        # Add rank column
+        ranking_df['rank'] = range(1, len(ranking_df) + 1)
+        
+        # Calculate Trend column - YOUR EXACT LOGIC
+        def get_trend(row):
+            if row['sma_20d'] > row['sma_50d'] > row['sma_200d']:
+                return "↗️ Strong Up"
+            elif row['sma_20d'] > row['sma_50d']:
+                return "↗️ Up"
+            elif row['sma_20d'] < row['sma_50d'] < row['sma_200d']:
+                return "↘️ Strong Down"
+            elif row['sma_20d'] < row['sma_50d']:
+                return "↘️ Down"
+            else:
+                return "→ Neutral"
+        
+        if all(col in ranking_df.columns for col in ['sma_20d', 'sma_50d', 'sma_200d']):
+            ranking_df['trend'] = ranking_df.apply(get_trend, axis=1)
+        else:
+            ranking_df['trend'] = "→ Neutral"
+        
+        # Calculate VMI (Velocity Momentum Indicator) - YOUR FORMULA
+        if all(col in ranking_df.columns for col in ['ret_7d', 'ret_30d']):
+            ranking_df['vmi'] = (
+                (ranking_df['ret_7d'] / 7) / 
+                (ranking_df['ret_30d'] / 30 + 0.001)  # Avoid division by zero
+            ).round(2)
+        else:
+            ranking_df['vmi'] = 1.0
+        
+        # Prepare display columns - NEW ORDER WITH WAVE AFTER SCORE
+        display_df = pd.DataFrame({
+            'Rank': ranking_df['rank'],
+            'Company': ranking_df['company_name'].str[:30],  # Truncate long names
+            'Ticker': ranking_df['ticker'],
+            'Score': ranking_df['master_score'].round(1),
+            'Wave': ranking_df.get('wave_state', 'N/A'),  # MOVED HERE AFTER SCORE
+            'Trend': ranking_df['trend'],
+            'VMI': ranking_df['vmi'],
+            'Category': ranking_df.get('category', 'N/A'),
+            'Sector': ranking_df.get('sector', 'N/A').str[:15],  # Truncate
+            'Price': ranking_df['price'],
+            '1D%': ranking_df.get('ret_1d', 0).round(1),
+            '7D%': ranking_df.get('ret_7d', 0).round(1),
+            '30D%': ranking_df.get('ret_30d', 0).round(1),
+            'Volume': ranking_df.get('volume_30d', 0),
+            'RVOL': ranking_df.get('rvol', 1).round(2),
+            'Flow ₹M': ranking_df.get('money_flow_mm', 0).round(1),
+            'Patterns': ranking_df.get('patterns', '').str[:30]  # Truncate
+        })
+        
+        # Display metrics
+        metric_cols = st.columns(5)
+        with metric_cols[0]:
+            st.metric("Total Ranked", len(display_df))
+        with metric_cols[1]:
+            st.metric("Avg Score", f"{display_df['Score'].mean():.1f}")
+        with metric_cols[2]:
+            high_score = len(display_df[display_df['Score'] > 70])
+            st.metric("High Score (>70)", high_score)
+        with metric_cols[3]:
+            if 'VMI' in display_df.columns:
+                accelerating = len(display_df[display_df['VMI'] > 1.5])
+                st.metric("Accelerating", accelerating)
+        with metric_cols[4]:
+            if 'Wave' in display_df.columns:
+                rising = len(display_df[display_df['Wave'] == 'RISING'])
+                st.metric("Rising Waves", rising)
+        
+        st.markdown("---")
+        
+        # Display the enhanced dataframe with column configuration
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            height=600,
+            column_config={
+                'Rank': st.column_config.NumberColumn(
+                    'Rank',
+                    help="Overall ranking",
+                    width="small"
+                ),
+                'Company': st.column_config.TextColumn(
+                    'Company',
+                    help="Company name",
+                    width="large"
+                ),
+                'Ticker': st.column_config.TextColumn(
+                    'Ticker',
+                    help="Stock symbol",
+                    width="small"
+                ),
+                'Score': st.column_config.ProgressColumn(
+                    'Score',
+                    help="Master score (0-100)",
+                    format="%.1f",
+                    min_value=0,
+                    max_value=100,
+                    width="small"
+                ),
+                'Wave': st.column_config.TextColumn(
+                    'Wave',
+                    help="Wave state: FORMING/RISING/PEAKING/BREAKING",
+                    width="small"
+                ),
+                'Trend': st.column_config.TextColumn(
+                    'Trend',
+                    help="Trend direction based on moving averages",
+                    width="medium"
+                ),
+                'VMI': st.column_config.NumberColumn(
+                    'VMI',
+                    help="Velocity Momentum - >1.5 is accelerating",
+                    format="%.2f",
+                    width="small"
+                ),
+                'Category': st.column_config.TextColumn(
+                    'Category',
+                    help="Market cap category",
+                    width="small"
+                ),
+                'Sector': st.column_config.TextColumn(
+                    'Sector',
+                    help="Industry sector",
+                    width="medium"
+                ),
+                'Price': st.column_config.NumberColumn(
+                    'Price',
+                    help="Current price",
+                    format="₹%.0f",
+                    width="small"
+                ),
+                '1D%': st.column_config.NumberColumn(
+                    '1D%',
+                    help="1-day return",
+                    format="%.1f%%",
+                    width="small"
+                ),
+                '7D%': st.column_config.NumberColumn(
+                    '7D%',
+                    help="7-day return",
+                    format="%.1f%%",
+                    width="small"
+                ),
+                '30D%': st.column_config.NumberColumn(
+                    '30D%',
+                    help="30-day return",
+                    format="%.1f%%",
+                    width="small"
+                ),
+                'Volume': st.column_config.NumberColumn(
+                    'Volume',
+                    help="30-day average volume",
+                    format="%.0f",
+                    width="small"
+                ),
+                'RVOL': st.column_config.NumberColumn(
+                    'RVOL',
+                    help="Relative volume",
+                    format="%.2fx",
+                    width="small"
+                ),
+                'Flow ₹M': st.column_config.NumberColumn(
+                    'Flow ₹M',
+                    help="Money flow in millions",
+                    format="₹%.1f M",
+                    width="small"
+                ),
+                'Patterns': st.column_config.TextColumn(
+                    'Patterns',
+                    help="Detected patterns",
+                    width="medium"
+                )
+            }
         )
+        
+        # Download button - YOUR EXACT STYLE
+        if len(display_df) > 0:
+            csv = display_df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Rankings CSV",
+                data=csv,
+                file_name=f"stock_rankings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                help="Download the current rankings as CSV"
+            )
             
             # ============================================
             # QUICK ACTION BAR BELOW TABLE
