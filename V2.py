@@ -4870,51 +4870,266 @@ def main():
                 st.markdown("---")
                 
                 # ========================================
-                # QUICK ACTION ZONES
+                # QUICK ACTION ZONES - ENHANCED VERSION
                 # ========================================
                 st.markdown("##### ⚡ **Quick Action Zones**")
                 
-                zone_col1, zone_col2, zone_col3 = st.columns(3)
+                # Create three action zone tabs for better organization
+                zone_tabs = st.tabs(["🚀 Momentum Zone", "🎯 Breakout Zone", "🌋 Volume Zone"])
                 
-                with zone_col1:
-                    st.markdown("**🚀 MOMENTUM ZONE**")
+                # MOMENTUM ZONE
+                with zone_tabs[0]:
                     if all(col in filtered_df.columns for col in ['momentum_score', 'acceleration_score']):
                         momentum_zone = filtered_df[
                             (filtered_df['momentum_score'] > 70) & 
                             (filtered_df['acceleration_score'] > 70)
-                        ].nlargest(3, 'master_score')
+                        ].nlargest(5, 'master_score')
                         
                         if len(momentum_zone) > 0:
+                            momentum_data = []
                             for _, stock in momentum_zone.iterrows():
-                                st.success(f"**{stock['ticker']}** @ ₹{stock['price']:.0f}")
+                                # Determine momentum strength
+                                if stock['momentum_score'] > 85 and stock['acceleration_score'] > 85:
+                                    strength = "🔥🔥🔥"
+                                    action = "STRONG BUY"
+                                elif stock['momentum_score'] > 75 and stock['acceleration_score'] > 75:
+                                    strength = "🔥🔥"
+                                    action = "BUY"
+                                else:
+                                    strength = "🔥"
+                                    action = "WATCH"
+                                
+                                momentum_data.append({
+                                    'Strength': strength,
+                                    'Ticker': stock['ticker'],
+                                    'Company': str(stock.get('company_name', ''))[:25] + '...' if len(str(stock.get('company_name', ''))) > 25 else stock.get('company_name', ''),
+                                    'Price': stock['price'],
+                                    'Momentum': stock['momentum_score'],
+                                    'Acceleration': stock['acceleration_score'],
+                                    '7D%': stock.get('ret_7d', 0),
+                                    'Wave': stock.get('wave_state', 'N/A'),
+                                    'Action': action
+                                })
+                            
+                            momentum_df = pd.DataFrame(momentum_data)
+                            
+                            st.dataframe(
+                                momentum_df,
+                                use_container_width=True,
+                                hide_index=True,
+                                column_config={
+                                    'Strength': st.column_config.TextColumn('', width='small'),
+                                    'Ticker': st.column_config.TextColumn('Ticker', width='small'),
+                                    'Company': st.column_config.TextColumn('Company', width='medium'),
+                                    'Price': st.column_config.NumberColumn('Price', format='₹%.0f', width='small'),
+                                    'Momentum': st.column_config.ProgressColumn(
+                                        'Mom',
+                                        min_value=0,
+                                        max_value=100,
+                                        format='%.0f',
+                                        width='small'
+                                    ),
+                                    'Acceleration': st.column_config.ProgressColumn(
+                                        'Accel',
+                                        min_value=0,
+                                        max_value=100,
+                                        format='%.0f',
+                                        width='small'
+                                    ),
+                                    '7D%': st.column_config.NumberColumn('7D%', format='%.1f%%', width='small'),
+                                    'Wave': st.column_config.TextColumn('Wave', width='medium'),
+                                    'Action': st.column_config.TextColumn('Action', width='small')
+                                }
+                            )
+                            
+                            # Best momentum pick
+                            best_momentum = momentum_zone.iloc[0]
+                            st.success(
+                                f"**🏆 Top Pick: {best_momentum['ticker']}**\n"
+                                f"Entry: ₹{best_momentum['price']:.0f} | "
+                                f"Target: ₹{best_momentum['price'] * 1.08:.0f} | "
+                                f"Stop: ₹{best_momentum['price'] * 0.96:.0f}"
+                            )
                         else:
-                            st.caption("No stocks in zone")
+                            st.info("No stocks qualify for Momentum Zone (Need Mom>70 & Accel>70)")
+                    else:
+                        st.info("Momentum data not available")
                 
-                with zone_col2:
-                    st.markdown("**🎯 BREAKOUT ZONE**")
+                # BREAKOUT ZONE
+                with zone_tabs[1]:
                     if 'breakout_score' in filtered_df.columns:
                         breakout_zone = filtered_df[
-                            filtered_df['breakout_score'] > 80
-                        ].nlargest(3, 'breakout_score')
+                            filtered_df['breakout_score'] > 75
+                        ].nlargest(5, 'breakout_score')
                         
                         if len(breakout_zone) > 0:
+                            breakout_data = []
                             for _, stock in breakout_zone.iterrows():
-                                st.warning(f"**{stock['ticker']}** Ready @ {stock['breakout_score']:.0f}")
+                                # Calculate breakout readiness
+                                if stock['breakout_score'] > 90:
+                                    readiness = "🎯🎯🎯"
+                                    status = "IMMINENT"
+                                elif stock['breakout_score'] > 85:
+                                    readiness = "🎯🎯"
+                                    status = "READY"
+                                else:
+                                    readiness = "🎯"
+                                    status = "BUILDING"
+                                
+                                # Determine resistance level
+                                if 'high_52w' in stock and pd.notna(stock['high_52w']):
+                                    resistance = stock['high_52w']
+                                    distance = ((resistance - stock['price']) / stock['price']) * 100
+                                else:
+                                    resistance = stock['price'] * 1.05
+                                    distance = 5.0
+                                
+                                breakout_data.append({
+                                    'Ready': readiness,
+                                    'Ticker': stock['ticker'],
+                                    'Company': str(stock.get('company_name', ''))[:25] + '...' if len(str(stock.get('company_name', ''))) > 25 else stock.get('company_name', ''),
+                                    'Price': stock['price'],
+                                    'Score': stock['breakout_score'],
+                                    'Resistance': resistance,
+                                    'Distance': distance,
+                                    'RVOL': stock.get('rvol', 1),
+                                    'Status': status
+                                })
+                            
+                            breakout_df = pd.DataFrame(breakout_data)
+                            
+                            st.dataframe(
+                                breakout_df,
+                                use_container_width=True,
+                                hide_index=True,
+                                column_config={
+                                    'Ready': st.column_config.TextColumn('', width='small'),
+                                    'Ticker': st.column_config.TextColumn('Ticker', width='small'),
+                                    'Company': st.column_config.TextColumn('Company', width='medium'),
+                                    'Price': st.column_config.NumberColumn('Price', format='₹%.0f', width='small'),
+                                    'Score': st.column_config.ProgressColumn(
+                                        'Breakout',
+                                        min_value=0,
+                                        max_value=100,
+                                        format='%.0f',
+                                        width='small'
+                                    ),
+                                    'Resistance': st.column_config.NumberColumn('Target', format='₹%.0f', width='small'),
+                                    'Distance': st.column_config.NumberColumn('Gap%', format='%.1f%%', width='small'),
+                                    'RVOL': st.column_config.NumberColumn('RVOL', format='%.1fx', width='small'),
+                                    'Status': st.column_config.TextColumn('Status', width='small')
+                                }
+                            )
+                            
+                            # Nearest breakout
+                            nearest = breakout_zone.iloc[0]
+                            st.warning(
+                                f"**🎯 Nearest Breakout: {nearest['ticker']}**\n"
+                                f"Watch above: ₹{resistance:.0f} | "
+                                f"Volume confirmation needed: RVOL > 2x"
+                            )
                         else:
-                            st.caption("No stocks in zone")
+                            st.info("No stocks ready for breakout (Need score > 75)")
+                    else:
+                        st.info("Breakout data not available")
                 
-                with zone_col3:
-                    st.markdown("**🌋 VOLUME ZONE**")
+                # VOLUME ZONE
+                with zone_tabs[2]:
                     if 'rvol' in filtered_df.columns:
                         volume_zone = filtered_df[
-                            filtered_df['rvol'] > 3
-                        ].nlargest(3, 'rvol')
+                            filtered_df['rvol'] > 2
+                        ].nlargest(5, 'rvol')
                         
                         if len(volume_zone) > 0:
+                            volume_data = []
                             for _, stock in volume_zone.iterrows():
-                                st.error(f"**{stock['ticker']}** {stock['rvol']:.1f}x vol")
+                                # Determine volume type
+                                if stock['rvol'] > 5:
+                                    vol_type = "🌋🌋🌋"
+                                    signal = "EXPLOSIVE"
+                                elif stock['rvol'] > 3:
+                                    vol_type = "🌋🌋"
+                                    signal = "SURGE"
+                                else:
+                                    vol_type = "🌋"
+                                    signal = "ACTIVE"
+                                
+                                # Determine direction
+                                if stock.get('ret_1d', 0) > 2:
+                                    direction = "📈 Buying"
+                                    dir_color = "🟢"
+                                elif stock.get('ret_1d', 0) < -2:
+                                    direction = "📉 Selling"
+                                    dir_color = "🔴"
+                                else:
+                                    direction = "➡️ Neutral"
+                                    dir_color = "🟡"
+                                
+                                volume_data.append({
+                                    'Signal': vol_type,
+                                    'Ticker': stock['ticker'],
+                                    'Company': str(stock.get('company_name', ''))[:25] + '...' if len(str(stock.get('company_name', ''))) > 25 else stock.get('company_name', ''),
+                                    'Price': stock['price'],
+                                    'RVOL': stock['rvol'],
+                                    '1D%': stock.get('ret_1d', 0),
+                                    'Flow ₹M': stock.get('money_flow_mm', 0),
+                                    'Direction': f"{dir_color} {direction}",
+                                    'Type': signal
+                                })
+                            
+                            volume_df = pd.DataFrame(volume_data)
+                            
+                            st.dataframe(
+                                volume_df,
+                                use_container_width=True,
+                                hide_index=True,
+                                column_config={
+                                    'Signal': st.column_config.TextColumn('', width='small'),
+                                    'Ticker': st.column_config.TextColumn('Ticker', width='small'),
+                                    'Company': st.column_config.TextColumn('Company', width='medium'),
+                                    'Price': st.column_config.NumberColumn('Price', format='₹%.0f', width='small'),
+                                    'RVOL': st.column_config.NumberColumn(
+                                        'RVOL',
+                                        format='%.1fx',
+                                        width='small',
+                                        help='Relative Volume vs average'
+                                    ),
+                                    '1D%': st.column_config.NumberColumn('1D%', format='%.1f%%', width='small'),
+                                    'Flow ₹M': st.column_config.NumberColumn('Flow', format='₹%.0fM', width='small'),
+                                    'Direction': st.column_config.TextColumn('Direction', width='medium'),
+                                    'Type': st.column_config.TextColumn('Type', width='small')
+                                }
+                            )
+                            
+                            # Volume alert
+                            if len(volume_zone[volume_zone['rvol'] > 5]) > 0:
+                                extreme = volume_zone[volume_zone['rvol'] > 5].iloc[0]
+                                st.error(
+                                    f"**🌋 EXTREME VOLUME: {extreme['ticker']}**\n"
+                                    f"RVOL: {extreme['rvol']:.1f}x | "
+                                    f"Money Flow: ₹{extreme.get('money_flow_mm', 0):.0f}M | "
+                                    f"Action: Monitor for continuation"
+                                )
                         else:
-                            st.caption("No stocks in zone")
+                            st.info("No unusual volume activity (Need RVOL > 2x)")
+                    else:
+                        st.info("Volume data not available")
+                
+                # Summary action box
+                st.markdown("---")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    total_momentum = len(filtered_df[(filtered_df.get('momentum_score', 0) > 70) & (filtered_df.get('acceleration_score', 0) > 70)])
+                    st.metric("📊 Momentum Plays", total_momentum)
+                
+                with col2:
+                    total_breakouts = len(filtered_df[filtered_df.get('breakout_score', 0) > 75])
+                    st.metric("🎯 Breakout Ready", total_breakouts)
+                
+                with col3:
+                    total_volume = len(filtered_df[filtered_df.get('rvol', 0) > 2])
+                    st.metric("🌋 Volume Surges", total_volume)
             
             # TAB 2: WAVE LEADERS (Keep your existing excellent implementation)
             with discovery_tabs[1]:
