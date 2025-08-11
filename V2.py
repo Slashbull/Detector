@@ -850,24 +850,6 @@ class AdvancedMetrics:
             return "🌊 FORMING"
         else:
             return "💥 BREAKING"
-
-    def calculate_wave_health(df):
-        """
-        Calculate market wave health using existing metrics
-        """
-        if df.empty:
-            return 50
-        
-        # Use your existing wave strength calculation
-        if 'overall_wave_strength' in df.columns:
-            return df['overall_wave_strength'].mean()
-        
-        # Or use master score as proxy
-        if 'master_score' in df.columns:
-            return df['master_score'].mean()
-        
-        # Fallback
-        return 50
         
 # ============================================
 # RANKING ENGINE - OPTIMIZED
@@ -3478,37 +3460,6 @@ class SessionStateManager:
         if 'filter_state' in st.session_state:
             st.session_state.filter_state['quick_filter'] = None
             st.session_state.filter_state['quick_filter_applied'] = False
-
-    # =====================================
-    # HELPER FUNCTIONS FOR SUMMARY TAB
-    # =====================================
-    def calculate_wave_health(df):
-        """
-        Calculate market wave health score (0-100)
-        Higher score = more bullish market
-        """
-        if df.empty or 'wave_state' not in df.columns:
-            return 50  # Default neutral
-        
-        total_stocks = len(df)
-        if total_stocks == 0:
-            return 50
-        
-        # Count wave states
-        cresting_count = len(df[df['wave_state'].str.contains('CRESTING', na=False)])
-        building_count = len(df[df['wave_state'].str.contains('BUILDING', na=False)])
-        forming_count = len(df[df['wave_state'].str.contains('FORMING', na=False)])
-        breaking_count = len(df[df['wave_state'].str.contains('BREAKING', na=False)])
-        
-        # Calculate weighted health score
-        wave_health = (
-            (cresting_count * 100) +
-            (building_count * 75) +
-            (forming_count * 50) +
-            (breaking_count * 25)
-        ) / total_stocks
-        
-        return wave_health
         
 # ============================================
 # MAIN APPLICATION
@@ -4445,375 +4396,563 @@ def main():
     # SUMMARY TAB - RESPECTING YOUR SCRIPT'S PHILOSOPHY
     # ============================================
     
-    with tabs[0]:  # 📊 Summary Tab
+    with tabs[0]:
+        st.markdown("### 📊 Wave Detection Dashboard")
         
-        # =====================================
-        # CALCULATE WAVE HEALTH DIRECTLY (NO FUNCTION NEEDED)
-        # =====================================
-        market_health = 50  # Default value
-        total_stocks = len(filtered_df) if filtered_df is not None and not filtered_df.empty else 0
+        # Clean info bar
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        st.caption(f"Last Update: {timestamp} • {len(filtered_df)} Stocks Analyzed • Data Quality: {st.session_state.data_quality.get('completeness', 0):.0f}%")
         
-        # Calculate wave counts safely
-        wave_counts = {
-            'FORMING': 0,
-            'BUILDING': 0,
-            'CRESTING': 0,
-            'BREAKING': 0
-        }
-        
-        if not filtered_df.empty and 'wave_state' in filtered_df.columns:
-            for state in filtered_df['wave_state']:
-                if pd.notna(state):
-                    state_str = str(state)
-                    if 'CRESTING' in state_str:
-                        wave_counts['CRESTING'] += 1
-                    elif 'BUILDING' in state_str:
-                        wave_counts['BUILDING'] += 1
-                    elif 'FORMING' in state_str:
-                        wave_counts['FORMING'] += 1
-                    elif 'BREAKING' in state_str:
-                        wave_counts['BREAKING'] += 1
+        if not filtered_df.empty:
             
-            # Calculate market health inline
-            if total_stocks > 0:
-                market_health = (
-                    (wave_counts['CRESTING'] * 100) +
-                    (wave_counts['BUILDING'] * 75) +
-                    (wave_counts['FORMING'] * 50) +
-                    (wave_counts['BREAKING'] * 25)
-                ) / total_stocks
-        
-        # Determine market regime
-        if market_health > 70:
-            market_state = "🔥 BULL MARKET"
-            market_color = "success"
-            market_action = "BUY AGGRESSIVELY"
-        elif market_health > 50:
-            market_state = "📊 NEUTRAL MARKET"
-            market_color = "info"
-            market_action = "BUY SELECTIVELY"
-        elif market_health > 30:
-            market_state = "⚠️ WEAK MARKET"
-            market_color = "warning"
-            market_action = "WAIT FOR SETUPS"
-        else:
-            market_state = "🐻 BEAR MARKET"
-            market_color = "error"
-            market_action = "PRESERVE CAPITAL"
-        
-        # One line market summary
-        getattr(st, market_color)(f"**{market_state}** | Score: {market_health:.0f}/100 | Action: {market_action} | Stocks Analyzed: {total_stocks}")
-        
-        st.markdown("---")
-        
-        # =====================================
-        # SECTION 1: QUICK FILTERS
-        # =====================================
-        st.markdown("### ⚡ Quick Discovery")
-        
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
-        
-        with col1:
-            if st.button("🎯 Buy Now", key="buy_now", use_container_width=True):
-                st.session_state.quick_filter = 'buy_now'
-                st.rerun()
-        
-        with col2:
-            if st.button("💥 Exit Alert", key="exit_alert", use_container_width=True):
-                st.session_state.quick_filter = 'exit'
-                st.rerun()
-        
-        with col3:
-            if st.button("⚡ Volume Surge", key="vol_surge", use_container_width=True):
-                st.session_state.quick_filter = 'volume'
-                st.rerun()
-        
-        with col4:
-            if st.button("🚀 Momentum", key="momentum", use_container_width=True):
-                st.session_state.quick_filter = 'momentum'
-                st.rerun()
-        
-        with col5:
-            if st.button("💎 Hidden Gems", key="hidden", use_container_width=True):
-                st.session_state.quick_filter = 'hidden'
-                st.rerun()
-        
-        with col6:
-            if st.button("🔄 Clear", key="clear_filter", use_container_width=True):
-                st.session_state.quick_filter = None
-                st.rerun()
-        
-        # Apply quick filter
-        if st.session_state.get('quick_filter'):
-            filter_applied = False
-            original_count = len(filtered_df)
+            # ====================================
+            # TOP DISCOVERY METRICS
+            # ====================================
+            st.markdown("#### 🌊 Market Wave Analysis")
             
-            if st.session_state.quick_filter == 'buy_now' and not filtered_df.empty:
-                if 'master_score' in filtered_df.columns and 'wave_state' in filtered_df.columns:
-                    filtered_df = filtered_df[
-                        (filtered_df['master_score'] > 75) &
-                        (filtered_df['wave_state'].str.contains('BUILDING|CRESTING', na=False))
-                    ]
-                    filter_applied = True
-                    st.caption(f"🔍 Filter: Buy Now - {len(filtered_df)} stocks (from {original_count})")
+            metric_cols = st.columns(6)
             
-            elif st.session_state.quick_filter == 'exit' and not filtered_df.empty:
+            with metric_cols[0]:
+                # Wave Distribution
                 if 'wave_state' in filtered_df.columns:
-                    filtered_df = filtered_df[
-                        filtered_df['wave_state'].str.contains('BREAKING', na=False)
-                    ]
-                    filter_applied = True
-                    st.caption(f"🔍 Filter: Exit Alert - {len(filtered_df)} stocks (from {original_count})")
+                    cresting = filtered_df['wave_state'].str.contains('CRESTING').sum()
+                    building = filtered_df['wave_state'].str.contains('BUILDING').sum()
+                    forming = filtered_df['wave_state'].str.contains('FORMING').sum()
+                    
+                    dominant_wave = "CRESTING" if cresting > building else "BUILDING" if building > forming else "FORMING"
+                    st.metric(
+                        "Dominant Wave",
+                        f"🌊 {dominant_wave}",
+                        f"{max(cresting, building, forming)} stocks"
+                    )
             
-            elif st.session_state.quick_filter == 'volume' and not filtered_df.empty:
-                if 'rvol' in filtered_df.columns:
-                    filtered_df = filtered_df[filtered_df['rvol'] > 3]
-                    filter_applied = True
-                    st.caption(f"🔍 Filter: Volume Surge - {len(filtered_df)} stocks (from {original_count})")
+            with metric_cols[1]:
+                # Top Score Range
+                if 'master_score' in filtered_df.columns:
+                    top_10_pct = filtered_df.nlargest(int(len(filtered_df) * 0.1), 'master_score')
+                    score_range = f"{top_10_pct['master_score'].min():.0f}-{top_10_pct['master_score'].max():.0f}"
+                    st.metric(
+                        "Top 10% Score",
+                        score_range,
+                        f"{len(top_10_pct)} stocks"
+                    )
             
-            elif st.session_state.quick_filter == 'momentum' and not filtered_df.empty:
-                if 'momentum_score' in filtered_df.columns:
-                    filtered_df = filtered_df[filtered_df['momentum_score'] > 70]
-                    filter_applied = True
-                    st.caption(f"🔍 Filter: High Momentum - {len(filtered_df)} stocks (from {original_count})")
+            with metric_cols[2]:
+                # Pattern Activity
+                if 'patterns' in filtered_df.columns:
+                    with_patterns = (filtered_df['patterns'] != '').sum()
+                    pattern_pct = (with_patterns / len(filtered_df) * 100)
+                    st.metric(
+                        "Pattern Activity",
+                        f"{with_patterns}",
+                        f"{pattern_pct:.0f}% active"
+                    )
             
-            elif st.session_state.quick_filter == 'hidden' and not filtered_df.empty:
-                if 'category_percentile' in filtered_df.columns and 'percentile' in filtered_df.columns:
-                    filtered_df = filtered_df[
-                        (filtered_df['category_percentile'] > 80) &
-                        (filtered_df['percentile'] < 50)
-                    ]
-                    filter_applied = True
-                    st.caption(f"🔍 Filter: Hidden Gems - {len(filtered_df)} stocks (from {original_count})")
+            with metric_cols[3]:
+                # Volume Momentum
+                if 'vmi' in filtered_df.columns:
+                    high_vmi = (filtered_df['vmi'] > 1.5).sum()
+                    st.metric(
+                        "Volume Momentum",
+                        f"{high_vmi} stocks",
+                        "VMI > 1.5"
+                    )
             
-            if not filter_applied:
-                st.caption(f"🔍 Filter: {st.session_state.quick_filter} - No applicable data")
-        
-        st.markdown("---")
-        
-        # =====================================
-        # SECTION 2: TODAY'S ACTION LIST
-        # =====================================
-        st.markdown("### 🎯 Today's Action List")
-        
-        action_col1, action_col2, action_col3 = st.columns(3)
-        
-        with action_col1:
-            st.markdown("#### 🟢 **BUY SIGNALS**")
+            with metric_cols[4]:
+                # Momentum Harmony
+                if 'momentum_harmony' in filtered_df.columns:
+                    perfect_harmony = (filtered_df['momentum_harmony'] == 4).sum()
+                    good_harmony = (filtered_df['momentum_harmony'] >= 3).sum()
+                    st.metric(
+                        "Momentum Sync",
+                        f"{perfect_harmony} perfect",
+                        f"{good_harmony} aligned"
+                    )
             
-            if not filtered_df.empty and 'master_score' in filtered_df.columns and 'price' in filtered_df.columns and 'ticker' in filtered_df.columns:
-                # Build buy conditions step by step
-                buy_conditions = (filtered_df['master_score'] > 75)
+            with metric_cols[5]:
+                # Institutional Activity
+                if 'money_flow_mm' in filtered_df.columns:
+                    institutional_flow = filtered_df.nlargest(20, 'money_flow_mm')['money_flow_mm'].sum()
+                    st.metric(
+                        "Top 20 Flow",
+                        f"₹{institutional_flow:.0f}M",
+                        "Institutional"
+                    )
+            
+            st.markdown("---")
+            
+            # ====================================
+            # DISCOVERY TABS - NOT COMMANDS
+            # ====================================
+            discovery_tabs = st.tabs([
+                "🏆 Top Ranked", 
+                "🌊 Wave Leaders", 
+                "🎯 Pattern Discoveries",
+                "💰 Money Flow",
+                "📈 Momentum Stars"
+            ])
+            
+            # TAB 1: TOP RANKED BY MASTER SCORE
+            with discovery_tabs[0]:
+                st.markdown("#### 🏆 Highest Ranked Stocks")
                 
-                if 'wave_state' in filtered_df.columns:
-                    buy_conditions &= filtered_df['wave_state'].str.contains('BUILDING|CRESTING', na=False)
-                if 'momentum_score' in filtered_df.columns:
-                    buy_conditions &= (filtered_df['momentum_score'] > 70)
-                if 'rvol' in filtered_df.columns:
-                    buy_conditions &= (filtered_df['rvol'] > 1.5)
-                if 'from_low_pct' in filtered_df.columns:
-                    buy_conditions &= (filtered_df['from_low_pct'] < 70)
+                top_ranked = filtered_df.nlargest(10, 'master_score')
                 
-                buy_signals = filtered_df[buy_conditions]
+                # Create clean display
+                display_data = []
+                for _, stock in top_ranked.iterrows():
+                    display_data.append({
+                        'Rank': int(stock['rank']),
+                        'Ticker': stock['ticker'],
+                        'Company': str(stock.get('company_name', ''))[:30],
+                        'Score': stock['master_score'],
+                        'Category': stock.get('category', 'N/A'),
+                        'Wave': stock.get('wave_state', 'N/A'),
+                        'Price': f"₹{stock['price']:.0f}",
+                        '30D Ret': f"{stock.get('ret_30d', 0):+.1f}%",
+                        'RVOL': f"{stock.get('rvol', 1):.1f}x",
+                        'Pattern': str(stock.get('patterns', ''))[:30] if stock.get('patterns') else '-'
+                    })
                 
-                if len(buy_signals) > 0:
-                    buy_signals = buy_signals.nlargest(3, 'master_score')
-                    for _, stock in buy_signals.iterrows():
-                        entry = float(stock['price'])
-                        stop = entry * 0.95
-                        target = entry * 1.10
+                rank_df = pd.DataFrame(display_data)
+                
+                st.dataframe(
+                    rank_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        'Rank': st.column_config.NumberColumn('Rank', width="small"),
+                        'Score': st.column_config.ProgressColumn(
+                            'Score',
+                            min_value=0,
+                            max_value=100,
+                            format="%.1f"
+                        ),
+                        'Wave': st.column_config.TextColumn('Wave State', width="medium"),
+                    }
+                )
+            
+            # TAB 2: WAVE LEADERS - ENHANCED VERSION
+                with discovery_tabs[1]:
+                    st.markdown("#### 🌊 Wave State Leaders - Market Momentum Lifecycle")
+                    
+                    if 'wave_state' in filtered_df.columns:
                         
-                        st.success(
-                            f"🔥 **{stock['ticker']}**\n"
-                            f"Entry: ₹{entry:.0f} | Stop: ₹{stop:.0f}\n"
-                            f"Target: ₹{target:.0f}"
-                        )
-                else:
-                    st.info("No strong buy signals")
-            else:
-                st.info("Insufficient data for buy signals")
-        
-        with action_col2:
-            st.markdown("#### 🔴 **EXIT SIGNALS**")
+                        # 1. WAVE OVERVIEW METRICS
+                        st.markdown("##### 📊 Wave Distribution Overview")
+                        
+                        wave_metrics = []
+                        for wave in ['CRESTING', 'BUILDING', 'FORMING', 'BREAKING']:
+                            wave_df = filtered_df[filtered_df['wave_state'].str.contains(wave, na=False)]
+                            
+                            if len(wave_df) > 0:
+                                wave_metrics.append({
+                                    'Wave State': f"{'🌊🌊🌊' if wave=='CRESTING' else '🌊🌊' if wave=='BUILDING' else '🌊' if wave=='FORMING' else '💥'} {wave}",
+                                    'Count': len(wave_df),
+                                    '% of Market': f"{len(wave_df)/len(filtered_df)*100:.1f}%",
+                                    'Avg Score': f"{wave_df['master_score'].mean():.1f}",
+                                    'Avg Momentum': f"{wave_df['momentum_score'].mean():.1f}" if 'momentum_score' in wave_df.columns else 'N/A',
+                                    'Avg RVOL': f"{wave_df['rvol'].mean():.1f}x" if 'rvol' in wave_df.columns else 'N/A',
+                                    'Top Sector': wave_df['sector'].value_counts().index[0] if 'sector' in wave_df.columns and len(wave_df['sector'].value_counts()) > 0 else 'N/A',
+                                    'Avg 30D Ret': f"{wave_df['ret_30d'].mean():.1f}%" if 'ret_30d' in wave_df.columns else 'N/A'
+                                })
+                        
+                        if wave_metrics:
+                            wave_overview_df = pd.DataFrame(wave_metrics)
+                            
+                            # Color code by wave strength
+                            def highlight_wave(row):
+                                if 'CRESTING' in row['Wave State']:
+                                    return ['background-color: #d4f1d4'] * len(row)  # Light green
+                                elif 'BUILDING' in row['Wave State']:
+                                    return ['background-color: #fff3cd'] * len(row)  # Light yellow
+                                elif 'FORMING' in row['Wave State']:
+                                    return ['background-color: #e3f2fd'] * len(row)  # Light blue
+                                else:
+                                    return ['background-color: #ffebee'] * len(row)  # Light red
+                            
+                            st.dataframe(
+                                wave_overview_df.style.apply(highlight_wave, axis=1),
+                                use_container_width=True,
+                                hide_index=True
+                            )
+                        
+                        st.markdown("---")
+                        
+                        # 2. WAVE PROGRESSION FLOW
+                        col1, col2 = st.columns([2, 1])
+                        
+                        with col1:
+                            st.markdown("##### 🔄 Wave Lifecycle Flow")
+                            
+                            # Create Sankey diagram showing wave transitions
+                            wave_progression = {
+                                'FORMING → BUILDING': len(filtered_df[(filtered_df['momentum_score'] > 40) & (filtered_df['momentum_score'] < 60)]) if 'momentum_score' in filtered_df.columns else 0,
+                                'BUILDING → CRESTING': len(filtered_df[(filtered_df['momentum_score'] > 60) & (filtered_df['momentum_score'] < 80)]) if 'momentum_score' in filtered_df.columns else 0,
+                                'CRESTING → BREAKING': len(filtered_df[filtered_df['momentum_score'] > 80]) if 'momentum_score' in filtered_df.columns else 0
+                            }
+                            
+                            # Simple bar chart of progression
+                            prog_df = pd.DataFrame(list(wave_progression.items()), columns=['Transition', 'Stocks'])
+                            st.bar_chart(prog_df.set_index('Transition'))
+                        
+                        with col2:
+                            st.markdown("##### 🎯 Wave Quality Score")
+                            
+                            # Calculate wave health
+                            cresting_count = len(filtered_df[filtered_df['wave_state'].str.contains('CRESTING', na=False)])
+                            building_count = len(filtered_df[filtered_df['wave_state'].str.contains('BUILDING', na=False)])
+                            forming_count = len(filtered_df[filtered_df['wave_state'].str.contains('FORMING', na=False)])
+                            breaking_count = len(filtered_df[filtered_df['wave_state'].str.contains('BREAKING', na=False)])
+                            
+                            total = cresting_count + building_count + forming_count + breaking_count
+                            
+                            if total > 0:
+                                wave_health_score = (
+                                    (cresting_count * 100) + 
+                                    (building_count * 75) + 
+                                    (forming_count * 50) + 
+                                    (breaking_count * 25)
+                                ) / total
+                                
+                                if wave_health_score > 70:
+                                    st.success(f"🔥 Market Strength: {wave_health_score:.0f}/100")
+                                elif wave_health_score > 50:
+                                    st.warning(f"⚡ Market Strength: {wave_health_score:.0f}/100")
+                                else:
+                                    st.error(f"❄️ Market Strength: {wave_health_score:.0f}/100")
+                                
+                                # Pie chart of distribution
+                                wave_dist = pd.DataFrame({
+                                    'Wave': ['Cresting', 'Building', 'Forming', 'Breaking'],
+                                    'Count': [cresting_count, building_count, forming_count, breaking_count]
+                                })
+                                
+                                fig = px.pie(wave_dist, values='Count', names='Wave', 
+                                           color_discrete_map={'Cresting':'#2ecc71', 'Building':'#f39c12', 
+                                                              'Forming':'#3498db', 'Breaking':'#e74c3c'})
+                                fig.update_traces(textposition='inside', textinfo='percent+label')
+                                fig.update_layout(height=200, margin=dict(t=0, b=0, l=0, r=0))
+                                st.plotly_chart(fig, use_container_width=True)
+                        
+                        st.markdown("---")
+                        
+                        # 3. DETAILED WAVE LEADERS TABLE
+                        st.markdown("##### 🏆 Top Performers by Wave State")
+                        
+                        # Create tabs for each wave state
+                        wave_tabs = st.tabs(['🌊🌊🌊 CRESTING', '🌊🌊 BUILDING', '🌊 FORMING', '💥 BREAKING'])
+                        
+                        for idx, (wave_tab, wave_name) in enumerate(zip(wave_tabs, ['CRESTING', 'BUILDING', 'FORMING', 'BREAKING'])):
+                            with wave_tab:
+                                wave_stocks = filtered_df[filtered_df['wave_state'].str.contains(wave_name, na=False)]
+                                
+                                if len(wave_stocks) > 0:
+                                    # Get top 10 in this wave
+                                    top_wave = wave_stocks.nlargest(min(10, len(wave_stocks)), 'master_score')
+                                    
+                                    # Create comprehensive display
+                                    display_data = []
+                                    for _, stock in top_wave.iterrows():
+                                        display_data.append({
+                                            'Rank': f"#{int(stock['rank'])}",
+                                            'Ticker': stock['ticker'],
+                                            'Company': str(stock.get('company_name', ''))[:25] + '...' if len(str(stock.get('company_name', ''))) > 25 else str(stock.get('company_name', '')),
+                                            'Score': stock['master_score'],
+                                            'Momentum': stock.get('momentum_score', 0),
+                                            'Acceleration': stock.get('acceleration_score', 0),
+                                            'RVOL': f"{stock.get('rvol', 1):.1f}x",
+                                            '7D%': f"{stock.get('ret_7d', 0):+.1f}",
+                                            '30D%': f"{stock.get('ret_30d', 0):+.1f}",
+                                            'Harmony': f"{'🟢' if stock.get('momentum_harmony', 0) >= 3 else '🟡' if stock.get('momentum_harmony', 0) >= 2 else '🔴'} {stock.get('momentum_harmony', 0)}/4",
+                                            'Pattern': str(stock.get('patterns', ''))[:20] + '...' if len(str(stock.get('patterns', ''))) > 20 else str(stock.get('patterns', '')),
+                                            'Category': stock.get('category', 'N/A')
+                                        })
+                                    
+                                    wave_df = pd.DataFrame(display_data)
+                                    
+                                    # Show statistics for this wave
+                                    col1, col2, col3, col4 = st.columns(4)
+                                    with col1:
+                                        st.metric("Stocks in Wave", len(wave_stocks))
+                                    with col2:
+                                        st.metric("Avg Score", f"{wave_stocks['master_score'].mean():.1f}")
+                                    with col3:
+                                        if 'rvol' in wave_stocks.columns:
+                                            high_vol = len(wave_stocks[wave_stocks['rvol'] > 2])
+                                            st.metric("High Volume", high_vol)
+                                    with col4:
+                                        if 'ret_30d' in wave_stocks.columns:
+                                            positive = len(wave_stocks[wave_stocks['ret_30d'] > 0])
+                                            st.metric("30D Winners", f"{positive}/{len(wave_stocks)}")
+                                    
+                                    # Display the table with column configuration
+                                    st.dataframe(
+                                        wave_df,
+                                        use_container_width=True,
+                                        hide_index=True,
+                                        column_config={
+                                            'Score': st.column_config.ProgressColumn(
+                                                'Score',
+                                                min_value=0,
+                                                max_value=100,
+                                                format="%.1f"
+                                            ),
+                                            'Momentum': st.column_config.ProgressColumn(
+                                                'Momentum',
+                                                min_value=0,
+                                                max_value=100,
+                                                format="%.0f"
+                                            ),
+                                            'Acceleration': st.column_config.ProgressColumn(
+                                                'Accel',
+                                                min_value=0,
+                                                max_value=100,
+                                                format="%.0f"
+                                            ),
+                                            'RVOL': st.column_config.TextColumn(
+                                                'RVOL',
+                                                help="Relative Volume"
+                                            ),
+                                            '7D%': st.column_config.TextColumn(
+                                                '7D%',
+                                                help="7-day return"
+                                            ),
+                                            '30D%': st.column_config.TextColumn(
+                                                '30D%',
+                                                help="30-day return"
+                                            ),
+                                            'Harmony': st.column_config.TextColumn(
+                                                'Harmony',
+                                                help="Momentum alignment across timeframes"
+                                            )
+                                        }
+                                    )
+                                    
+                                    # Special insights for each wave
+                                    if wave_name == 'CRESTING':
+                                        st.info("💡 **Cresting Insight:** These stocks are at peak momentum. Watch for distribution patterns or exhaustion signals.")
+                                    elif wave_name == 'BUILDING':
+                                        st.success("💡 **Building Insight:** Best risk/reward zone. These are gaining momentum but not overextended yet.")
+                                    elif wave_name == 'FORMING':
+                                        st.warning("💡 **Forming Insight:** Early stage opportunities. Need volume confirmation before major moves.")
+                                    else:  # BREAKING
+                                        st.error("💡 **Breaking Insight:** Momentum failing. Consider exits or wait for base formation.")
+                                
+                                else:
+                                    st.info(f"No stocks currently in {wave_name} state")
+                        
+                        # 4. WAVE TRANSITION ALERTS
+                        st.markdown("---")
+                        st.markdown("##### 🔔 Wave Transition Alerts")
+                        
+                        # Find stocks about to change waves
+                        transitions = []
+                        
+                        # About to CREST (Building → Cresting)
+                        about_to_crest = filtered_df[
+                            (filtered_df['wave_state'].str.contains('BUILDING', na=False)) &
+                            (filtered_df['momentum_score'] > 75) &
+                            (filtered_df['acceleration_score'] > 80)
+                        ].head(3)
+                        
+                        for _, stock in about_to_crest.iterrows():
+                            transitions.append({
+                                'Alert': '🚀 About to CREST',
+                                'Ticker': stock['ticker'],
+                                'Current': 'BUILDING',
+                                'Signal': f"Momentum: {stock['momentum_score']:.0f}, Accel: {stock['acceleration_score']:.0f}",
+                                'Action': 'Watch for breakout'
+                            })
+                        
+                        # About to BREAK (Cresting → Breaking)
+                        about_to_break = filtered_df[
+                            (filtered_df['wave_state'].str.contains('CRESTING', na=False)) &
+                            ((filtered_df['momentum_score'] < 60) | (filtered_df['rvol'] < 0.5))
+                        ].head(3)
+                        
+                        for _, stock in about_to_break.iterrows():
+                            transitions.append({
+                                'Alert': '⚠️ May BREAK',
+                                'Ticker': stock['ticker'],
+                                'Current': 'CRESTING',
+                                'Signal': f"Momentum weakening: {stock['momentum_score']:.0f}",
+                                'Action': 'Consider exits'
+                            })
+                        
+                        if transitions:
+                            transition_df = pd.DataFrame(transitions)
+                            st.dataframe(transition_df, use_container_width=True, hide_index=True)
+                        else:
+                            st.info("No significant wave transitions detected")
             
-            if not filtered_df.empty and 'ticker' in filtered_df.columns and 'price' in filtered_df.columns:
-                exit_conditions = pd.Series([False] * len(filtered_df), index=filtered_df.index)
-                
-                if 'wave_state' in filtered_df.columns:
-                    exit_conditions |= filtered_df['wave_state'].str.contains('BREAKING', na=False)
-                
-                if 'from_low_pct' in filtered_df.columns:
-                    exit_conditions |= (filtered_df['from_low_pct'] > 85)
+            # TAB 3: PATTERN DISCOVERIES
+            with discovery_tabs[2]:
+                st.markdown("#### 🎯 Pattern Discoveries")
                 
                 if 'patterns' in filtered_df.columns:
-                    exit_conditions |= filtered_df['patterns'].str.contains('DISTRIBUTION|EXHAUSTION', na=False)
-                
-                exit_signals = filtered_df[exit_conditions]
-                
-                if len(exit_signals) > 0:
-                    exit_signals = exit_signals.nlargest(3, 'master_score') if 'master_score' in exit_signals.columns else exit_signals.head(3)
+                    # Get pattern distribution
+                    pattern_counts = {}
+                    pattern_examples = {}
                     
-                    for _, stock in exit_signals.iterrows():
-                        reasons = []
-                        if 'wave_state' in stock and 'BREAKING' in str(stock['wave_state']):
-                            reasons.append("Breaking")
-                        if 'from_low_pct' in stock and stock['from_low_pct'] > 85:
-                            reasons.append(f"{stock['from_low_pct']:.0f}% up")
+                    for idx, row in filtered_df.iterrows():
+                        if row['patterns']:
+                            patterns = str(row['patterns']).split(' | ')
+                            for pattern in patterns:
+                                pattern = pattern.strip()
+                                if pattern:
+                                    pattern_counts[pattern] = pattern_counts.get(pattern, 0) + 1
+                                    if pattern not in pattern_examples:
+                                        pattern_examples[pattern] = []
+                                    if len(pattern_examples[pattern]) < 3:
+                                        pattern_examples[pattern].append(row['ticker'])
+                    
+                    if pattern_counts:
+                        # Sort by frequency
+                        sorted_patterns = sorted(pattern_counts.items(), key=lambda x: x[1], reverse=True)[:10]
                         
-                        st.error(
-                            f"⚠️ **{stock['ticker']}**\n"
-                            f"Current: ₹{float(stock['price']):.0f}\n"
-                            f"Reason: {', '.join(reasons[:2]) if reasons else 'Risk'}"
-                        )
-                else:
-                    st.info("No urgent exit signals")
-            else:
-                st.info("Insufficient data for exit signals")
-        
-        with action_col3:
-            st.markdown("#### ⏰ **WATCH LIST**")
-            
-            if not filtered_df.empty and 'breakout_score' in filtered_df.columns and 'ticker' in filtered_df.columns and 'price' in filtered_df.columns:
-                watch_conditions = (
-                    (filtered_df['breakout_score'] > 70) &
-                    (filtered_df['breakout_score'] < 85)
-                )
-                
-                if 'wave_state' in filtered_df.columns:
-                    watch_conditions &= filtered_df['wave_state'].str.contains('FORMING|BUILDING', na=False)
-                
-                watch_signals = filtered_df[watch_conditions]
-                
-                if len(watch_signals) > 0:
-                    watch_signals = watch_signals.nlargest(3, 'breakout_score')
-                    for _, stock in watch_signals.iterrows():
-                        trigger = float(stock['price']) * 1.02
+                        pattern_display = []
+                        for pattern, count in sorted_patterns:
+                            examples = pattern_examples.get(pattern, [])
+                            pattern_display.append({
+                                'Pattern': pattern,
+                                'Frequency': count,
+                                'Top Examples': ', '.join(examples[:3]),
+                                'Strength': '🔥🔥🔥' if count > 20 else '🔥🔥' if count > 10 else '🔥'
+                            })
                         
-                        st.warning(
-                            f"👀 **{stock['ticker']}**\n"
-                            f"Current: ₹{float(stock['price']):.0f}\n"
-                            f"Buy above: ₹{trigger:.0f}"
-                        )
-                else:
-                    st.info("No stocks on watch")
-            else:
-                st.info("Insufficient data for watch list")
-        
-        st.markdown("---")
-        
-        # =====================================
-        # SECTION 3: MARKET PULSE
-        # =====================================
-        st.markdown("### 🌊 Market Wave Distribution")
-        
-        col1, col2, col3 = st.columns([1, 2, 1])
-        
-        with col1:
-            # Key metrics
-            if 'master_score' in filtered_df.columns:
-                hot_stocks = len(filtered_df[filtered_df['master_score'] > 80])
-                st.metric("🔥 Hot Stocks", f"{hot_stocks}", "Score > 80")
+                        pattern_df = pd.DataFrame(pattern_display)
+                        st.dataframe(pattern_df, use_container_width=True, hide_index=True)
             
-            if 'ret_30d' in filtered_df.columns:
-                advancing = len(filtered_df[filtered_df['ret_30d'] > 0])
-                declining = total_stocks - advancing if total_stocks > 0 else 0
-                if total_stocks > 0:
-                    st.metric("📈 Breadth", f"{advancing}/{declining}", 
-                             f"{(advancing/total_stocks*100):.0f}% advancing")
-            
-            if 'rvol' in filtered_df.columns:
-                high_volume = len(filtered_df[filtered_df['rvol'] > 2])
-                st.metric("⚡ Activity", f"{high_volume}", "RVOL > 2x")
-        
-        with col2:
-            # Visual wave distribution using the wave_counts we already calculated
-            if wave_counts and any(wave_counts.values()):
-                fig = go.Figure(data=[
-                    go.Bar(
-                        x=['🌊 Forming', '🌊🌊 Building', '🌊🌊🌊 Cresting', '💥 Breaking'],
-                        y=[wave_counts['FORMING'], wave_counts['BUILDING'], 
-                           wave_counts['CRESTING'], wave_counts['BREAKING']],
-                        marker_color=['yellow', 'lightgreen', 'green', 'red'],
-                        text=[wave_counts['FORMING'], wave_counts['BUILDING'], 
-                              wave_counts['CRESTING'], wave_counts['BREAKING']],
-                        textposition='auto',
+            # TAB 4: MONEY FLOW
+            with discovery_tabs[3]:
+                st.markdown("#### 💰 Institutional Money Flow")
+                
+                if 'money_flow_mm' in filtered_df.columns:
+                    top_flow = filtered_df.nlargest(10, 'money_flow_mm')
+                    
+                    # Create treemap-like display
+                    flow_data = []
+                    for _, stock in top_flow.iterrows():
+                        flow_data.append({
+                            'Ticker': stock['ticker'],
+                            'Company': str(stock.get('company_name', ''))[:25],
+                            'Flow (₹M)': stock['money_flow_mm'],
+                            'Price': f"₹{stock['price']:.0f}",
+                            'RVOL': f"{stock.get('rvol', 1):.1f}x",
+                            'Category': stock.get('category', 'N/A'),
+                            'Sector': stock.get('sector', 'N/A')[:15]
+                        })
+                    
+                    flow_df = pd.DataFrame(flow_data)
+                    
+                    # Show total flow metric
+                    total_flow = flow_df['Flow (₹M)'].sum()
+                    st.info(f"📊 Total Institutional Flow (Top 10): ₹{total_flow:.0f}M")
+                    
+                    st.dataframe(
+                        flow_df,
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config={
+                            'Flow (₹M)': st.column_config.ProgressColumn(
+                                'Money Flow',
+                                min_value=0,
+                                max_value=flow_df['Flow (₹M)'].max(),
+                                format="₹%.0fM"
+                            )
+                        }
                     )
-                ])
+            
+            # TAB 5: MOMENTUM STARS
+            with discovery_tabs[4]:
+                st.markdown("#### 📈 Momentum Leaders")
                 
-                fig.update_layout(
-                    height=250,
-                    margin=dict(l=0, r=0, t=0, b=0),
-                    showlegend=False,
-                    yaxis_title="Count",
-                    xaxis_title=""
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("Wave state visualization not available")
-        
-        with col3:
-            # Pattern summary
-            if 'patterns' in filtered_df.columns:
-                perfect_storms = len(filtered_df[filtered_df['patterns'].str.contains('PERFECT STORM', na=False)])
-                vol_explosions = len(filtered_df[filtered_df['patterns'].str.contains('VOL EXPLOSION', na=False)])
-                breakouts = len(filtered_df[filtered_df['patterns'].str.contains('BREAKOUT', na=False)])
-                
-                st.metric("⛈️ Perfect Storms", perfect_storms)
-                st.metric("💥 Vol Explosions", vol_explosions)
-                st.metric("🎯 Breakouts", breakouts)
-            else:
-                st.info("Pattern data not available")
-        
-        st.markdown("---")
-        
-        # =====================================
-        # SECTION 4: KEY INSIGHT
-        # =====================================
-        st.markdown("### 💡 Key Market Insight")
-        
-        # Calculate key variables for insights
-        perfect_storms = 0
-        if 'patterns' in filtered_df.columns:
-            perfect_storms = len(filtered_df[filtered_df['patterns'].str.contains('PERFECT STORM', na=False)])
-        
-        breaking_pct = 0
-        if total_stocks > 0:
-            breaking_pct = (wave_counts['BREAKING'] / total_stocks) * 100
-        
-        high_volume_pct = 0
-        if 'rvol' in filtered_df.columns and total_stocks > 0:
-            high_volume = len(filtered_df[filtered_df['rvol'] > 2])
-            high_volume_pct = (high_volume / total_stocks) * 100
-        
-        # Determine the most important insight
-        if market_health > 70 and perfect_storms > 5:
-            st.success(
-                f"🎯 **RARE OPPORTUNITY DETECTED**\n\n"
-                f"{perfect_storms} stocks showing perfect convergence with market in bull mode. "
-                f"This combination occurs < 5% of the time. **Action: Size up positions in top convergence stocks.**"
-            )
-        elif breaking_pct > 40:
-            st.error(
-                f"⚠️ **MARKET BREAKDOWN WARNING**\n\n"
-                f"{breaking_pct:.0f}% of stocks are breaking down. "
-                f"Market exhaustion detected. **Action: Exit weak positions, reduce size by 50%, tighten stops.**"
-            )
-        elif high_volume_pct > 30:
-            st.info(
-                f"⚡ **UNUSUAL MARKET ACTIVITY**\n\n"
-                f"{high_volume_pct:.0f}% of stocks showing unusual volume. "
-                f"Major moves developing. **Action: Focus on volume leaders with strong patterns.**"
-            )
-        else:
-            st.info(
-                f"📊 **NORMAL MARKET CONDITIONS**\n\n"
-                f"No extreme readings detected. Market showing typical behavior. "
-                f"**Action: Follow standard position sizing, honor stops, wait for clear setups.**"
-            )
-        
-        # Footer
-        st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                if all(col in filtered_df.columns for col in ['momentum_score', 'acceleration_score']):
+                    # Find stocks with both high momentum and acceleration
+                    momentum_stars = filtered_df[
+                        (filtered_df['momentum_score'] > 70) & 
+                        (filtered_df['acceleration_score'] > 70)
+                    ].nlargest(10, 'master_score')
+                    
+                    if len(momentum_stars) > 0:
+                        star_data = []
+                        for _, stock in momentum_stars.iterrows():
+                            star_data.append({
+                                'Ticker': stock['ticker'],
+                                'Momentum': stock['momentum_score'],
+                                'Acceleration': stock['acceleration_score'],
+                                '7D': f"{stock.get('ret_7d', 0):+.1f}%",
+                                '30D': f"{stock.get('ret_30d', 0):+.1f}%",
+                                'Harmony': f"{stock.get('momentum_harmony', 0)}/4",
+                                'Wave': stock.get('wave_state', 'N/A')
+                            })
+                        
+                        star_df = pd.DataFrame(star_data)
+                        st.dataframe(
+                            star_df,
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                'Momentum': st.column_config.ProgressColumn(
+                                    'Momentum',
+                                    min_value=0,
+                                    max_value=100,
+                                    format="%.0f"
+                                ),
+                                'Acceleration': st.column_config.ProgressColumn(
+                                    'Acceleration', 
+                                    min_value=0,
+                                    max_value=100,
+                                    format="%.0f"
+                                )
+                            }
+                        )
+                    else:
+                        st.info("No stocks currently showing strong momentum + acceleration combination")
+            
+            st.markdown("---")
+            
+            # ====================================
+            # MARKET INTELLIGENCE SECTION
+            # ====================================
+            st.markdown("#### 🧠 Market Intelligence")
+            
+            intel_cols = st.columns(3)
+            
+            with intel_cols[0]:
+                # Market Regime
+                regime, metrics = MarketIntelligence.detect_market_regime(filtered_df)
+                st.info(f"""
+                **Market Regime**  
+                {regime}  
+                Breadth: {metrics.get('breadth', 0):.1%}  
+                Avg RVOL: {metrics.get('avg_rvol', 1):.1f}x
+                """)
+            
+            with intel_cols[1]:
+                # Sector Rotation
+                if 'sector' in filtered_df.columns:
+                    sector_leaders = filtered_df.groupby('sector')['master_score'].mean().nlargest(3)
+                    st.info(f"""
+                    **Top Sectors**  
+                    1. {sector_leaders.index[0] if len(sector_leaders) > 0 else 'N/A'}  
+                    2. {sector_leaders.index[1] if len(sector_leaders) > 1 else 'N/A'}  
+                    3. {sector_leaders.index[2] if len(sector_leaders) > 2 else 'N/A'}
+                    """)
+            
+            with intel_cols[2]:
+                # Pattern Alerts
+                if 'patterns' in filtered_df.columns:
+                    critical_patterns = filtered_df[
+                        filtered_df['patterns'].str.contains('PERFECT STORM|VOL EXPLOSION|VAMPIRE', na=False)
+                    ]
+                    st.info(f"""
+                    **Pattern Alerts**  
+                    Perfect Storms: {filtered_df['patterns'].str.contains('PERFECT STORM', na=False).sum()}  
+                    Vol Explosions: {filtered_df['patterns'].str.contains('VOL EXPLOSION', na=False).sum()}  
+                    Vampire: {filtered_df['patterns'].str.contains('VAMPIRE', na=False).sum()}
+                    """)
     
     # Tab 1: Rankings
     with tabs[1]:
