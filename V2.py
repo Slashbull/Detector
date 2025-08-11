@@ -6356,119 +6356,281 @@ def main():
             with intel_tabs[1]:
                 st.markdown("##### 💰 **Smart Money Flow Analysis**")
                 
-                col1, col2 = st.columns(2)
+                # ============================================
+                # TOP METRICS ROW - QUICK OVERVIEW
+                # ============================================
+                flow_cols = st.columns(5)
                 
-                with col1:
-                    st.markdown("**🏦 Institutional Footprints**")
+                with flow_cols[0]:
+                    total_flow = filtered_df['money_flow_mm'].sum() if 'money_flow_mm' in filtered_df.columns else 0
+                    st.metric("Total Flow", f"₹{total_flow:,.0f}M")
+                
+                with flow_cols[1]:
+                    if 'money_flow_mm' in filtered_df.columns:
+                        top10_flow = filtered_df.nlargest(10, 'money_flow_mm')['money_flow_mm'].sum()
+                        concentration = (top10_flow / total_flow * 100) if total_flow > 0 else 0
+                        st.metric("Top 10 Share", f"{concentration:.0f}%")
+                    else:
+                        st.metric("Top 10 Share", "N/A")
+                
+                with flow_cols[2]:
+                    if 'rvol' in filtered_df.columns:
+                        high_rvol_flow = filtered_df[filtered_df['rvol'] > 2]['money_flow_mm'].sum() if 'money_flow_mm' in filtered_df.columns else 0
+                        st.metric("High RVOL Flow", f"₹{high_rvol_flow:,.0f}M")
+                    else:
+                        st.metric("High RVOL Flow", "N/A")
+                
+                with flow_cols[3]:
+                    # Institutional count
+                    inst_count = 0
+                    if all(col in filtered_df.columns for col in ['rvol', 'ret_1d']):
+                        inst_count = len(filtered_df[(filtered_df['rvol'] > 2) & (filtered_df['ret_1d'].abs() < 3)])
+                    st.metric("Institutional Signals", inst_count)
+                
+                with flow_cols[4]:
+                    # Market mood based on category flow
+                    if 'category' in filtered_df.columns and 'money_flow_mm' in filtered_df.columns:
+                        cat_flow = filtered_df.groupby('category')['money_flow_mm'].sum()
+                        if len(cat_flow) > 0:
+                            top_cat = cat_flow.idxmax()
+                            if 'Small' in top_cat or 'Micro' in top_cat:
+                                st.metric("Market Mood", "🔥 RISK-ON")
+                            elif 'Large' in top_cat or 'Mega' in top_cat:
+                                st.metric("Market Mood", "🛡️ RISK-OFF")
+                            else:
+                                st.metric("Market Mood", "⚖️ NEUTRAL")
+                    else:
+                        st.metric("Market Mood", "N/A")
+                
+                st.markdown("---")
+                
+                # ============================================
+                # MAIN SMART MONEY TABLE
+                # ============================================
+                st.markdown("**🏦 Institutional Money Flow Leaders**")
+                
+                if 'money_flow_mm' in filtered_df.columns:
+                    # Calculate institutional score for each stock
+                    filtered_df['inst_score'] = 0
                     
-                    # Multi-signal institutional detection
-                    inst_score = pd.Series(0, index=filtered_df.index)
-                    
-                    # Signal 1: High volume with controlled price
+                    # Signal 1: High volume with controlled price movement
                     if all(col in filtered_df.columns for col in ['rvol', 'ret_1d']):
                         signal1 = (filtered_df['rvol'] > 2) & (filtered_df['ret_1d'].abs() < 3)
-                        inst_score[signal1] += 25
+                        filtered_df.loc[signal1, 'inst_score'] += 25
                     
-                    # Signal 2: Sustained volume
+                    # Signal 2: Sustained volume increase
                     if all(col in filtered_df.columns for col in ['vol_ratio_7d_90d', 'vol_ratio_30d_90d']):
                         signal2 = (filtered_df['vol_ratio_7d_90d'] > 1.5) & (filtered_df['vol_ratio_30d_90d'] > 1.3)
-                        inst_score[signal2] += 25
+                        filtered_df.loc[signal2, 'inst_score'] += 25
                     
-                    # Signal 3: Large money flow
-                    if 'money_flow_mm' in filtered_df.columns:
-                        flow_q80 = filtered_df['money_flow_mm'].quantile(0.8)
-                        signal3 = filtered_df['money_flow_mm'] > flow_q80
-                        inst_score[signal3] += 25
+                    # Signal 3: Large money flow (top 20%)
+                    flow_q80 = filtered_df['money_flow_mm'].quantile(0.8)
+                    signal3 = filtered_df['money_flow_mm'] > flow_q80
+                    filtered_df.loc[signal3, 'inst_score'] += 25
                     
                     # Signal 4: Institutional patterns
                     if 'patterns' in filtered_df.columns:
-                        signal4 = filtered_df['patterns'].str.contains('INSTITUTIONAL|STEALTH|PYRAMID', na=False)
-                        inst_score[signal4] += 25
+                        signal4 = filtered_df['patterns'].str.contains('INSTITUTIONAL|STEALTH|PYRAMID', na=False, regex=True)
+                        filtered_df.loc[signal4, 'inst_score'] += 25
                     
-                    # Get institutional stocks
-                    institutional = filtered_df[inst_score >= 50].copy()
-                    institutional['inst_score'] = inst_score[inst_score >= 50]
-                    institutional = institutional.nlargest(5, 'inst_score')
+                    # Get top institutional stocks
+                    institutional = filtered_df[filtered_df['inst_score'] >= 50].copy()
+                    institutional = institutional.nlargest(20, 'money_flow_mm')
                     
                     if len(institutional) > 0:
+                        # Prepare display with company names
+                        inst_display = []
                         for _, stock in institutional.iterrows():
-                            confidence = "HIGH" if stock['inst_score'] >= 75 else "MODERATE"
+                            # Determine flow type
+                            flow_type = []
+                            if stock.get('rvol', 1) > 3:
+                                flow_type.append("🌋 Explosive")
+                            elif stock.get('rvol', 1) > 2:
+                                flow_type.append("🔥 Active")
+                            else:
+                                flow_type.append("🤫 Stealth")
                             
-                            st.info(
-                                f"**🏦 {stock['ticker']}** - {confidence} confidence\n"
-                                f"Signals: {int(stock['inst_score']/25)}/4 | "
-                                f"RVOL: {stock.get('rvol', 1):.1f}x | "
-                                f"Flow: ₹{stock.get('money_flow_mm', 0):.0f}M"
+                            # Direction based on price movement
+                            if stock.get('ret_1d', 0) > 2:
+                                direction = "📈 Buying"
+                            elif stock.get('ret_1d', 0) < -2:
+                                direction = "📉 Selling"
+                            else:
+                                direction = "➡️ Accumulating"
+                            
+                            # Confidence level
+                            if stock['inst_score'] >= 75:
+                                confidence = "🟢 HIGH"
+                            elif stock['inst_score'] >= 50:
+                                confidence = "🟡 MODERATE"
+                            else:
+                                confidence = "⚪ LOW"
+                            
+                            inst_display.append({
+                                'Company': stock.get('company_name', 'N/A')[:30] + '...' if len(str(stock.get('company_name', ''))) > 30 else stock.get('company_name', 'N/A'),
+                                'Ticker': stock['ticker'],
+                                'Flow ₹M': stock['money_flow_mm'],
+                                'Price': stock['price'],
+                                'RVOL': stock.get('rvol', 1),
+                                '1D%': stock.get('ret_1d', 0),
+                                'Type': flow_type[0] if flow_type else '',
+                                'Direction': direction,
+                                'Confidence': confidence,
+                                'Score': stock['master_score'],
+                                'Category': stock.get('category', 'N/A')
+                            })
+                        
+                        inst_df = pd.DataFrame(inst_display)
+                        
+                        # Display with column configuration
+                        st.dataframe(
+                            inst_df,
+                            use_container_width=True,
+                            hide_index=True,
+                            height=400,
+                            column_config={
+                                'Company': st.column_config.TextColumn(
+                                    'Company',
+                                    help="Company name",
+                                    width="large"
+                                ),
+                                'Ticker': st.column_config.TextColumn(
+                                    'Ticker',
+                                    help="Stock symbol",
+                                    width="small"
+                                ),
+                                'Flow ₹M': st.column_config.NumberColumn(
+                                    'Flow ₹M',
+                                    help="Money flow in millions",
+                                    format="₹%.1f M"
+                                ),
+                                'Price': st.column_config.NumberColumn(
+                                    'Price',
+                                    help="Current price",
+                                    format="₹%.0f"
+                                ),
+                                'RVOL': st.column_config.NumberColumn(
+                                    'RVOL',
+                                    help="Relative volume",
+                                    format="%.1fx"
+                                ),
+                                '1D%': st.column_config.NumberColumn(
+                                    '1D%',
+                                    help="1-day return",
+                                    format="%.1f%%"
+                                ),
+                                'Type': st.column_config.TextColumn(
+                                    'Type',
+                                    help="Flow type",
+                                    width="medium"
+                                ),
+                                'Direction': st.column_config.TextColumn(
+                                    'Direction',
+                                    help="Flow direction",
+                                    width="medium"
+                                ),
+                                'Confidence': st.column_config.TextColumn(
+                                    'Confidence',
+                                    help="Signal confidence",
+                                    width="small"
+                                ),
+                                'Score': st.column_config.ProgressColumn(
+                                    'Score',
+                                    help="Master score",
+                                    format="%.0f",
+                                    min_value=0,
+                                    max_value=100
+                                ),
+                                'Category': st.column_config.TextColumn(
+                                    'Category',
+                                    help="Market cap category",
+                                    width="medium"
+                                )
+                            }
+                        )
+                        
+                        # Top institutional pick
+                        if len(institutional) > 0:
+                            best = institutional.iloc[0]
+                            st.success(
+                                f"🏆 **Top Institutional Pick: {best.get('company_name', 'N/A')[:40]} ({best['ticker']})**\n"
+                                f"• Money Flow: ₹{best['money_flow_mm']:.0f}M\n"
+                                f"• Entry: ₹{best['price']:.0f} | RVOL: {best.get('rvol', 1):.1f}x\n"
+                                f"• Confidence: {int(best['inst_score'])}% | Score: {best['master_score']:.0f}"
                             )
                     else:
-                        st.caption("No clear institutional activity detected")
+                        st.info("No clear institutional activity detected")
                 
-                with col2:
-                    st.markdown("**🔄 Flow Direction Analysis**")
+                st.markdown("---")
+                
+                # ============================================
+                # CATEGORY FLOW ANALYSIS
+                # ============================================
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("**📊 Category Flow Distribution**")
                     
                     if 'category' in filtered_df.columns and 'money_flow_mm' in filtered_df.columns:
-                        # Category flow analysis
                         cat_flow = filtered_df.groupby('category').agg({
                             'money_flow_mm': 'sum',
                             'ticker': 'count',
-                            'master_score': 'mean'
+                            'master_score': 'mean',
+                            'rvol': 'mean'
                         }).round(2)
                         
-                        cat_flow.columns = ['Total Flow', 'Count', 'Avg Score']
-                        cat_flow = cat_flow.sort_values('Total Flow', ascending=False)
+                        cat_flow.columns = ['Total Flow ₹M', 'Stocks', 'Avg Score', 'Avg RVOL']
+                        cat_flow = cat_flow.sort_values('Total Flow ₹M', ascending=False)
                         
-                        # Determine market mood
-                        if len(cat_flow) > 0:
-                            top_category = cat_flow.index[0]
-                            
-                            if 'Small' in top_category or 'Micro' in top_category:
-                                mood = "RISK-ON"
-                                mood_color = "success"
-                                mood_emoji = "🔥"
-                                mood_action = "Favor growth stocks"
-                            elif 'Large' in top_category or 'Mega' in top_category:
-                                mood = "RISK-OFF"
-                                mood_color = "warning"
-                                mood_emoji = "🛡️"
-                                mood_action = "Favor defensive stocks"
-                            else:
-                                mood = "NEUTRAL"
-                                mood_color = "info"
-                                mood_emoji = "⚖️"
-                                mood_action = "Stay balanced"
-                            
-                            getattr(st, mood_color)(
-                                f"{mood_emoji} **Market Mood: {mood}**\n"
-                                f"Money flowing to: {top_category}\n"
-                                f"Action: {mood_action}"
-                            )
-                            
-                            # Show flow breakdown
-                            st.markdown("**Flow Breakdown:**")
-                            for cat, row in cat_flow.head(3).iterrows():
-                                flow_pct = (row['Total Flow'] / cat_flow['Total Flow'].sum()) * 100
-                                st.caption(f"• {cat}: ₹{row['Total Flow']:.0f}M ({flow_pct:.0f}%)")
-                    
-                    # Unusual flow detection
+                        # Add percentage
+                        total = cat_flow['Total Flow ₹M'].sum()
+                        cat_flow['% Share'] = (cat_flow['Total Flow ₹M'] / total * 100).round(1)
+                        
+                        # Format for display
+                        cat_flow['Total Flow ₹M'] = cat_flow['Total Flow ₹M'].apply(lambda x: f"{x:,.0f}")
+                        cat_flow['Avg Score'] = cat_flow['Avg Score'].apply(lambda x: f"{x:.1f}")
+                        cat_flow['Avg RVOL'] = cat_flow['Avg RVOL'].apply(lambda x: f"{x:.1f}x")
+                        cat_flow['% Share'] = cat_flow['% Share'].apply(lambda x: f"{x:.1f}%")
+                        
+                        st.dataframe(
+                            cat_flow[['Total Flow ₹M', '% Share', 'Stocks', 'Avg Score', 'Avg RVOL']],
+                            use_container_width=True
+                        )
+                
+                with col2:
                     st.markdown("**⚠️ Unusual Flow Alerts**")
                     
-                    if all(col in filtered_df.columns for col in ['money_flow_mm', 'ret_1d', 'rvol']):
-                        # Abnormal flow (high flow, no price move)
+                    if all(col in filtered_df.columns for col in ['money_flow_mm', 'ret_1d', 'rvol', 'company_name']):
+                        # Abnormal flow detection
                         abnormal = filtered_df[
                             (filtered_df['money_flow_mm'] > filtered_df['money_flow_mm'].quantile(0.8)) &
                             (filtered_df['ret_1d'].abs() < 1) &
                             (filtered_df['rvol'] > 2)
-                        ].head(2)
+                        ].head(5)
                         
                         if len(abnormal) > 0:
                             for _, stock in abnormal.iterrows():
+                                company_short = stock['company_name'][:25] + '...' if len(stock['company_name']) > 25 else stock['company_name']
                                 st.warning(
-                                    f"**{stock['ticker']}** - Distribution?\n"
-                                    f"High flow (₹{stock['money_flow_mm']:.0f}M) but price flat"
+                                    f"**{company_short}**\n"
+                                    f"({stock['ticker']}) - Potential Distribution\n"
+                                    f"High flow ₹{stock['money_flow_mm']:.0f}M but flat price"
                                 )
-                        else:
-                            st.caption("No unusual flow patterns")
-            
+                        
+                        # Divergence detection
+                        divergence = filtered_df[
+                            (filtered_df['ret_30d'] > 20) &
+                            (filtered_df.get('vol_ratio_30d_180d', 1) < 0.7)
+                        ].head(3)
+                        
+                        if len(divergence) > 0:
+                            st.error("**📉 Volume Divergence Detected:**")
+                            for _, stock in divergence.iterrows():
+                                company_short = stock['company_name'][:20] + '...' if len(stock['company_name']) > 20 else stock['company_name']
+                                st.caption(f"• {company_short} ({stock['ticker']}): Price up but volume down")
+                        
+                        if len(abnormal) == 0 and len(divergence) == 0:
+                            st.success("✅ No unusual flow patterns detected")            
             st.markdown("---")
             
             # ====================================
