@@ -5877,88 +5877,370 @@ def main():
                             elif 'Large' in cat_flow.index[0] or 'Mega' in cat_flow.index[0]:
                                 st.warning("🛡️ Risk-Off: Large caps leading")
             
-            # TAB 5: MOMENTUM STARS & DISCOVERIES
+            # TAB 5: MOMENTUM STARS & VELOCITY LEADERS
             with discovery_tabs[4]:
                 st.markdown("#### 🚀 Momentum Stars & Velocity Leaders")
                 
                 if all(col in filtered_df.columns for col in ['momentum_score', 'acceleration_score']):
-                    # Create momentum categories
+                    
+                    # ====================================
+                    # MOMENTUM CLASSIFICATION SYSTEM
+                    # ====================================
+                    
+                    # Create momentum classifications
+                    filtered_df['momentum_class'] = 'Regular'
+                    filtered_df['momentum_signal'] = 0
+                    
+                    # Classification logic
+                    conditions = [
+                        (filtered_df['momentum_score'] > 80) & (filtered_df['acceleration_score'] > 80),  # Elite
+                        (filtered_df['momentum_score'] > 70) & (filtered_df['acceleration_score'] > 70),  # Star
+                        (filtered_df['momentum_score'] > 60) & (filtered_df['acceleration_score'] > 60),  # Rising
+                        (filtered_df['momentum_score'] > 50) & (filtered_df['acceleration_score'] < 30),  # Fading
+                    ]
+                    
+                    choices = ['Elite', 'Star', 'Rising', 'Fading']
+                    signals = [100, 75, 50, 25]
+                    
+                    for i, condition in enumerate(conditions):
+                        filtered_df.loc[condition, 'momentum_class'] = choices[i]
+                        filtered_df.loc[condition, 'momentum_signal'] = signals[i]
+                    
+                    # ====================================
+                    # SECTION 1: MOMENTUM ELITE TABLE
+                    # ====================================
+                    
+                    st.markdown("##### 👑 **MOMENTUM ELITE** (Top Performers)")
+                    
+                    # Get elite momentum stocks
+                    elite_momentum = filtered_df[filtered_df['momentum_class'].isin(['Elite', 'Star'])].copy()
+                    
+                    if len(elite_momentum) > 0:
+                        # Calculate additional metrics
+                        elite_momentum['velocity'] = 0
+                        if all(col in elite_momentum.columns for col in ['ret_1d', 'ret_7d']):
+                            with np.errstate(divide='ignore', invalid='ignore'):
+                                elite_momentum['velocity'] = np.where(
+                                    elite_momentum['ret_7d'] != 0,
+                                    elite_momentum['ret_1d'] / (elite_momentum['ret_7d'] / 7),
+                                    0
+                                )
+                        
+                        # Sort by combined score
+                        elite_momentum['elite_score'] = (
+                            elite_momentum['momentum_score'] * 0.4 +
+                            elite_momentum['acceleration_score'] * 0.4 +
+                            elite_momentum.get('rvol_score', 50) * 0.2
+                        )
+                        
+                        # Get top 15
+                        top_elite = elite_momentum.nlargest(15, 'elite_score')
+                        
+                        # Prepare display dataframe
+                        elite_display = []
+                        for _, stock in top_elite.iterrows():
+                            # Determine signals
+                            signals = []
+                            if stock['momentum_class'] == 'Elite':
+                                signals.append('👑')
+                            elif stock['momentum_class'] == 'Star':
+                                signals.append('⭐')
+                            
+                            if stock.get('velocity', 0) > 2:
+                                signals.append('⚡')
+                            
+                            if stock.get('momentum_harmony', 0) == 4:
+                                signals.append('🎯')
+                            elif stock.get('momentum_harmony', 0) >= 3:
+                                signals.append('✅')
+                            
+                            if stock.get('rvol', 1) > 3:
+                                signals.append('🌋')
+                            elif stock.get('rvol', 1) > 2:
+                                signals.append('🔥')
+                            
+                            elite_display.append({
+                                '🏆': ' '.join(signals[:2]),
+                                'Ticker': stock['ticker'],
+                                'Company': str(stock.get('company_name', ''))[:20],
+                                'Score': f"{stock['master_score']:.0f}",
+                                'Mom': f"{stock['momentum_score']:.0f}",
+                                'Accel': f"{stock['acceleration_score']:.0f}",
+                                '1D%': f"{stock.get('ret_1d', 0):+.1f}",
+                                '7D%': f"{stock.get('ret_7d', 0):+.1f}",
+                                '30D%': f"{stock.get('ret_30d', 0):+.1f}",
+                                'RVOL': f"{stock.get('rvol', 1):.1f}x",
+                                'Velocity': f"{stock.get('velocity', 0):.1f}x" if stock.get('velocity', 0) > 0 else '-',
+                                'Wave': stock.get('wave_state', 'N/A')[:10]
+                            })
+                        
+                        elite_df = pd.DataFrame(elite_display)
+                        
+                        # Display with column configuration
+                        st.dataframe(
+                            elite_df,
+                            use_container_width=True,
+                            hide_index=True,
+                            height=400,
+                            column_config={
+                                '🏆': st.column_config.TextColumn('🏆', width='small'),
+                                'Ticker': st.column_config.TextColumn('Ticker', width='small'),
+                                'Company': st.column_config.TextColumn('Company', width='medium'),
+                                'Score': st.column_config.TextColumn('Score', width='small'),
+                                'Mom': st.column_config.TextColumn('Mom', width='small'),
+                                'Accel': st.column_config.TextColumn('Accel', width='small'),
+                                '1D%': st.column_config.TextColumn('1D%', width='small'),
+                                '7D%': st.column_config.TextColumn('7D%', width='small'),
+                                '30D%': st.column_config.TextColumn('30D%', width='small'),
+                                'RVOL': st.column_config.TextColumn('RVOL', width='small'),
+                                'Velocity': st.column_config.TextColumn('Vel', width='small'),
+                                'Wave': st.column_config.TextColumn('Wave', width='small')
+                            }
+                        )
+                        
+                        # Summary metrics
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Elite Count", f"{len(elite_momentum[elite_momentum['momentum_class'] == 'Elite'])}")
+                        with col2:
+                            st.metric("Star Count", f"{len(elite_momentum[elite_momentum['momentum_class'] == 'Star'])}")
+                        with col3:
+                            avg_velocity = elite_momentum['velocity'].mean() if 'velocity' in elite_momentum.columns else 0
+                            st.metric("Avg Velocity", f"{avg_velocity:.1f}x")
+                        with col4:
+                            perfect_harmony = len(elite_momentum[elite_momentum.get('momentum_harmony', 0) == 4])
+                            st.metric("Perfect Harmony", f"{perfect_harmony}")
+                    
+                    else:
+                        st.info("No momentum elite stocks found in current filter")
+                    
+                    st.markdown("---")
+                    
+                    # ====================================
+                    # SECTION 2: VELOCITY ANALYSIS TABLE
+                    # ====================================
+                    
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        st.markdown("**🌟 Momentum All-Stars**")
+                        st.markdown("##### ⚡ **VELOCITY LEADERS** (Accelerating Fast)")
                         
-                        # Triple Crown: High momentum + acceleration + volume
-                        triple_crown = filtered_df[
-                            (filtered_df['momentum_score'] > 75) & 
-                            (filtered_df['acceleration_score'] > 75) &
-                            (filtered_df.get('rvol', 1) > 2)
-                        ].nlargest(5, 'master_score')
-                        
-                        if len(triple_crown) > 0:
-                            for _, stock in triple_crown.iterrows():
-                                harmony = stock.get('momentum_harmony', 0)
-                                harmony_emoji = "🟢🟢🟢🟢" if harmony == 4 else "🟢🟢🟢" if harmony == 3 else "🟢🟢" if harmony == 2 else "🟢"
-                                
-                                st.success(
-                                    f"**👑 {stock['ticker']}** - Triple Crown Winner\n"
-                                    f"Mom: {stock['momentum_score']:.0f} | Accel: {stock['acceleration_score']:.0f}\n"
-                                    f"7D: {stock.get('ret_7d', 0):+.1f}% | 30D: {stock.get('ret_30d', 0):+.1f}%\n"
-                                    f"Harmony: {harmony_emoji} ({harmony}/4)"
+                        # Calculate velocity for all stocks
+                        if all(col in filtered_df.columns for col in ['ret_1d', 'ret_7d', 'ret_30d']):
+                            velocity_df = filtered_df.copy()
+                            
+                            # Calculate multiple velocity metrics
+                            with np.errstate(divide='ignore', invalid='ignore'):
+                                # 1D vs 7D velocity
+                                velocity_df['velocity_1_7'] = np.where(
+                                    velocity_df['ret_7d'] != 0,
+                                    velocity_df['ret_1d'] / (velocity_df['ret_7d'] / 7),
+                                    0
                                 )
-                        else:
-                            st.info("No triple crown winners today")
-                        
-                        # Velocity Leaders
-                        st.markdown("**⚡ Velocity Leaders**")
-                        
-                        if 'ret_1d' in filtered_df.columns and 'ret_7d' in filtered_df.columns:
-                            # Calculate velocity (acceleration of returns)
-                            velocity = filtered_df['ret_1d'] / (filtered_df['ret_7d'] / 7 + 0.01)  # Avoid division by zero
-                            velocity_leaders = filtered_df[velocity > 2].nlargest(3, 'momentum_score')
+                                
+                                # 7D vs 30D velocity
+                                velocity_df['velocity_7_30'] = np.where(
+                                    velocity_df['ret_30d'] != 0,
+                                    (velocity_df['ret_7d'] / 7) / (velocity_df['ret_30d'] / 30),
+                                    0
+                                )
+                            
+                            # Filter for positive velocity
+                            velocity_leaders = velocity_df[
+                                (velocity_df['velocity_1_7'] > 1.5) & 
+                                (velocity_df['ret_1d'] > 0) &
+                                (velocity_df['momentum_score'] > 50)
+                            ].nlargest(8, 'velocity_1_7')
                             
                             if len(velocity_leaders) > 0:
+                                velocity_display = []
                                 for _, stock in velocity_leaders.iterrows():
-                                    st.warning(
-                                        f"**{stock['ticker']}** - Velocity Surge\n"
-                                        f"1D: {stock['ret_1d']:+.1f}% | Momentum accelerating"
-                                    )
+                                    # Velocity status
+                                    if stock['velocity_1_7'] > 3:
+                                        vel_status = '🚀 Extreme'
+                                    elif stock['velocity_1_7'] > 2:
+                                        vel_status = '⚡ High'
+                                    else:
+                                        vel_status = '📈 Building'
+                                    
+                                    velocity_display.append({
+                                        'Status': vel_status,
+                                        'Ticker': stock['ticker'],
+                                        '1D': f"{stock['ret_1d']:+.1f}%",
+                                        '7D Avg': f"{(stock['ret_7d']/7):+.1f}%",
+                                        'Velocity': f"{stock['velocity_1_7']:.1f}x",
+                                        'RVOL': f"{stock.get('rvol', 1):.1f}x"
+                                    })
+                                
+                                vel_df = pd.DataFrame(velocity_display)
+                                st.dataframe(vel_df, use_container_width=True, hide_index=True)
                             else:
-                                st.caption("No velocity surges detected")
+                                st.info("No velocity leaders detected")
+                        else:
+                            st.info("Insufficient data for velocity analysis")
                     
                     with col2:
-                        st.markdown("**🔍 Momentum Discoveries**")
+                        st.markdown("##### 🎯 **MOMENTUM HARMONY** (Multi-Timeframe)")
                         
-                        # New Momentum Entrants (just crossed threshold)
-                        new_momentum = filtered_df[
-                            (filtered_df['momentum_score'].between(60, 65)) &
-                            (filtered_df.get('ret_7d', 0) > filtered_df.get('ret_30d', 0) / 4)
+                        # Find stocks with perfect momentum alignment
+                        if 'momentum_harmony' in filtered_df.columns:
+                            harmony_stocks = filtered_df[filtered_df['momentum_harmony'] >= 2].copy()
+                            
+                            if len(harmony_stocks) > 0:
+                                # Sort by harmony and score
+                                harmony_stocks = harmony_stocks.sort_values(
+                                    ['momentum_harmony', 'master_score'], 
+                                    ascending=[False, False]
+                                ).head(8)
+                                
+                                harmony_display = []
+                                for _, stock in harmony_stocks.iterrows():
+                                    harmony = int(stock['momentum_harmony'])
+                                    
+                                    # Visual harmony indicator
+                                    harmony_visual = '🟢' * harmony + '⚪' * (4 - harmony)
+                                    
+                                    # Determine strength
+                                    if harmony == 4:
+                                        strength = 'Perfect'
+                                    elif harmony == 3:
+                                        strength = 'Strong'
+                                    elif harmony == 2:
+                                        strength = 'Good'
+                                    else:
+                                        strength = 'Weak'
+                                    
+                                    harmony_display.append({
+                                        'Harmony': harmony_visual,
+                                        'Ticker': stock['ticker'],
+                                        'Strength': strength,
+                                        '1D': f"{stock.get('ret_1d', 0):+.0f}%",
+                                        '7D': f"{stock.get('ret_7d', 0):+.0f}%",
+                                        '30D': f"{stock.get('ret_30d', 0):+.0f}%",
+                                        'Score': f"{stock['master_score']:.0f}"
+                                    })
+                                
+                                harmony_df = pd.DataFrame(harmony_display)
+                                st.dataframe(harmony_df, use_container_width=True, hide_index=True)
+                            else:
+                                st.info("No stocks with momentum harmony")
+                        else:
+                            st.info("Harmony data not available")
+                    
+                    st.markdown("---")
+                    
+                    # ====================================
+                    # SECTION 3: MOMENTUM TRANSITIONS
+                    # ====================================
+                    
+                    st.markdown("##### 🔄 **MOMENTUM TRANSITIONS** (Status Changes)")
+                    
+                    transition_col1, transition_col2, transition_col3 = st.columns(3)
+                    
+                    with transition_col1:
+                        st.markdown("**🌱 EMERGING** (50-60 Score)")
+                        
+                        emerging = filtered_df[
+                            filtered_df['momentum_score'].between(50, 60) &
+                            (filtered_df['acceleration_score'] > 60)
                         ].nlargest(3, 'acceleration_score')
                         
-                        if len(new_momentum) > 0:
-                            st.markdown("**🌱 Emerging Momentum**")
-                            for _, stock in new_momentum.iterrows():
-                                st.info(
-                                    f"**{stock['ticker']}** just building\n"
-                                    f"Mom: {stock['momentum_score']:.0f} | Watch for 70+"
+                        if len(emerging) > 0:
+                            for _, stock in emerging.iterrows():
+                                st.success(
+                                    f"**{stock['ticker']}**\n"
+                                    f"Mom: {stock['momentum_score']:.0f} → Building\n"
+                                    f"Accel: {stock['acceleration_score']:.0f}"
                                 )
+                        else:
+                            st.caption("None emerging")
+                    
+                    with transition_col2:
+                        st.markdown("**⚠️ FADING** (Losing Steam)")
                         
-                        # Momentum Divergence (Price up, volume down)
-                        if all(col in filtered_df.columns for col in ['ret_30d', 'vol_ratio_30d_90d']):
-                            divergence = filtered_df[
-                                (filtered_df['ret_30d'] > 20) &
-                                (filtered_df['vol_ratio_30d_90d'] < 0.8)
-                            ].head(3)
-                            
-                            if len(divergence) > 0:
-                                st.markdown("**⚠️ Momentum Warnings**")
-                                for _, stock in divergence.iterrows():
-                                    st.error(
-                                        f"**{stock['ticker']}** - Volume divergence\n"
-                                        f"Price up {stock['ret_30d']:.0f}% but volume falling"
-                                    )
-            
-            st.markdown("---")
+                        fading = filtered_df[
+                            (filtered_df['momentum_score'] > 60) &
+                            (filtered_df['acceleration_score'] < 40) &
+                            (filtered_df.get('ret_1d', 0) < 0)
+                        ].nlargest(3, 'master_score')
+                        
+                        if len(fading) > 0:
+                            for _, stock in fading.iterrows():
+                                st.warning(
+                                    f"**{stock['ticker']}**\n"
+                                    f"Mom: {stock['momentum_score']:.0f} ↓\n"
+                                    f"Accel: {stock['acceleration_score']:.0f}"
+                                )
+                        else:
+                            st.caption("None fading")
+                    
+                    with transition_col3:
+                        st.markdown("**💥 EXPLOSIVE** (Just Started)")
+                        
+                        explosive = filtered_df[
+                            (filtered_df['momentum_score'] < 70) &
+                            (filtered_df['acceleration_score'] > 85) &
+                            (filtered_df.get('rvol', 1) > 2)
+                        ].nlargest(3, 'acceleration_score')
+                        
+                        if len(explosive) > 0:
+                            for _, stock in explosive.iterrows():
+                                st.error(
+                                    f"**{stock['ticker']}**\n"
+                                    f"Accel: {stock['acceleration_score']:.0f} 🚀\n"
+                                    f"RVOL: {stock['rvol']:.1f}x"
+                                )
+                        else:
+                            st.caption("None explosive")
+                    
+                    # ====================================
+                    # FINAL MOMENTUM SUMMARY
+                    # ====================================
+                    
+                    st.markdown("---")
+                    st.markdown("##### 📊 **MOMENTUM MARKET SUMMARY**")
+                    
+                    # Calculate momentum market metrics
+                    summary_cols = st.columns(5)
+                    
+                    with summary_cols[0]:
+                        total_momentum = len(filtered_df[filtered_df['momentum_score'] > 60])
+                        momentum_pct = (total_momentum / len(filtered_df)) * 100 if len(filtered_df) > 0 else 0
+                        st.metric(
+                            "Momentum Stocks",
+                            f"{total_momentum}",
+                            f"{momentum_pct:.0f}% of market"
+                        )
+                    
+                    with summary_cols[1]:
+                        if 'velocity' in filtered_df.columns:
+                            high_velocity = len(filtered_df[filtered_df['velocity'] > 2])
+                        else:
+                            high_velocity = 0
+                        st.metric("High Velocity", f"{high_velocity}")
+                    
+                    with summary_cols[2]:
+                        if 'momentum_harmony' in filtered_df.columns:
+                            perfect = len(filtered_df[filtered_df['momentum_harmony'] == 4])
+                            st.metric("Perfect Harmony", f"{perfect}")
+                        else:
+                            st.metric("Perfect Harmony", "N/A")
+                    
+                    with summary_cols[3]:
+                        accelerating = len(filtered_df[filtered_df['acceleration_score'] > 70])
+                        st.metric("Accelerating", f"{accelerating}")
+                    
+                    with summary_cols[4]:
+                        # Market momentum health
+                        if momentum_pct > 30:
+                            st.metric("Momentum Health", "🔥 Strong", "Bullish")
+                        elif momentum_pct > 15:
+                            st.metric("Momentum Health", "⚡ Moderate", "Neutral")
+                        else:
+                            st.metric("Momentum Health", "❄️ Weak", "Bearish")
+                    
+                else:
+                    st.info("Momentum data not available for analysis")
             
             # ====================================
             # MARKET INTELLIGENCE SYSTEM
