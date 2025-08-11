@@ -4408,117 +4408,7 @@ def main():
         if not filtered_df.empty:
             
             # ====================================
-            # SECTION 1: MARKET WAVE PULSE (Philosophy Core)
-            # ====================================
-            st.markdown("#### 🌊 Market Wave State")
-            
-            # Calculate wave metrics
-            wave_counts = {
-                'FORMING': len(filtered_df[filtered_df['wave_state'].str.contains('FORMING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
-                'BUILDING': len(filtered_df[filtered_df['wave_state'].str.contains('BUILDING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
-                'CRESTING': len(filtered_df[filtered_df['wave_state'].str.contains('CRESTING', na=False)]) if 'wave_state' in filtered_df.columns else 0,
-                'BREAKING': len(filtered_df[filtered_df['wave_state'].str.contains('BREAKING', na=False)]) if 'wave_state' in filtered_df.columns else 0
-            }
-            
-            total_waves = sum(wave_counts.values())
-            
-            # Wave Health Score
-            wave_health = 0
-            if total_waves > 0:
-                wave_health = (
-                    wave_counts['CRESTING'] * 100 +
-                    wave_counts['BUILDING'] * 75 +
-                    wave_counts['FORMING'] * 50 +
-                    wave_counts['BREAKING'] * 25
-                ) / total_waves
-            
-            # Visual Wave Flow
-            wave_col1, wave_col2, wave_col3 = st.columns([1, 3, 1])
-            
-            with wave_col1:
-                # Wave Health Meter
-                st.markdown("**Wave Strength**")
-                
-                # Color-coded health indicator
-                if wave_health > 70:
-                    st.success(f"## 🔥 {wave_health:.0f}")
-                    st.caption("**BULLISH WAVES**")
-                    market_mood = "Risk-On"
-                elif wave_health > 50:
-                    st.warning(f"## ⚡ {wave_health:.0f}")
-                    st.caption("**NEUTRAL WAVES**")
-                    market_mood = "Balanced"
-                else:
-                    st.error(f"## ❄️ {wave_health:.0f}")
-                    st.caption("**BEARISH WAVES**")
-                    market_mood = "Risk-Off"
-                
-                # Add quick insight
-                if wave_counts['CRESTING'] > wave_counts['FORMING'] * 2:
-                    st.caption("⚠️ Many cresting")
-                elif wave_counts['FORMING'] > wave_counts['CRESTING'] * 2:
-                    st.caption("🌱 New waves forming")
-            
-            with wave_col2:
-                # Interactive Wave Distribution
-                fig = go.Figure()
-                
-                # Create funnel chart for wave flow
-                stages = ['🌊 FORMING', '🌊🌊 BUILDING', '🌊🌊🌊 CRESTING', '💥 BREAKING']
-                values = [wave_counts['FORMING'], wave_counts['BUILDING'], wave_counts['CRESTING'], wave_counts['BREAKING']]
-                colors = ['#3498db', '#f39c12', '#2ecc71', '#e74c3c']
-                
-                # Horizontal bar chart for wave flow
-                fig.add_trace(go.Bar(
-                    y=stages,
-                    x=values,
-                    orientation='h',
-                    text=[f"{v} ({v/total_waves*100:.0f}%)" if total_waves > 0 else f"{v}" for v in values],
-                    textposition='auto',
-                    marker_color=colors,
-                    hovertemplate='%{y}<br>Count: %{x}<br>%{text}<extra></extra>'
-                ))
-                
-                fig.update_layout(
-                    height=150,
-                    margin=dict(t=0, b=0, l=0, r=0),
-                    showlegend=False,
-                    template='plotly_white',
-                    xaxis_title="",
-                    yaxis_title="",
-                    xaxis=dict(showgrid=False),
-                    yaxis=dict(showgrid=False)
-                )
-                
-                st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-                
-                # Dominant wave insight
-                max_wave = max(wave_counts, key=wave_counts.get)
-                st.caption(f"📍 **Dominant State:** {max_wave} ({wave_counts[max_wave]} stocks, {wave_counts[max_wave]/total_waves*100:.0f}%)")
-            
-            with wave_col3:
-                # Quick Actions (Connect to other tabs)
-                st.markdown("**Quick Actions**")
-                
-                if st.button("🌊 Deep Wave Analysis", key="summary_wave_btn"):
-                    st.info("👉 Go to Wave Radar tab for detailed wave analysis")
-                
-                if st.button("🏆 View Rankings", key="summary_rank_btn"):
-                    st.info("👉 Go to Rankings tab for top stocks")
-                
-                # Market regime
-                regime, metrics = MarketIntelligence.detect_market_regime(filtered_df)
-                if "RISK-ON" in regime:
-                    st.success(f"🔥 {market_mood} Market")
-                elif "RISK-OFF" in regime:
-                    st.warning(f"🛡️ {market_mood} Market")
-                else:
-                    st.info(f"😴 {market_mood} Market")
-            
-            st.markdown("---")
-            
-            # ====================================
-            # SECTION 2: KEY MARKET METRICS (Clean Grid)
+            # SECTION 1: KEY MARKET METRICS (Clean Grid)
             # ====================================
             
             st.markdown("#### 📊 Market Metrics")
@@ -4612,7 +4502,7 @@ def main():
             st.markdown("---")
             
             # ====================================
-            # SECTION 3: DISCOVERY INSIGHTS (3 Focused Tabs)
+            # SECTION 2: DISCOVERY INSIGHTS (3 Focused Tabs)
             # ====================================
             
             st.markdown("#### 🔍 Market Discovery Insights")
@@ -4842,7 +4732,7 @@ def main():
             st.markdown("---")
             
             # ====================================
-            # SECTION 4: MARKET INTELLIGENCE
+            # SECTION 3: MARKET INTELLIGENCE
             # ====================================
             
             st.markdown("#### 🧠 Market Intelligence")
@@ -4936,7 +4826,7 @@ def main():
                     st.success("✅ No anomalies detected")
             
             # ====================================
-            # SECTION 5: QUICK INSIGHTS (Bottom)
+            # SECTION 4: QUICK INSIGHTS (Bottom)
             # ====================================
             
             st.markdown("---")
