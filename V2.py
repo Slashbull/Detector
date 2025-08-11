@@ -4493,7 +4493,7 @@ def main():
             ])
             
             # TAB 1: Today's Best Opportunities
-                with discovery_tabs[0]:
+            with discovery_tabs[0]:
                     # 2. TODAY'S OPPORTUNITIES
                     st.markdown("### 🎯 Today's Best Opportunities")
                     
