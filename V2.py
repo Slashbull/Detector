@@ -6634,126 +6634,281 @@ def main():
             st.markdown("---")
             
             # ====================================
-            # FINAL MARKET SUMMARY & ACTION PLAN
+            # EXECUTIVE ACTION SUMMARY - ULTIMATE VERSION
             # ====================================
             st.markdown("#### 📋 Executive Action Summary")
             
-            # Calculate overall market health score
+            # Calculate market health with YOUR factors
             market_health = 0
-            health_factors = []
+            health_details = []
             
             # Factor 1: Breadth
             if 'ret_1d' in filtered_df.columns:
-                breadth = len(filtered_df[filtered_df['ret_1d'] > 0]) / len(filtered_df)
+                advancing = len(filtered_df[filtered_df['ret_1d'] > 0])
+                declining = len(filtered_df[filtered_df['ret_1d'] < 0])
+                breadth = advancing / len(filtered_df) if len(filtered_df) > 0 else 0
+                
                 if breadth > 0.6:
                     market_health += 25
-                    health_factors.append("Good breadth")
+                    health_details.append(f"✅ Breadth: {breadth:.0%} positive")
                 elif breadth > 0.4:
                     market_health += 15
-                    health_factors.append("Neutral breadth")
+                    health_details.append(f"➡️ Breadth: {breadth:.0%} neutral")
+                else:
+                    health_details.append(f"❌ Breadth: {breadth:.0%} negative")
             
             # Factor 2: Momentum
             if 'momentum_score' in filtered_df.columns:
-                high_momentum = len(filtered_df[filtered_df['momentum_score'] > 70]) / len(filtered_df)
-                if high_momentum > 0.3:
+                high_momentum = len(filtered_df[filtered_df['momentum_score'] > 70])
+                momentum_pct = high_momentum / len(filtered_df) if len(filtered_df) > 0 else 0
+                
+                if momentum_pct > 0.3:
                     market_health += 25
-                    health_factors.append("Strong momentum")
-                elif high_momentum > 0.15:
+                    health_details.append(f"✅ Momentum: {high_momentum} strong stocks")
+                elif momentum_pct > 0.15:
                     market_health += 15
-                    health_factors.append("Moderate momentum")
+                    health_details.append(f"➡️ Momentum: {high_momentum} stocks")
+                else:
+                    health_details.append(f"❌ Momentum: Only {high_momentum} stocks")
             
             # Factor 3: Volume
             if 'rvol' in filtered_df.columns:
-                active_volume = len(filtered_df[filtered_df['rvol'] > 2]) / len(filtered_df)
-                if active_volume > 0.2:
+                active_volume = len(filtered_df[filtered_df['rvol'] > 2])
+                volume_pct = active_volume / len(filtered_df) if len(filtered_df) > 0 else 0
+                
+                if volume_pct > 0.2:
                     market_health += 25
-                    health_factors.append("High activity")
-                elif active_volume > 0.1:
+                    health_details.append(f"✅ Volume: {active_volume} active stocks")
+                elif volume_pct > 0.1:
                     market_health += 15
-                    health_factors.append("Normal activity")
+                    health_details.append(f"➡️ Volume: {active_volume} stocks")
+                else:
+                    health_details.append(f"❌ Volume: Low activity")
             
             # Factor 4: Patterns
             if 'patterns' in filtered_df.columns:
-                pattern_quality = len(filtered_df[filtered_df['patterns'] != '']) / len(filtered_df)
-                if pattern_quality > 0.4:
-                    market_health += 25
-                    health_factors.append("Rich patterns")
-                elif pattern_quality > 0.2:
-                    market_health += 15
-                    health_factors.append("Some patterns")
-            
-            # Display action plan based on market health
-            action_cols = st.columns(3)
-            
-            with action_cols[0]:
-                st.markdown("**📊 Market Status**")
-                if market_health >= 70:
-                    st.success(f"🟢 HEALTHY ({market_health}%)")
-                elif market_health >= 40:
-                    st.warning(f"🟡 NEUTRAL ({market_health}%)")
-                else:
-                    st.error(f"🔴 WEAK ({market_health}%)")
+                with_patterns = len(filtered_df[filtered_df['patterns'] != ''])
+                pattern_pct = with_patterns / len(filtered_df) if len(filtered_df) > 0 else 0
                 
-                for factor in health_factors:
-                    st.caption(f"• {factor}")
-            
-            with action_cols[1]:
-                st.markdown("**🎯 Recommended Actions**")
-                if market_health >= 70:
-                    st.success(
-                        "• **BUY** momentum leaders\n"
-                        "• **HOLD** winners\n"
-                        "• **ADD** on dips"
-                    )
-                elif market_health >= 40:
-                    st.warning(
-                        "• **SELECT** best setups only\n"
-                        "• **REDUCE** weak positions\n"
-                        "• **WATCH** for breakouts"
-                    )
+                if pattern_pct > 0.4:
+                    market_health += 25
+                    health_details.append(f"✅ Patterns: {with_patterns} signals")
+                elif pattern_pct > 0.2:
+                    market_health += 15
+                    health_details.append(f"➡️ Patterns: {with_patterns} signals")
                 else:
-                    st.error(
-                        "• **AVOID** new positions\n"
-                        "• **EXIT** weak stocks\n"
-                        "• **WAIT** for reversal signals"
-                    )
+                    health_details.append(f"❌ Patterns: Few signals")
             
-            with action_cols[2]:
-                st.markdown("**⚠️ Risk Management**")
+            # ============================================
+            # MAIN ACTION DISPLAY - 3 COLUMNS
+            # ============================================
+            action_col1, action_col2, action_col3 = st.columns([1, 2, 1])
+            
+            with action_col1:
+                st.markdown("**📊 MARKET STATUS**")
+                
+                # Market health meter
+                if market_health >= 70:
+                    st.success(f"🟢 **HEALTHY** ({market_health}%)")
+                    market_condition = "BULLISH"
+                elif market_health >= 40:
+                    st.warning(f"🟡 **NEUTRAL** ({market_health}%)")
+                    market_condition = "MIXED"
+                else:
+                    st.error(f"🔴 **WEAK** ({market_health}%)")
+                    market_condition = "BEARISH"
+                
+                # Health details
+                for detail in health_details:
+                    st.caption(detail)
+                
+                st.markdown("---")
+                
+                # Quick stats
+                st.markdown("**📈 Quick Stats**")
+                if len(filtered_df) > 0:
+                    st.caption(f"• Stocks: {len(filtered_df)}")
+                    st.caption(f"• Avg Score: {filtered_df['master_score'].mean():.1f}")
+                    if 'ret_30d' in filtered_df.columns:
+                        winners_30d = (filtered_df['ret_30d'] > 0).sum()
+                        st.caption(f"• 30D Winners: {winners_30d}/{len(filtered_df)}")
+            
+            with action_col2:
+                st.markdown("**🎯 SPECIFIC ACTIONS NOW**")
+                
+                # Get actual stocks for actions
+                if market_health >= 70:  # BULLISH
+                    # BUY candidates
+                    buy_candidates = filtered_df[
+                        (filtered_df['momentum_score'] > 70) & 
+                        (filtered_df['acceleration_score'] > 70) &
+                        (filtered_df['from_high_pct'] > -10) &
+                        (filtered_df['rvol'] > 1.5)
+                    ].nlargest(3, 'master_score')
+                    
+                    if len(buy_candidates) > 0:
+                        st.success("**BUY THESE NOW:**")
+                        for _, stock in buy_candidates.iterrows():
+                            company = stock.get('company_name', stock['ticker'])[:25]
+                            entry = stock['price']
+                            stop = entry * 0.95  # 5% stop
+                            target = entry * 1.10  # 10% target
+                            
+                            st.write(
+                                f"**{company} ({stock['ticker']})**\n"
+                                f"Entry: ₹{entry:.0f} | Stop: ₹{stop:.0f} | Target: ₹{target:.0f}"
+                            )
+                    
+                    # HOLD candidates
+                    hold_candidates = filtered_df[
+                        (filtered_df['master_score'] > 70) &
+                        (filtered_df['from_low_pct'] > 50)
+                    ].head(2)
+                    
+                    if len(hold_candidates) > 0:
+                        st.info("**HOLD & TRAIL STOP:**")
+                        for _, stock in hold_candidates.iterrows():
+                            company = stock.get('company_name', stock['ticker'])[:20]
+                            st.caption(f"• {company} - Move stop to ₹{stock['price'] * 0.92:.0f}")
+                    
+                elif market_health >= 40:  # NEUTRAL
+                    # WATCH candidates
+                    watch_candidates = filtered_df[
+                        (filtered_df['breakout_score'] > 75) &
+                        (filtered_df['momentum_score'] < 70)
+                    ].nlargest(3, 'master_score')
+                    
+                    if len(watch_candidates) > 0:
+                        st.warning("**WATCH FOR BREAKOUT:**")
+                        for _, stock in watch_candidates.iterrows():
+                            company = stock.get('company_name', stock['ticker'])[:25]
+                            trigger = stock['price'] * 1.02  # 2% above current
+                            
+                            st.write(
+                                f"**{company} ({stock['ticker']})**\n"
+                                f"Current: ₹{stock['price']:.0f} | Buy above: ₹{trigger:.0f}"
+                            )
+                    
+                    # REDUCE weak positions
+                    st.info("**REDUCE:** Stocks below 50 score or negative momentum")
+                    
+                else:  # BEARISH
+                    # EXIT candidates
+                    exit_candidates = filtered_df[
+                        (filtered_df['momentum_score'] < 40) |
+                        (filtered_df['from_high_pct'] < -20) |
+                        (filtered_df['patterns'].str.contains('DISTRIBUTION|EXHAUSTION', na=False))
+                    ].head(3)
+                    
+                    if len(exit_candidates) > 0:
+                        st.error("**EXIT THESE NOW:**")
+                        for _, stock in exit_candidates.iterrows():
+                            company = stock.get('company_name', stock['ticker'])[:25]
+                            reason = "Weak momentum" if stock['momentum_score'] < 40 else "Distribution pattern"
+                            
+                            st.write(
+                                f"**{company} ({stock['ticker']})**\n"
+                                f"Exit at: ₹{stock['price']:.0f} | Reason: {reason}"
+                            )
+                    
+                    st.warning("**CASH IS KING** - Wait for market recovery")
+            
+            with action_col3:
+                st.markdown("**⚠️ RISK MANAGEMENT**")
                 
                 # Calculate risk level
-                risk_signals = 0
-                if 'wave_state' in filtered_df.columns:
-                    breaking_pct = len(filtered_df[filtered_df['wave_state'].str.contains('BREAKING', na=False)]) / len(filtered_df)
-                    if breaking_pct > 0.3:
-                        risk_signals += 1
+                risk_score = 0
+                risk_factors = []
                 
+                # Check overextension
                 if 'from_low_pct' in filtered_df.columns:
-                    overextended = len(filtered_df[filtered_df['from_low_pct'] > 80]) / len(filtered_df)
-                    if overextended > 0.3:
-                        risk_signals += 1
+                    overextended = len(filtered_df[filtered_df['from_low_pct'] > 80])
+                    if overextended > len(filtered_df) * 0.3:
+                        risk_score += 40
+                        risk_factors.append("Many overextended")
                 
-                if risk_signals >= 2:
-                    st.error(
-                        "**HIGH RISK**\n"
-                        "• Use tight stops\n"
-                        "• Reduce position sizes"
+                # Check breaking waves
+                if 'wave_state' in filtered_df.columns:
+                    breaking = len(filtered_df[filtered_df['wave_state'].str.contains('BREAKING', na=False)])
+                    if breaking > len(filtered_df) * 0.3:
+                        risk_score += 30
+                        risk_factors.append("Waves breaking")
+                
+                # Check high PE
+                if 'pe' in filtered_df.columns:
+                    high_pe = len(filtered_df[(filtered_df['pe'] > 50) & (filtered_df['pe'] < 10000)])
+                    if high_pe > len(filtered_df) * 0.4:
+                        risk_score += 30
+                        risk_factors.append("Valuations high")
+                
+                # Display risk level
+                if risk_score >= 70:
+                    st.error("**🔴 HIGH RISK**")
+                    st.write(
+                        "**Actions:**\n"
+                        "• Reduce positions by 30%\n"
+                        "• Use 3% stop losses\n"
+                        "• No new longs"
                     )
-                elif risk_signals == 1:
-                    st.warning(
-                        "**MODERATE RISK**\n"
-                        "• Monitor closely\n"
-                        "• Take partial profits"
+                elif risk_score >= 40:
+                    st.warning("**🟡 MODERATE RISK**")
+                    st.write(
+                        "**Actions:**\n"
+                        "• Trail stops to 5%\n"
+                        "• Book partial profits\n"
+                        "• Selective entries only"
                     )
                 else:
-                    st.success(
-                        "**LOW RISK**\n"
+                    st.success("**🟢 LOW RISK**")
+                    st.write(
+                        "**Actions:**\n"
                         "• Normal position sizes\n"
-                        "• Let winners run"
+                        "• 7% stop losses\n"
+                        "• Add on dips"
                     )
-        
-        else:
-            st.warning("No data available. Please check filters or data source.")
+                
+                # Risk factors
+                if risk_factors:
+                    st.markdown("**Risk Factors:**")
+                    for factor in risk_factors:
+                        st.caption(f"• {factor}")
+                
+                st.markdown("---")
+                
+                # Position sizing
+                st.markdown("**💰 Position Size**")
+                if market_health >= 70:
+                    st.success("Max 5% per stock")
+                elif market_health >= 40:
+                    st.warning("Max 3% per stock")
+                else:
+                    st.error("Max 2% per stock")
+            
+            # ============================================
+            # ACTION SUMMARY BOX
+            # ============================================
+            st.markdown("---")
+            
+            # Create action summary based on market condition
+            if market_condition == "BULLISH":
+                summary_color = "success"
+                summary_icon = "🚀"
+                summary_text = "Market is strong. Focus on momentum leaders with volume."
+            elif market_condition == "MIXED":
+                summary_color = "warning"
+                summary_icon = "⚖️"
+                summary_text = "Market is mixed. Be selective, wait for clear setups."
+            else:
+                summary_color = "error"
+                summary_icon = "🛡️"
+                summary_text = "Market is weak. Preserve capital, avoid new positions."
+            
+            getattr(st, summary_color)(
+                f"{summary_icon} **BOTTOM LINE:** {summary_text}\n"
+                f"Market Health: {market_health}% | "
+                f"Active Filters: {st.session_state.get('active_filter_count', 0)} | "
+                f"Stocks Analyzed: {len(filtered_df)}"
+            )
     
     # Tab 1: Rankings
     with tabs[1]:
