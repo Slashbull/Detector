@@ -850,6 +850,24 @@ class AdvancedMetrics:
             return "🌊 FORMING"
         else:
             return "💥 BREAKING"
+
+    def calculate_wave_health(df):
+        """
+        Calculate market wave health using existing metrics
+        """
+        if df.empty:
+            return 50
+        
+        # Use your existing wave strength calculation
+        if 'overall_wave_strength' in df.columns:
+            return df['overall_wave_strength'].mean()
+        
+        # Or use master score as proxy
+        if 'master_score' in df.columns:
+            return df['master_score'].mean()
+        
+        # Fallback
+        return 50
         
 # ============================================
 # RANKING ENGINE - OPTIMIZED
