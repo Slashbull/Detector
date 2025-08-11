@@ -4616,7 +4616,6 @@ def main():
             ])
             
             # TAB 1: TODAY'S BEST & HIDDEN OPPORTUNITIES
-            # TAB 1: TODAY'S BEST & HIDDEN OPPORTUNITIES
             with discovery_tabs[0]:
                 st.markdown("#### 🎯 Today's Best & Hidden Opportunities")
                 
@@ -4629,7 +4628,6 @@ def main():
                 opp_df = filtered_df.copy()
                 opp_df['opportunity_score'] = 0
                 opp_df['signals'] = ''
-                opp_df['opportunity_type'] = ''
                 
                 # Score calculations (simple and effective)
                 if 'momentum_score' in opp_df.columns:
@@ -4749,64 +4747,51 @@ def main():
                 st.markdown("---")
                 
                 # ========================================
-                # HIDDEN GEMS TABLE
+                # HIDDEN GEMS TABLE - FIXED VERSION
                 # ========================================
                 st.markdown("##### 💎 **Hidden Gems & Under-Radar Plays**")
                 
-                # Find hidden gems with multiple criteria
+                # Find hidden gems - CORRECTED IMPLEMENTATION
                 hidden_df = filtered_df.copy()
                 hidden_df['hidden_score'] = 0
-                hidden_df['hidden_reason'] = []
+                hidden_df['hidden_reasons'] = ''  # Use string instead of list for simplicity
                 
                 # Criterion 1: Category leader but low overall rank
                 if 'category_percentile' in hidden_df.columns and 'percentile' in hidden_df.columns:
                     category_leaders = (hidden_df['category_percentile'] > 85) & (hidden_df['percentile'] < 70)
                     hidden_df.loc[category_leaders, 'hidden_score'] += 40
                     
-                    # Store reason as list
-                    for idx in hidden_df[category_leaders].index:
-                        if idx not in hidden_df.index:
-                            continue
-                        current_reasons = hidden_df.at[idx, 'hidden_reason']
-                        if not isinstance(current_reasons, list):
-                            current_reasons = []
-                        current_reasons.append(f"Cat #{int(hidden_df.at[idx, 'category_rank'])}") if 'category_rank' in hidden_df.columns else current_reasons.append("Cat Leader")
-                        hidden_df.at[idx, 'hidden_reason'] = current_reasons
+                    # Add reason
+                    if 'category_rank' in hidden_df.columns:
+                        hidden_df.loc[category_leaders, 'hidden_reasons'] += 'Cat Leader | '
+                    else:
+                        hidden_df.loc[category_leaders, 'hidden_reasons'] += 'Category Top | '
                 
                 # Criterion 2: Pattern-based hidden gems
                 if 'patterns' in hidden_df.columns:
-                    hidden_patterns = hidden_df['patterns'].str.contains('HIDDEN GEM|STEALTH|VAMPIRE', na=False)
-                    hidden_df.loc[hidden_patterns, 'hidden_score'] += 30
+                    # Hidden gem pattern
+                    has_hidden = hidden_df['patterns'].str.contains('HIDDEN GEM', na=False)
+                    hidden_df.loc[has_hidden, 'hidden_score'] += 30
+                    hidden_df.loc[has_hidden, 'hidden_reasons'] += 'Hidden Pattern | '
                     
-                    for idx in hidden_df[hidden_patterns].index:
-                        if idx not in hidden_df.index:
-                            continue
-                        current_reasons = hidden_df.at[idx, 'hidden_reason']
-                        if not isinstance(current_reasons, list):
-                            current_reasons = []
-                        
-                        if 'HIDDEN GEM' in str(hidden_df.at[idx, 'patterns']):
-                            current_reasons.append("Hidden Pattern")
-                        if 'STEALTH' in str(hidden_df.at[idx, 'patterns']):
-                            current_reasons.append("Stealth Accumulation")
-                        if 'VAMPIRE' in str(hidden_df.at[idx, 'patterns']):
-                            current_reasons.append("Vampire Move")
-                        
-                        hidden_df.at[idx, 'hidden_reason'] = current_reasons
+                    # Stealth pattern
+                    has_stealth = hidden_df['patterns'].str.contains('STEALTH', na=False)
+                    hidden_df.loc[has_stealth, 'hidden_score'] += 30
+                    hidden_df.loc[has_stealth, 'hidden_reasons'] += 'Stealth | '
+                    
+                    # Vampire pattern
+                    has_vampire = hidden_df['patterns'].str.contains('VAMPIRE', na=False)
+                    hidden_df.loc[has_vampire, 'hidden_score'] += 30
+                    hidden_df.loc[has_vampire, 'hidden_reasons'] += 'Vampire | '
                 
                 # Criterion 3: Low volume but strong momentum (under radar)
                 if all(col in hidden_df.columns for col in ['momentum_score', 'rvol', 'ret_30d']):
                     under_radar = (hidden_df['momentum_score'] > 65) & (hidden_df['rvol'] < 1.5) & (hidden_df['ret_30d'] > 10)
                     hidden_df.loc[under_radar, 'hidden_score'] += 30
-                    
-                    for idx in hidden_df[under_radar].index:
-                        if idx not in hidden_df.index:
-                            continue
-                        current_reasons = hidden_df.at[idx, 'hidden_reason']
-                        if not isinstance(current_reasons, list):
-                            current_reasons = []
-                        current_reasons.append("Under Radar")
-                        hidden_df.at[idx, 'hidden_reason'] = current_reasons
+                    hidden_df.loc[under_radar, 'hidden_reasons'] += 'Under Radar | '
+                
+                # Clean up reasons (remove trailing separator)
+                hidden_df['hidden_reasons'] = hidden_df['hidden_reasons'].str.rstrip(' | ')
                 
                 # Get top hidden gems
                 top_hidden = hidden_df[hidden_df['hidden_score'] >= 30].nlargest(8, 'hidden_score')
@@ -4815,10 +4800,12 @@ def main():
                     hidden_display = []
                     for _, stock in top_hidden.iterrows():
                         # Format reasons
-                        reasons = stock['hidden_reason'] if isinstance(stock['hidden_reason'], list) else []
-                        reason_text = ' | '.join(reasons[:2]) if reasons else 'Multiple Factors'
+                        reasons = stock['hidden_reasons'] if stock['hidden_reasons'] else 'Multiple Factors'
+                        # Limit to first 2 reasons for display
+                        reason_parts = reasons.split(' | ')[:2]
+                        reason_text = ' | '.join(reason_parts)
                         
-                        # Determine discovery type
+                        # Determine discovery level
                         if stock['hidden_score'] >= 70:
                             discovery = "💎💎💎"
                         elif stock['hidden_score'] >= 50:
@@ -4869,13 +4856,13 @@ def main():
                     # Hidden gems summary
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        cat_leaders = len([r for r in top_hidden['hidden_reason'] if any('Cat' in str(item) for item in (r if isinstance(r, list) else []))])
+                        cat_leaders = len(top_hidden[top_hidden['hidden_reasons'].str.contains('Cat', na=False)])
                         st.metric("Category Leaders", cat_leaders)
                     with col2:
-                        under_radar = len([r for r in top_hidden['hidden_reason'] if any('Radar' in str(item) for item in (r if isinstance(r, list) else []))])
-                        st.metric("Under Radar", under_radar)
+                        under_radar_count = len(top_hidden[top_hidden['hidden_reasons'].str.contains('Radar', na=False)])
+                        st.metric("Under Radar", under_radar_count)
                     with col3:
-                        pattern_based = len([r for r in top_hidden['hidden_reason'] if any('Pattern' in str(item) or 'Stealth' in str(item) for item in (r if isinstance(r, list) else []))])
+                        pattern_based = len(top_hidden[top_hidden['hidden_reasons'].str.contains('Pattern|Stealth|Vampire', na=False)])
                         st.metric("Pattern Based", pattern_based)
                 else:
                     st.info("No hidden gems identified. All strong stocks are already visible.")
