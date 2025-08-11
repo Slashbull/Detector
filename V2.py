@@ -4616,144 +4616,318 @@ def main():
             ])
             
             # TAB 1: TODAY'S BEST & HIDDEN OPPORTUNITIES
+            # TAB 1: TODAY'S BEST & HIDDEN OPPORTUNITIES
             with discovery_tabs[0]:
                 st.markdown("#### 🎯 Today's Best & Hidden Opportunities")
                 
-                opp_col1, opp_col2 = st.columns(2)
+                # ========================================
+                # TOP OPPORTUNITIES TABLE
+                # ========================================
+                st.markdown("##### 🏆 **Top Opportunities Matrix**")
                 
-                with opp_col1:
-                    st.markdown("##### 🏆 **TODAY'S BEST OPPORTUNITIES**")
-                    
-                    # Multi-factor opportunity scoring
-                    opportunity_score = pd.Series(0, index=filtered_df.index)
-                    
-                    # Factor 1: Momentum + Acceleration
-                    if all(col in filtered_df.columns for col in ['momentum_score', 'acceleration_score']):
-                        opportunity_score += (
-                            (filtered_df['momentum_score'] > 70).astype(int) * 20 +
-                            (filtered_df['acceleration_score'] > 70).astype(int) * 20
-                        )
-                    
-                    # Factor 2: Volume surge
-                    if 'rvol' in filtered_df.columns:
-                        opportunity_score += (
-                            (filtered_df['rvol'] > 3).astype(int) * 25 +
-                            (filtered_df['rvol'] > 2).astype(int) * 10
-                        )
-                    
-                    # Factor 3: Wave state
-                    if 'wave_state' in filtered_df.columns:
-                        opportunity_score += (
-                            filtered_df['wave_state'].str.contains('CRESTING', na=False).astype(int) * 20 +
-                            filtered_df['wave_state'].str.contains('BUILDING', na=False).astype(int) * 15
-                        )
-                    
-                    # Factor 4: Pattern quality
-                    if 'patterns' in filtered_df.columns:
-                        has_critical = filtered_df['patterns'].str.contains(
-                            'PERFECT STORM|VOL EXPLOSION|ACCELERATING|BREAKOUT', 
-                            na=False
-                        )
-                        opportunity_score += has_critical.astype(int) * 20
-                    
-                    # Get top opportunities
-                    filtered_df['opp_score'] = opportunity_score
-                    top_opportunities = filtered_df[opportunity_score > 40].nlargest(5, 'opp_score')
-                    
-                    if len(top_opportunities) > 0:
-                        for _, stock in top_opportunities.iterrows():
-                            # Determine opportunity type
-                            opp_types = []
-                            if stock.get('rvol', 0) > 3:
-                                opp_types.append("🌋 Volume Explosion")
-                            if stock.get('acceleration_score', 0) > 80:
-                                opp_types.append("🚀 Accelerating")
-                            if 'CRESTING' in str(stock.get('wave_state', '')):
-                                opp_types.append("🌊 Peak Wave")
-                            if stock.get('breakout_score', 0) > 80:
-                                opp_types.append("🎯 Breakout Ready")
-                            
-                            st.success(
-                                f"**{stock['ticker']}** - {stock.get('company_name', 'N/A')[:25]}\n"
-                                f"Score: {stock['master_score']:.0f} | Price: ₹{stock['price']:.0f}\n"
-                                f"Signals: {' | '.join(opp_types[:2])}\n"
-                                f"Action: BUY with {stock['opp_score']:.0f}% confidence"
-                            )
-                    else:
-                        st.info("No high-conviction opportunities detected today")
-                    
-                    # Clean up temp column
-                    if 'opp_score' in filtered_df.columns:
-                        filtered_df = filtered_df.drop('opp_score', axis=1)
+                # Build opportunity scoring
+                opp_df = filtered_df.copy()
+                opp_df['opportunity_score'] = 0
+                opp_df['signals'] = ''
+                opp_df['opportunity_type'] = ''
                 
-                with opp_col2:
-                    st.markdown("##### 💎 **HIDDEN GEMS & STEALTH MOVERS**")
-                    
-                    # Hidden Gem: Category leaders not in top overall ranks
-                    hidden_conditions = pd.Series(False, index=filtered_df.index)
-                    
-                    # Condition 1: Category leaders
-                    if 'category_percentile' in filtered_df.columns:
-                        hidden_conditions |= (
-                            (filtered_df['category_percentile'] > 85) & 
-                            (filtered_df.get('percentile', 100) < 70)
-                        )
-                    
-                    # Condition 2: Stealth accumulation
-                    if 'patterns' in filtered_df.columns:
-                        hidden_conditions |= filtered_df['patterns'].str.contains(
-                            'HIDDEN GEM|STEALTH|VAMPIRE', 
-                            na=False
-                        )
-                    
-                    # Condition 3: Quiet strength
-                    if all(col in filtered_df.columns for col in ['momentum_score', 'rvol']):
-                        hidden_conditions |= (
-                            (filtered_df['momentum_score'] > 65) & 
-                            (filtered_df['rvol'] < 1.5) &  # Low volume = under radar
-                            (filtered_df.get('ret_30d', 0) > 10)
-                        )
-                    
-                    hidden_gems = filtered_df[hidden_conditions].nlargest(5, 'master_score')
-                    
-                    if len(hidden_gems) > 0:
-                        for _, stock in hidden_gems.iterrows():
-                            # Determine why it's hidden
-                            hidden_reasons = []
-                            if stock.get('category_percentile', 0) > 85:
-                                hidden_reasons.append(f"Cat #{int(stock.get('category_rank', 0))}")
-                            if 'STEALTH' in str(stock.get('patterns', '')):
-                                hidden_reasons.append("Stealth Accumulation")
-                            if stock.get('rvol', 1) < 1.5:
-                                hidden_reasons.append("Under Radar")
-                            
-                            st.info(
-                                f"**{stock['ticker']}** - {stock.get('company_name', 'N/A')[:25]}\n"
-                                f"Score: {stock['master_score']:.0f} | Rank: #{int(stock['rank'])}\n"
-                                f"Why Hidden: {' | '.join(hidden_reasons[:2])}\n"
-                                f"30D: {stock.get('ret_30d', 0):+.1f}% | RVOL: {stock.get('rvol', 1):.1f}x"
-                            )
-                    else:
-                        st.info("No hidden gems discovered yet")
-                    
-                    # Bottom Fishing Opportunities
-                    st.markdown("**🎣 Bottom Fishing Alerts**")
-                    
-                    if all(col in filtered_df.columns for col in ['from_low_pct', 'acceleration_score']):
-                        bottom_fish = filtered_df[
-                            (filtered_df['from_low_pct'] < 20) & 
-                            (filtered_df['acceleration_score'] > 60) &
-                            (filtered_df.get('ret_7d', 0) > 0)
-                        ].nlargest(2, 'acceleration_score')
-                        
-                        if len(bottom_fish) > 0:
-                            for _, stock in bottom_fish.iterrows():
-                                st.warning(
-                                    f"**{stock['ticker']}** near 52W low\n"
-                                    f"From Low: {stock['from_low_pct']:.0f}% | Turning up"
-                                )
+                # Score calculations (simple and effective)
+                if 'momentum_score' in opp_df.columns:
+                    high_momentum = opp_df['momentum_score'] > 70
+                    opp_df.loc[high_momentum, 'opportunity_score'] += 25
+                    opp_df.loc[high_momentum, 'signals'] += '📈'
+                
+                if 'acceleration_score' in opp_df.columns:
+                    accelerating = opp_df['acceleration_score'] > 70
+                    opp_df.loc[accelerating, 'opportunity_score'] += 25
+                    opp_df.loc[accelerating, 'signals'] += '🚀'
+                
+                if 'rvol' in opp_df.columns:
+                    volume_surge = opp_df['rvol'] > 2
+                    extreme_vol = opp_df['rvol'] > 3
+                    opp_df.loc[volume_surge, 'opportunity_score'] += 20
+                    opp_df.loc[extreme_vol, 'opportunity_score'] += 10
+                    opp_df.loc[extreme_vol, 'signals'] += '🌋'
+                    opp_df.loc[volume_surge & ~extreme_vol, 'signals'] += '🔥'
+                
+                if 'breakout_score' in opp_df.columns:
+                    breakout_ready = opp_df['breakout_score'] > 80
+                    opp_df.loc[breakout_ready, 'opportunity_score'] += 20
+                    opp_df.loc[breakout_ready, 'signals'] += '🎯'
+                
+                if 'wave_state' in opp_df.columns:
+                    cresting = opp_df['wave_state'].str.contains('CRESTING', na=False)
+                    building = opp_df['wave_state'].str.contains('BUILDING', na=False)
+                    opp_df.loc[cresting, 'opportunity_score'] += 20
+                    opp_df.loc[building, 'opportunity_score'] += 10
+                    opp_df.loc[cresting, 'signals'] += '🌊'
+                
+                # Get top 10 opportunities
+                top_opportunities = opp_df[opp_df['opportunity_score'] >= 40].nlargest(10, 'opportunity_score')
+                
+                if len(top_opportunities) > 0:
+                    # Prepare display dataframe
+                    display_data = []
+                    for _, stock in top_opportunities.iterrows():
+                        # Determine primary opportunity type
+                        if stock.get('rvol', 0) > 3:
+                            opp_type = "Volume Explosion"
+                            type_emoji = "🌋"
+                        elif stock.get('acceleration_score', 0) > 85:
+                            opp_type = "Accelerating"
+                            type_emoji = "🚀"
+                        elif stock.get('breakout_score', 0) > 85:
+                            opp_type = "Breakout"
+                            type_emoji = "🎯"
+                        elif 'CRESTING' in str(stock.get('wave_state', '')):
+                            opp_type = "Peak Wave"
+                            type_emoji = "🌊"
                         else:
-                            st.caption("No stocks bouncing from lows")
+                            opp_type = "Momentum"
+                            type_emoji = "📈"
+                        
+                        display_data.append({
+                            '': type_emoji,
+                            'Ticker': stock['ticker'],
+                            'Company': str(stock.get('company_name', ''))[:20] + '...' if len(str(stock.get('company_name', ''))) > 20 else stock.get('company_name', ''),
+                            'Score': stock['master_score'],
+                            'Price': stock['price'],
+                            'Type': opp_type,
+                            'Signals': stock['signals'][:5],  # Limit to 5 emojis
+                            '1D%': stock.get('ret_1d', 0),
+                            '7D%': stock.get('ret_7d', 0),
+                            'RVOL': stock.get('rvol', 1),
+                            'Category': stock.get('category', 'N/A')
+                        })
+                    
+                    opportunities_df = pd.DataFrame(display_data)
+                    
+                    # Display with optimized column config
+                    st.dataframe(
+                        opportunities_df,
+                        use_container_width=True,
+                        hide_index=True,
+                        height=400,
+                        column_config={
+                            '': st.column_config.TextColumn('', width='small'),
+                            'Ticker': st.column_config.TextColumn('Ticker', help='Stock symbol', width='small'),
+                            'Company': st.column_config.TextColumn('Company', width='medium'),
+                            'Score': st.column_config.ProgressColumn(
+                                'Score',
+                                min_value=0,
+                                max_value=100,
+                                format='%.0f',
+                                width='small'
+                            ),
+                            'Price': st.column_config.NumberColumn('Price', format='₹%.0f', width='small'),
+                            'Type': st.column_config.TextColumn('Opportunity', width='medium'),
+                            'Signals': st.column_config.TextColumn('Signals', help='Active signals', width='small'),
+                            '1D%': st.column_config.NumberColumn('1D%', format='%.1f%%', width='small'),
+                            '7D%': st.column_config.NumberColumn('7D%', format='%.1f%%', width='small'),
+                            'RVOL': st.column_config.NumberColumn('RVOL', format='%.1fx', width='small'),
+                            'Category': st.column_config.TextColumn('Category', width='medium')
+                        }
+                    )
+                    
+                    # Quick stats bar
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Total Opportunities", len(top_opportunities))
+                    with col2:
+                        vol_explosions = len(top_opportunities[top_opportunities['rvol'] > 3])
+                        st.metric("Volume Explosions", vol_explosions)
+                    with col3:
+                        avg_score = top_opportunities['master_score'].mean()
+                        st.metric("Avg Score", f"{avg_score:.0f}")
+                    with col4:
+                        if 'ret_7d' in top_opportunities.columns:
+                            avg_momentum = top_opportunities['ret_7d'].mean()
+                            st.metric("Avg 7D Return", f"{avg_momentum:.1f}%")
+                else:
+                    st.info("No high-confidence opportunities detected. Market may be in consolidation.")
+                
+                st.markdown("---")
+                
+                # ========================================
+                # HIDDEN GEMS TABLE
+                # ========================================
+                st.markdown("##### 💎 **Hidden Gems & Under-Radar Plays**")
+                
+                # Find hidden gems with multiple criteria
+                hidden_df = filtered_df.copy()
+                hidden_df['hidden_score'] = 0
+                hidden_df['hidden_reason'] = []
+                
+                # Criterion 1: Category leader but low overall rank
+                if 'category_percentile' in hidden_df.columns and 'percentile' in hidden_df.columns:
+                    category_leaders = (hidden_df['category_percentile'] > 85) & (hidden_df['percentile'] < 70)
+                    hidden_df.loc[category_leaders, 'hidden_score'] += 40
+                    
+                    # Store reason as list
+                    for idx in hidden_df[category_leaders].index:
+                        if idx not in hidden_df.index:
+                            continue
+                        current_reasons = hidden_df.at[idx, 'hidden_reason']
+                        if not isinstance(current_reasons, list):
+                            current_reasons = []
+                        current_reasons.append(f"Cat #{int(hidden_df.at[idx, 'category_rank'])}") if 'category_rank' in hidden_df.columns else current_reasons.append("Cat Leader")
+                        hidden_df.at[idx, 'hidden_reason'] = current_reasons
+                
+                # Criterion 2: Pattern-based hidden gems
+                if 'patterns' in hidden_df.columns:
+                    hidden_patterns = hidden_df['patterns'].str.contains('HIDDEN GEM|STEALTH|VAMPIRE', na=False)
+                    hidden_df.loc[hidden_patterns, 'hidden_score'] += 30
+                    
+                    for idx in hidden_df[hidden_patterns].index:
+                        if idx not in hidden_df.index:
+                            continue
+                        current_reasons = hidden_df.at[idx, 'hidden_reason']
+                        if not isinstance(current_reasons, list):
+                            current_reasons = []
+                        
+                        if 'HIDDEN GEM' in str(hidden_df.at[idx, 'patterns']):
+                            current_reasons.append("Hidden Pattern")
+                        if 'STEALTH' in str(hidden_df.at[idx, 'patterns']):
+                            current_reasons.append("Stealth Accumulation")
+                        if 'VAMPIRE' in str(hidden_df.at[idx, 'patterns']):
+                            current_reasons.append("Vampire Move")
+                        
+                        hidden_df.at[idx, 'hidden_reason'] = current_reasons
+                
+                # Criterion 3: Low volume but strong momentum (under radar)
+                if all(col in hidden_df.columns for col in ['momentum_score', 'rvol', 'ret_30d']):
+                    under_radar = (hidden_df['momentum_score'] > 65) & (hidden_df['rvol'] < 1.5) & (hidden_df['ret_30d'] > 10)
+                    hidden_df.loc[under_radar, 'hidden_score'] += 30
+                    
+                    for idx in hidden_df[under_radar].index:
+                        if idx not in hidden_df.index:
+                            continue
+                        current_reasons = hidden_df.at[idx, 'hidden_reason']
+                        if not isinstance(current_reasons, list):
+                            current_reasons = []
+                        current_reasons.append("Under Radar")
+                        hidden_df.at[idx, 'hidden_reason'] = current_reasons
+                
+                # Get top hidden gems
+                top_hidden = hidden_df[hidden_df['hidden_score'] >= 30].nlargest(8, 'hidden_score')
+                
+                if len(top_hidden) > 0:
+                    hidden_display = []
+                    for _, stock in top_hidden.iterrows():
+                        # Format reasons
+                        reasons = stock['hidden_reason'] if isinstance(stock['hidden_reason'], list) else []
+                        reason_text = ' | '.join(reasons[:2]) if reasons else 'Multiple Factors'
+                        
+                        # Determine discovery type
+                        if stock['hidden_score'] >= 70:
+                            discovery = "💎💎💎"
+                        elif stock['hidden_score'] >= 50:
+                            discovery = "💎💎"
+                        else:
+                            discovery = "💎"
+                        
+                        hidden_display.append({
+                            'Discovery': discovery,
+                            'Ticker': stock['ticker'],
+                            'Company': str(stock.get('company_name', ''))[:20] + '...' if len(str(stock.get('company_name', ''))) > 20 else stock.get('company_name', ''),
+                            'Rank': int(stock['rank']),
+                            'Score': stock['master_score'],
+                            'Why Hidden': reason_text,
+                            '30D%': stock.get('ret_30d', 0),
+                            'RVOL': stock.get('rvol', 1),
+                            'Category': stock.get('category', 'N/A'),
+                            'Entry': stock['price']
+                        })
+                    
+                    hidden_gems_df = pd.DataFrame(hidden_display)
+                    
+                    st.dataframe(
+                        hidden_gems_df,
+                        use_container_width=True,
+                        hide_index=True,
+                        height=350,
+                        column_config={
+                            'Discovery': st.column_config.TextColumn('', width='small'),
+                            'Ticker': st.column_config.TextColumn('Ticker', width='small'),
+                            'Company': st.column_config.TextColumn('Company', width='medium'),
+                            'Rank': st.column_config.NumberColumn('Rank', format='#%d', width='small'),
+                            'Score': st.column_config.ProgressColumn(
+                                'Score',
+                                min_value=0,
+                                max_value=100,
+                                format='%.0f',
+                                width='small'
+                            ),
+                            'Why Hidden': st.column_config.TextColumn('Discovery Reason', width='large'),
+                            '30D%': st.column_config.NumberColumn('30D%', format='%.1f%%', width='small'),
+                            'RVOL': st.column_config.NumberColumn('RVOL', format='%.1fx', width='small'),
+                            'Category': st.column_config.TextColumn('Category', width='medium'),
+                            'Entry': st.column_config.NumberColumn('Entry', format='₹%.0f', width='small')
+                        }
+                    )
+                    
+                    # Hidden gems summary
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        cat_leaders = len([r for r in top_hidden['hidden_reason'] if any('Cat' in str(item) for item in (r if isinstance(r, list) else []))])
+                        st.metric("Category Leaders", cat_leaders)
+                    with col2:
+                        under_radar = len([r for r in top_hidden['hidden_reason'] if any('Radar' in str(item) for item in (r if isinstance(r, list) else []))])
+                        st.metric("Under Radar", under_radar)
+                    with col3:
+                        pattern_based = len([r for r in top_hidden['hidden_reason'] if any('Pattern' in str(item) or 'Stealth' in str(item) for item in (r if isinstance(r, list) else []))])
+                        st.metric("Pattern Based", pattern_based)
+                else:
+                    st.info("No hidden gems identified. All strong stocks are already visible.")
+                
+                st.markdown("---")
+                
+                # ========================================
+                # QUICK ACTION ZONES
+                # ========================================
+                st.markdown("##### ⚡ **Quick Action Zones**")
+                
+                zone_col1, zone_col2, zone_col3 = st.columns(3)
+                
+                with zone_col1:
+                    st.markdown("**🚀 MOMENTUM ZONE**")
+                    if all(col in filtered_df.columns for col in ['momentum_score', 'acceleration_score']):
+                        momentum_zone = filtered_df[
+                            (filtered_df['momentum_score'] > 70) & 
+                            (filtered_df['acceleration_score'] > 70)
+                        ].nlargest(3, 'master_score')
+                        
+                        if len(momentum_zone) > 0:
+                            for _, stock in momentum_zone.iterrows():
+                                st.success(f"**{stock['ticker']}** @ ₹{stock['price']:.0f}")
+                        else:
+                            st.caption("No stocks in zone")
+                
+                with zone_col2:
+                    st.markdown("**🎯 BREAKOUT ZONE**")
+                    if 'breakout_score' in filtered_df.columns:
+                        breakout_zone = filtered_df[
+                            filtered_df['breakout_score'] > 80
+                        ].nlargest(3, 'breakout_score')
+                        
+                        if len(breakout_zone) > 0:
+                            for _, stock in breakout_zone.iterrows():
+                                st.warning(f"**{stock['ticker']}** Ready @ {stock['breakout_score']:.0f}")
+                        else:
+                            st.caption("No stocks in zone")
+                
+                with zone_col3:
+                    st.markdown("**🌋 VOLUME ZONE**")
+                    if 'rvol' in filtered_df.columns:
+                        volume_zone = filtered_df[
+                            filtered_df['rvol'] > 3
+                        ].nlargest(3, 'rvol')
+                        
+                        if len(volume_zone) > 0:
+                            for _, stock in volume_zone.iterrows():
+                                st.error(f"**{stock['ticker']}** {stock['rvol']:.1f}x vol")
+                        else:
+                            st.caption("No stocks in zone")
             
             # TAB 2: WAVE LEADERS (Keep your existing excellent implementation)
             with discovery_tabs[1]:
