@@ -6254,210 +6254,103 @@ def main():
                 if 'sector' in filtered_df.columns:
                     st.markdown("##### 🏢 **Sector Rotation Analysis**")
                     
-                    # Get sector rotation data using YOUR method
-                    sector_rotation = MarketIntelligence.detect_sector_rotation(filtered_df)
+                    # Calculate comprehensive sector metrics - YOUR METHOD
+                    sector_analysis = []
                     
-                    if not sector_rotation.empty:
-                        # ========================================
-                        # TOP METRICS ROW - YOUR STYLE
-                        # ========================================
-                        metric_cols = st.columns(4)
-                        
-                        with metric_cols[0]:
-                            # Leading sector
-                            leader = sector_rotation.index[0]
-                            leader_score = sector_rotation.iloc[0]['flow_score']
-                            st.metric(
-                                "📊 Leading Sector",
-                                leader[:15],  # Truncate long names
-                                f"Score: {leader_score:.0f}"
-                            )
-                        
-                        with metric_cols[1]:
-                            # Hot sectors count
-                            hot_count = len(sector_rotation[sector_rotation['flow_score'] >= 70])
-                            total_sectors = len(sector_rotation)
-                            st.metric(
-                                "🔥 Hot Sectors",
-                                f"{hot_count}/{total_sectors}",
-                                f"{hot_count/total_sectors*100:.0f}% active"
-                            )
-                        
-                        with metric_cols[2]:
-                            # Average flow
-                            avg_flow = sector_rotation['flow_score'].mean()
-                            median_flow = sector_rotation['flow_score'].median()
-                            st.metric(
-                                "📈 Market Flow",
-                                f"{avg_flow:.0f}",
-                                f"Median: {median_flow:.0f}"
-                            )
-                        
-                        with metric_cols[3]:
-                            # Rotation signal
-                            if hot_count > total_sectors * 0.5:
-                                st.metric("🎯 Signal", "BROAD RALLY", "Risk-On")
-                            elif hot_count > 0:
-                                st.metric("🎯 Signal", "SELECTIVE", "Be Picky")
-                            else:
-                                st.metric("🎯 Signal", "DEFENSIVE", "Risk-Off")
-                        
-                        st.markdown("---")
-                        
-                        # ========================================
-                        # MAIN CHART - YOUR EXACT STYLE
-                        # ========================================
-                        col1, col2 = st.columns([3, 1])
-                        
-                        with col1:
-                            # Your existing chart style, just cleaner
-                            fig_sector = go.Figure()
+                    for sector in filtered_df['sector'].unique():
+                        if sector != 'Unknown':
+                            sector_df = filtered_df[filtered_df['sector'] == sector]
                             
-                            top_sectors = sector_rotation.head(10)
-                            
-                            # Color based on score - YOUR way
-                            colors = ['#2ecc71' if score > 60 else '#e74c3c' if score < 40 else '#f39c12' 
-                                     for score in top_sectors['flow_score']]
-                            
-                            fig_sector.add_trace(go.Bar(
-                                x=top_sectors.index,
-                                y=top_sectors['flow_score'],
-                                text=[f"{val:.1f}" for val in top_sectors['flow_score']],
-                                textposition='outside',
-                                marker_color=colors,
-                                hovertemplate=(
-                                    'Sector: %{x}<br>'
-                                    'Flow Score: %{y:.1f}<br>'
-                                    'Stocks Analyzed: %{customdata[0]}<br>'
-                                    'Total Stocks: %{customdata[1]}<br>'
-                                    'Sampling: %{customdata[2]:.1f}%<br>'
-                                    '<extra></extra>'
-                                ),
-                                customdata=np.column_stack((
-                                    top_sectors['analyzed_stocks'],
-                                    top_sectors['total_stocks'],
-                                    top_sectors['sampling_pct']
-                                ))
-                            ))
-                            
-                            fig_sector.update_layout(
-                                title="Sector Rotation Map - Smart Money Flow",
-                                xaxis_title="Sector",
-                                yaxis_title="Flow Score",
-                                height=400,
-                                template='plotly_white'
-                            )
-                            
-                            st.plotly_chart(fig_sector, use_container_width=True, theme="streamlit")
-                        
-                        with col2:
-                            # ========================================
-                            # INSIGHTS - YOUR CLEAN STYLE
-                            # ========================================
-                            st.markdown("**💡 Rotation Insights**")
-                            
-                            # Top 3 sectors
-                            st.markdown("**🔥 Hot Sectors:**")
-                            for i, (sector, row) in enumerate(sector_rotation.head(3).iterrows()):
-                                emoji = "🥇" if i == 0 else "🥈" if i == 1 else "🥉"
-                                st.write(f"{emoji} **{sector[:12]}**: {row['flow_score']:.0f}")
-                            
-                            st.markdown("---")
-                            
-                            # Bottom 3 sectors
-                            st.markdown("**❄️ Cold Sectors:**")
-                            for sector, row in sector_rotation.tail(3).iterrows():
-                                if row['flow_score'] < 40:
-                                    st.write(f"• {sector[:12]}: {row['flow_score']:.0f}")
-                            
-                            st.markdown("---")
-                            
-                            # Data quality indicator - YOUR STYLE
-                            st.markdown("**📊 Data Quality:**")
-                            avg_sampling = sector_rotation['sampling_pct'].mean()
-                            if avg_sampling > 30:
-                                st.success(f"Good ({avg_sampling:.0f}% sampled)")
-                            elif avg_sampling > 20:
-                                st.warning(f"Fair ({avg_sampling:.0f}% sampled)")
-                            else:
-                                st.error(f"Low ({avg_sampling:.0f}% sampled)")
-                        
-                        # ========================================
-                        # DETAILED TABLE - YOUR EXACT STYLE
-                        # ========================================
-                        st.markdown("---")
-                        st.markdown("##### 📊 **Detailed Sector Metrics**")
-                        
-                        # Prepare display - YOUR column names
-                        display_cols = ['flow_score', 'avg_score', 'avg_momentum', 
-                                       'avg_volume', 'avg_rvol', 'analyzed_stocks', 
-                                       'total_stocks', 'sampling_pct']
-                        
-                        # Check which columns exist - YOUR safety check
-                        available_cols = [col for col in display_cols if col in sector_rotation.columns]
-                        
-                        if available_cols:
-                            sector_display = sector_rotation[available_cols].copy()
-                            
-                            # Format numbers - YOUR way
-                            if 'flow_score' in sector_display.columns:
-                                sector_display['flow_score'] = sector_display['flow_score'].round(1)
-                            if 'avg_score' in sector_display.columns:
-                                sector_display['avg_score'] = sector_display['avg_score'].round(1)
-                            if 'avg_rvol' in sector_display.columns:
-                                sector_display['avg_rvol'] = sector_display['avg_rvol'].round(2)
-                            
-                            # Rename columns - YOUR naming convention
-                            column_rename = {
-                                'flow_score': 'Flow Score',
-                                'avg_score': 'Avg Score',
-                                'avg_momentum': 'Momentum',
-                                'avg_volume': 'Volume',
-                                'avg_rvol': 'RVOL',
-                                'analyzed_stocks': 'Analyzed',
-                                'total_stocks': 'Total',
-                                'sampling_pct': 'Sample %'
-                            }
-                            
-                            sector_display.rename(columns=column_rename, inplace=True)
-                            
-                            # Display with YOUR style gradient
-                            st.dataframe(
-                                sector_display.style.background_gradient(
-                                    subset=['Flow Score', 'Avg Score'],
-                                    cmap='RdYlGn',
-                                    vmin=0,
-                                    vmax=100
-                                ),
-                                use_container_width=True
-                            )
-                        
-                        # ========================================
-                        # ACTION BOX - YOUR PHILOSOPHY
-                        # ========================================
-                        if len(sector_rotation) > 0:
-                            best_sector = sector_rotation.index[0]
-                            best_score = sector_rotation.iloc[0]['flow_score']
-                            
-                            # Get best stock in best sector - YOUR way
-                            best_sector_stocks = filtered_df[filtered_df['sector'] == best_sector]
-                            if not best_sector_stocks.empty:
-                                top_stock = best_sector_stocks.nlargest(1, 'master_score').iloc[0]
+                            if len(sector_df) >= 2:  # Need minimum stocks
+                                # Calculate rotation score - YOUR EXACT LOGIC
+                                rotation_score = 0
+                                signals = []
                                 
-                                st.info(
-                                    f"💡 **Action**: Consider {best_sector} sector\n"
-                                    f"• Flow Score: {best_score:.0f}\n"
-                                    f"• Top Stock: {top_stock['ticker']} (Score: {top_stock['master_score']:.0f})\n"
-                                    f"• Entry: ₹{top_stock['price']:.0f}"
-                                )
-                        
-                        # Data quality note - YOUR transparency
-                        st.caption("📊 Note: Analysis based on dynamically sampled top performers per sector for fair comparison")
+                                # Score component 1: Relative performance
+                                sector_avg_score = sector_df['master_score'].mean()
+                                market_avg_score = filtered_df['master_score'].mean()
+                                if sector_avg_score > market_avg_score:
+                                    rotation_score += 25
+                                    signals.append("Score+")
+                                
+                                # Score component 2: Momentum
+                                if 'ret_30d' in sector_df.columns:
+                                    sector_momentum = sector_df['ret_30d'].mean()
+                                    if sector_momentum > 0:
+                                        rotation_score += 25
+                                        signals.append("Mom+")
+                                    if sector_momentum > filtered_df['ret_30d'].mean():
+                                        rotation_score += 15
+                                        signals.append("RelMom+")
+                                
+                                # Score component 3: Volume activity
+                                if 'rvol' in sector_df.columns:
+                                    sector_rvol = sector_df['rvol'].mean()
+                                    if sector_rvol > 1.5:
+                                        rotation_score += 20
+                                        signals.append("Vol+")
+                                
+                                # Score component 4: Money flow
+                                if 'money_flow_mm' in sector_df.columns:
+                                    sector_flow = sector_df['money_flow_mm'].sum()
+                                    avg_sector_flow = filtered_df.groupby('sector')['money_flow_mm'].sum().mean()
+                                    if sector_flow > avg_sector_flow:
+                                        rotation_score += 15
+                                        signals.append("Flow+")
+                                
+                                sector_analysis.append({
+                                    'Sector': sector[:15],
+                                    'Stocks': len(sector_df),
+                                    'Avg Score': sector_avg_score,
+                                    'Rotation Score': rotation_score,
+                                    'Signals': ' '.join(signals),
+                                    'Top Stock': sector_df.nlargest(1, 'master_score')['ticker'].iloc[0],
+                                    '30D Avg': sector_df['ret_30d'].mean() if 'ret_30d' in sector_df.columns else 0,
+                                    'RVOL Avg': sector_df['rvol'].mean() if 'rvol' in sector_df.columns else 1,
+                                    'Flow ₹M': sector_df['money_flow_mm'].sum() if 'money_flow_mm' in sector_df.columns else 0
+                                })
                     
-                    else:
-                        st.warning("No sector data available in the filtered dataset")
+                    if sector_analysis:
+                        sector_df_display = pd.DataFrame(sector_analysis)
+                        sector_df_display = sector_df_display.sort_values('Rotation Score', ascending=False)
+                        
+                        # Format display - YOUR EXACT FORMATTING
+                        sector_df_display['Status'] = sector_df_display['Rotation Score'].apply(
+                            lambda x: '🔥 HOT' if x >= 75 else '📈 RISING' if x >= 50 else '➡️ NEUTRAL' if x >= 25 else '📉 WEAK'
+                        )
+                        
+                        sector_df_display['Avg Score'] = sector_df_display['Avg Score'].apply(lambda x: f"{x:.1f}")
+                        sector_df_display['30D Avg'] = sector_df_display['30D Avg'].apply(lambda x: f"{x:+.1f}%")
+                        sector_df_display['RVOL Avg'] = sector_df_display['RVOL Avg'].apply(lambda x: f"{x:.1f}x")
+                        sector_df_display['Flow ₹M'] = sector_df_display['Flow ₹M'].apply(lambda x: f"{x:.0f}")
+                        
+                        # Display main table - YOUR COLUMN ORDER
+                        display_cols = ['Status', 'Sector', 'Rotation Score', 'Stocks', 'Avg Score', 
+                                       '30D Avg', 'RVOL Avg', 'Flow ₹M', 'Top Stock', 'Signals']
+                        
+                        st.dataframe(
+                            sector_df_display[display_cols],
+                            use_container_width=True,
+                            hide_index=True,
+                            height=400
+                        )
+                        
+                        # Rotation summary - YOUR EXACT MESSAGES
+                        hot_sectors = len(sector_df_display[sector_df_display['Rotation Score'] >= 75])
+                        rising_sectors = len(sector_df_display[sector_df_display['Rotation Score'] >= 50])
+                        
+                        if hot_sectors > 0:
+                            top_sector = sector_df_display.iloc[0]
+                            st.success(
+                                f"🔥 **{hot_sectors} HOT SECTORS** | Leader: {top_sector['Sector']} "
+                                f"(Score: {top_sector['Rotation Score']})"
+                            )
+                        elif rising_sectors > 0:
+                            st.info(f"📈 {rising_sectors} sectors showing positive rotation")
+                        else:
+                            st.warning("⚠️ No clear sector rotation detected")
                 else:
-                    st.warning("Sector data not available")
+                    st.info("Sector data not available")
             
             # TAB 2: SMART MONEY FLOW
             with intel_tabs[1]:
