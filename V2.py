@@ -4495,50 +4495,49 @@ def main():
             # TAB 1: Today's Best Opportunities
             with discovery_tabs[0]:
                 # 2. TODAY'S OPPORTUNITIES
-                # 2. TODAY'S OPPORTUNITIES
-        st.markdown("### 🎯 Today's Best Opportunities")
-        
-        opp_col1, opp_col2, opp_col3 = st.columns(3)
-        
-        with opp_col1:
-            ready_to_run = df[
-                (df['momentum_score'] >= 70) & 
-                (df['acceleration_score'] >= 70) &
-                (df['rvol'] >= 2)
-            ].nlargest(5, 'master_score') if all(col in df.columns for col in ['momentum_score', 'acceleration_score', 'rvol']) else pd.DataFrame()
+            st.markdown("### 🎯 Today's Best Opportunities")
             
-            st.markdown("**🚀 Ready to Run**")
-            if len(ready_to_run) > 0:
-                for _, stock in ready_to_run.iterrows():
-                    company_name = stock.get('company_name', 'N/A')[:25]
-                    st.write(f"• **{stock['ticker']}** - {company_name}")
-                    st.caption(f"Score: {stock['master_score']:.1f} | RVOL: {stock['rvol']:.1f}x")
-            else:
-                st.info("No momentum leaders found")
-        
-        with opp_col2:
-            hidden_gems = df[df['patterns'].str.contains('HIDDEN GEM', na=False)].nlargest(5, 'master_score') if 'patterns' in df.columns else pd.DataFrame()
+            opp_col1, opp_col2, opp_col3 = st.columns(3)
             
-            st.markdown("**💎 Hidden Gems**")
-            if len(hidden_gems) > 0:
-                for _, stock in hidden_gems.iterrows():
-                    company_name = stock.get('company_name', 'N/A')[:25]
-                    st.write(f"• **{stock['ticker']}** - {company_name}")
-                    st.caption(f"Cat %ile: {stock.get('category_percentile', 0):.0f} | Score: {stock['master_score']:.1f}")
-            else:
-                st.info("No hidden gems today")
-        
-        with opp_col3:
-            volume_alerts = df[df['rvol'] > 3].nlargest(5, 'master_score') if 'rvol' in df.columns else pd.DataFrame()
+            with opp_col1:
+                ready_to_run = df[
+                    (df['momentum_score'] >= 70) & 
+                    (df['acceleration_score'] >= 70) &
+                    (df['rvol'] >= 2)
+                ].nlargest(5, 'master_score') if all(col in df.columns for col in ['momentum_score', 'acceleration_score', 'rvol']) else pd.DataFrame()
+                
+                st.markdown("**🚀 Ready to Run**")
+                if len(ready_to_run) > 0:
+                    for _, stock in ready_to_run.iterrows():
+                        company_name = stock.get('company_name', 'N/A')[:25]
+                        st.write(f"• **{stock['ticker']}** - {company_name}")
+                        st.caption(f"Score: {stock['master_score']:.1f} | RVOL: {stock['rvol']:.1f}x")
+                else:
+                    st.info("No momentum leaders found")
             
-            st.markdown("**⚡ Volume Alerts**")
-            if len(volume_alerts) > 0:
-                for _, stock in volume_alerts.iterrows():
-                    company_name = stock.get('company_name', 'N/A')[:25]
-                    st.write(f"• **{stock['ticker']}** - {company_name}")
-                    st.caption(f"RVOL: {stock['rvol']:.1f}x | {stock.get('wave_state', 'N/A')}")
-            else:
-                st.info("No extreme volume detected")
+            with opp_col2:
+                hidden_gems = df[df['patterns'].str.contains('HIDDEN GEM', na=False)].nlargest(5, 'master_score') if 'patterns' in df.columns else pd.DataFrame()
+                
+                st.markdown("**💎 Hidden Gems**")
+                if len(hidden_gems) > 0:
+                    for _, stock in hidden_gems.iterrows():
+                        company_name = stock.get('company_name', 'N/A')[:25]
+                        st.write(f"• **{stock['ticker']}** - {company_name}")
+                        st.caption(f"Cat %ile: {stock.get('category_percentile', 0):.0f} | Score: {stock['master_score']:.1f}")
+                else:
+                    st.info("No hidden gems today")
+            
+            with opp_col3:
+                volume_alerts = df[df['rvol'] > 3].nlargest(5, 'master_score') if 'rvol' in df.columns else pd.DataFrame()
+                
+                st.markdown("**⚡ Volume Alerts**")
+                if len(volume_alerts) > 0:
+                    for _, stock in volume_alerts.iterrows():
+                        company_name = stock.get('company_name', 'N/A')[:25]
+                        st.write(f"• **{stock['ticker']}** - {company_name}")
+                        st.caption(f"RVOL: {stock['rvol']:.1f}x | {stock.get('wave_state', 'N/A')}")
+                else:
+                    st.info("No extreme volume detected")
             
             # TAB 2: WAVE LEADERS - ENHANCED VERSION
                 with discovery_tabs[1]:
