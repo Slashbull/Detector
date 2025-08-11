@@ -6911,6 +6911,7 @@ def main():
             )
     
     # Tab 1: Rankings
+    # RANKINGS TAB - DATAFRAME SECTION ONLY
     with tabs[1]:
         st.markdown("### 🏆 Top Ranked Stocks")
         
@@ -6951,227 +6952,322 @@ def main():
             display_df = display_df.sort_values('trend_quality', ascending=False)
         
         if not display_df.empty:
-            # Add trend indicator if available
-            if 'trend_quality' in display_df.columns:
-                def get_trend_indicator(score):
-                    if pd.isna(score):
-                        return "➖"
-                    elif score >= 80:
-                        return "🔥"
-                    elif score >= 60:
-                        return "✅"
-                    elif score >= 40:
-                        return "➡️"
-                    else:
-                        return "⚠️"
-                
-                display_df['trend_indicator'] = display_df['trend_quality'].apply(get_trend_indicator)
+            # ============================================
+            # PREPARE DISPLAY DATAFRAME - KEEP NUMERIC!
+            # ============================================
             
-            # Prepare display columns
-            display_cols = {
-                'rank': 'Rank',
-                'ticker': 'Ticker',
-                'company_name': 'Company',
-                'master_score': 'Score',
-                'wave_state': 'Wave'
-            }
+            # Select columns in logical order
+            display_columns = []
             
-            if 'trend_indicator' in display_df.columns:
-                display_cols['trend_indicator'] = 'Trend'
+            # 1. IDENTIFICATION
+            display_columns.extend(['rank', 'ticker', 'company_name'])
             
-            display_cols['price'] = 'Price'
+            # 2. SCORES (keep numeric for progress bars)
+            display_columns.extend(['master_score'])
             
+            # 3. PRICE & RANGE
+            display_columns.extend(['price'])
+            if 'from_low_pct' in display_df.columns:
+                display_columns.append('from_low_pct')
+            if 'from_high_pct' in display_df.columns:
+                display_columns.append('from_high_pct')
+            
+            # 4. MOMENTUM METRICS
+            if 'momentum_score' in display_df.columns:
+                display_columns.append('momentum_score')
+            if 'acceleration_score' in display_df.columns:
+                display_columns.append('acceleration_score')
+            
+            # 5. RETURNS
+            for ret_col in ['ret_1d', 'ret_7d', 'ret_30d']:
+                if ret_col in display_df.columns:
+                    display_columns.append(ret_col)
+            
+            # 6. VOLUME
+            if 'rvol' in display_df.columns:
+                display_columns.append('rvol')
+            if 'volume_score' in display_df.columns:
+                display_columns.append('volume_score')
+            
+            # 7. MONEY FLOW
+            if 'money_flow_mm' in display_df.columns:
+                display_columns.append('money_flow_mm')
+            
+            # 8. FUNDAMENTALS (if hybrid mode)
             if show_fundamentals:
                 if 'pe' in display_df.columns:
-                    display_cols['pe'] = 'PE'
-                
+                    display_columns.append('pe')
                 if 'eps_change_pct' in display_df.columns:
-                    display_cols['eps_change_pct'] = 'EPS Δ%'
+                    display_columns.append('eps_change_pct')
             
-            display_cols.update({
-                'from_low_pct': 'From Low',
-                'ret_30d': '30D Ret',
-                'rvol': 'RVOL',
-                'vmi': 'VMI',
-                'patterns': 'Patterns',
-                'category': 'Category'
-            })
+            # 9. PATTERNS & SIGNALS
+            if 'wave_state' in display_df.columns:
+                display_columns.append('wave_state')
+            if 'patterns' in display_df.columns:
+                display_columns.append('patterns')
             
+            # 10. CLASSIFICATION
+            display_columns.extend(['category', 'sector'])
             if 'industry' in display_df.columns:
-                display_cols['industry'] = 'Industry'
+                display_columns.append('industry')
             
-            # Format data for display (keep original values for proper sorting)
-            display_df_formatted = display_df.copy()
+            # Filter to available columns
+            available_cols = [col for col in display_columns if col in display_df.columns]
+            final_df = display_df[available_cols].copy()
             
-            # Format numeric columns as strings for display
-            format_rules = {
-                'master_score': lambda x: f"{x:.1f}" if pd.notna(x) else '-',
-                'price': lambda x: f"₹{x:,.0f}" if pd.notna(x) else '-',
-                'from_low_pct': lambda x: f"{x:.0f}%" if pd.notna(x) else '-',
-                'ret_30d': lambda x: f"{x:+.1f}%" if pd.notna(x) else '-',
-                'rvol': lambda x: f"{x:.1f}x" if pd.notna(x) else '-',
-                'vmi': lambda x: f"{x:.2f}" if pd.notna(x) else '-'
-            }
-            
-            for col, formatter in format_rules.items():
-                if col in display_df_formatted.columns:
-                    display_df_formatted[col] = display_df[col].apply(formatter)
-            
-            # Format PE column
-            def format_pe(value):
-                try:
-                    if pd.isna(value) or value == 'N/A':
-                        return '-'
-                    
-                    val = float(value)
-                    
-                    if val <= 0:
-                        return 'Loss'
-                    elif val > 10000:
-                        return '>10K'
-                    elif val > 1000:
-                        return f"{val:.0f}"
-                    else:
-                        return f"{val:.1f}"
-                except:
-                    return '-'
-            
-            # Format EPS change
-            def format_eps_change(value):
-                try:
-                    if pd.isna(value):
-                        return '-'
-                    
-                    val = float(value)
-                    
-                    if abs(val) >= 1000:
-                        return f"{val/1000:+.1f}K%"
-                    elif abs(val) >= 100:
-                        return f"{val:+.0f}%"
-                    else:
-                        return f"{val:+.1f}%"
-                except:
-                    return '-'
-            
-            if show_fundamentals:
-                if 'pe' in display_df_formatted.columns:
-                    display_df_formatted['pe'] = display_df['pe'].apply(format_pe)
-                
-                if 'eps_change_pct' in display_df_formatted.columns:
-                    display_df_formatted['eps_change_pct'] = display_df['eps_change_pct'].apply(format_eps_change)
-            
-            # Select and rename columns
-            available_display_cols = [c for c in display_cols.keys() if c in display_df_formatted.columns]
-            final_display_df = display_df_formatted[available_display_cols]
-            final_display_df.columns = [display_cols[c] for c in available_display_cols]
-            
-            # Create column configuration
+            # ============================================
+            # ULTIMATE COLUMN CONFIGURATION
+            # ============================================
             column_config = {
-                "Rank": st.column_config.NumberColumn(
-                    "Rank",
+                # IDENTIFICATION
+                "rank": st.column_config.NumberColumn(
+                    "🏆",
                     help="Overall ranking position",
-                    format="%d",
-                    width="small"
+                    width="small",
+                    format="%d"
                 ),
-                "Ticker": st.column_config.TextColumn(
+                "ticker": st.column_config.TextColumn(
                     "Ticker",
                     help="Stock symbol",
                     width="small"
                 ),
-                "Company": st.column_config.TextColumn(
+                "company_name": st.column_config.TextColumn(
                     "Company",
                     help="Company name",
-                    width="medium",
+                    width="large",
                     max_chars=50
                 ),
-                "Score": st.column_config.TextColumn(
+                
+                # MAIN SCORE - PROGRESS BAR
+                "master_score": st.column_config.ProgressColumn(
                     "Score",
-                    help="Master Score (0-100)",
+                    help="Master Score (0-100) - Click column to sort",
+                    format="%.1f",
+                    min_value=0,
+                    max_value=100,
                     width="small"
                 ),
-                "Wave": st.column_config.TextColumn(
+                
+                # PRICE - FORMATTED NUMBER
+                "price": st.column_config.NumberColumn(
+                    "Price",
+                    help="Current stock price",
+                    format="₹%.0f",
+                    width="small"
+                ),
+                
+                # RANGE POSITION - WITH COLOR
+                "from_low_pct": st.column_config.NumberColumn(
+                    "📈 From Low",
+                    help="% up from 52-week low",
+                    format="%.0f%%",
+                    width="small"
+                ),
+                "from_high_pct": st.column_config.NumberColumn(
+                    "📉 From High",
+                    help="% down from 52-week high",
+                    format="%.0f%%",
+                    width="small"
+                ),
+                
+                # MOMENTUM SCORES - PROGRESS BARS
+                "momentum_score": st.column_config.ProgressColumn(
+                    "Mom",
+                    help="Momentum Score",
+                    format="%.0f",
+                    min_value=0,
+                    max_value=100,
+                    width="small"
+                ),
+                "acceleration_score": st.column_config.ProgressColumn(
+                    "Accel",
+                    help="Acceleration Score",
+                    format="%.0f",
+                    min_value=0,
+                    max_value=100,
+                    width="small"
+                ),
+                "volume_score": st.column_config.ProgressColumn(
+                    "Vol",
+                    help="Volume Score",
+                    format="%.0f",
+                    min_value=0,
+                    max_value=100,
+                    width="small"
+                ),
+                
+                # RETURNS - COLOR CODED
+                "ret_1d": st.column_config.NumberColumn(
+                    "1D%",
+                    help="1-day return",
+                    format="%.1f%%",
+                    width="small"
+                ),
+                "ret_7d": st.column_config.NumberColumn(
+                    "7D%",
+                    help="7-day return",
+                    format="%.1f%%",
+                    width="small"
+                ),
+                "ret_30d": st.column_config.NumberColumn(
+                    "30D%",
+                    help="30-day return",
+                    format="%.1f%%",
+                    width="small"
+                ),
+                
+                # VOLUME - SPECIAL FORMAT
+                "rvol": st.column_config.NumberColumn(
+                    "RVOL",
+                    help="Relative Volume - Times normal volume",
+                    format="%.1fx",
+                    width="small"
+                ),
+                
+                # MONEY FLOW - BAR CHART
+                "money_flow_mm": st.column_config.BarChartColumn(
+                    "Flow ₹M",
+                    help="Money Flow in Millions",
+                    width="small",
+                    y_min=0,
+                    y_max=float(display_df['money_flow_mm'].max()) if 'money_flow_mm' in display_df.columns else 100
+                ),
+                
+                # FUNDAMENTALS
+                "pe": st.column_config.NumberColumn(
+                    "PE",
+                    help="Price to Earnings Ratio",
+                    format="%.1f",
+                    width="small"
+                ),
+                "eps_change_pct": st.column_config.NumberColumn(
+                    "EPS Δ%",
+                    help="EPS Change %",
+                    format="%.0f%%",
+                    width="small"
+                ),
+                
+                # WAVE STATE - TEXT WITH EMOJI
+                "wave_state": st.column_config.TextColumn(
                     "Wave",
-                    help="Current wave state - momentum indicator",
+                    help="Current momentum wave state",
                     width="medium"
                 ),
-                "Price": st.column_config.TextColumn(
-                    "Price",
-                    help="Current stock price in INR",
-                    width="small"
-                ),
-                "From Low": st.column_config.TextColumn(
-                    "From Low",
-                    help="Distance from 52-week low (%)",
-                    width="small"
-                ),
-                "30D Ret": st.column_config.TextColumn(
-                    "30D Ret",
-                    help="30-day return percentage",
-                    width="small"
-                ),
-                "RVOL": st.column_config.TextColumn(
-                    "RVOL",
-                    help="Relative volume compared to average",
-                    width="small"
-                ),
-                "VMI": st.column_config.TextColumn(
-                    "VMI",
-                    help="Volume Momentum Index",
-                    width="small"
-                ),
-                "Patterns": st.column_config.TextColumn(
+                
+                # PATTERNS - LONG TEXT
+                "patterns": st.column_config.TextColumn(
                     "Patterns",
-                    help="Detected technical patterns",
+                    help="Detected trading patterns",
                     width="large",
                     max_chars=100
                 ),
-                "Category": st.column_config.TextColumn(
+                
+                # CLASSIFICATION
+                "category": st.column_config.SelectboxColumn(
                     "Category",
                     help="Market cap category",
-                    width="medium"
+                    width="medium",
+                    options=filtered_df['category'].unique().tolist() if 'category' in filtered_df.columns else []
+                ),
+                "sector": st.column_config.TextColumn(
+                    "Sector",
+                    help="Business sector",
+                    width="medium",
+                    max_chars=30
+                ),
+                "industry": st.column_config.TextColumn(
+                    "Industry",
+                    help="Specific industry",
+                    width="medium",
+                    max_chars=40
                 )
             }
             
-            # Add Trend column config if available
-            if 'Trend' in final_display_df.columns:
-                column_config["Trend"] = st.column_config.TextColumn(
-                    "Trend",
-                    help="Trend quality indicator",
-                    width="small"
+            # ============================================
+            # DISPLAY WITH ENHANCED STYLING
+            # ============================================
+            
+            # Add conditional formatting for specific columns
+            styled_df = final_df.style
+            
+            # Color code returns
+            if 'ret_1d' in final_df.columns:
+                styled_df = styled_df.applymap(
+                    lambda x: 'color: green' if x > 0 else 'color: red' if x < 0 else '',
+                    subset=['ret_1d']
+                )
+            if 'ret_7d' in final_df.columns:
+                styled_df = styled_df.applymap(
+                    lambda x: 'color: green' if x > 0 else 'color: red' if x < 0 else '',
+                    subset=['ret_7d']
+                )
+            if 'ret_30d' in final_df.columns:
+                styled_df = styled_df.applymap(
+                    lambda x: 'color: green' if x > 0 else 'color: red' if x < 0 else '',
+                    subset=['ret_30d']
                 )
             
-            # Add PE and EPS columns config if in hybrid mode
-            if show_fundamentals:
-                if 'PE' in final_display_df.columns:
-                    column_config["PE"] = st.column_config.TextColumn(
-                        "PE",
-                        help="Price to Earnings ratio",
-                        width="small"
-                    )
-                if 'EPS Δ%' in final_display_df.columns:
-                    column_config["EPS Δ%"] = st.column_config.TextColumn(
-                        "EPS Δ%",
-                        help="EPS change percentage",
-                        width="small"
-                    )
-            
-            # Add Industry column config if present
-            if 'Industry' in final_display_df.columns:
-                column_config["Industry"] = st.column_config.TextColumn(
-                    "Industry",
-                    help="Industry classification",
-                    width="medium",
-                    max_chars=50
+            # Highlight high RVOL
+            if 'rvol' in final_df.columns:
+                styled_df = styled_df.applymap(
+                    lambda x: 'background-color: #ffebee' if x > 3 else 'background-color: #fff3e0' if x > 2 else '',
+                    subset=['rvol']
                 )
             
-            # Display the main dataframe with column configuration
+            # Color gradient for scores
+            score_cols = [col for col in ['master_score', 'momentum_score', 'acceleration_score', 'volume_score'] 
+                         if col in final_df.columns]
+            if score_cols:
+                styled_df = styled_df.background_gradient(
+                    subset=score_cols,
+                    cmap='RdYlGn',
+                    vmin=0,
+                    vmax=100
+                )
+            
+            # Display the enhanced dataframe
             st.dataframe(
-                final_display_df,
+                final_df,  # Use unstyled for column_config to work properly
                 use_container_width=True,
-                height=min(600, len(final_display_df) * 35 + 50),
+                height=min(600, len(final_df) * 35 + 50),
                 hide_index=True,
-                column_config=column_config
+                column_config=column_config,
+                column_order=available_cols  # Maintain our logical order
             )
+            
+            # ============================================
+            # QUICK ACTION BAR BELOW TABLE
+            # ============================================
+            action_cols = st.columns(6)
+            
+            with action_cols[0]:
+                if st.button("📋 Copy Tickers", use_container_width=True):
+                    tickers = ', '.join(final_df['ticker'].head(10).tolist())
+                    st.code(tickers, language=None)
+            
+            with action_cols[1]:
+                top_score = final_df.iloc[0] if not final_df.empty else None
+                if top_score is not None:
+                    st.metric("🏆 Top Score", f"{top_score['master_score']:.1f}")
+            
+            with action_cols[2]:
+                avg_score = final_df['master_score'].mean()
+                st.metric("📊 Avg Score", f"{avg_score:.1f}")
+            
+            with action_cols[3]:
+                if 'rvol' in final_df.columns:
+                    high_vol = (final_df['rvol'] > 2).sum()
+                    st.metric("🔥 High Vol", f"{high_vol}")
+            
+            with action_cols[4]:
+                if 'ret_30d' in final_df.columns:
+                    gainers = (final_df['ret_30d'] > 0).sum()
+                    st.metric("📈 30D Gainers", f"{gainers}")
+            
+            with action_cols[5]:
+                if 'patterns' in final_df.columns:
+                    with_patterns = (final_df['patterns'] != '').sum()
+                    st.metric("🎯 Patterns", f"{with_patterns}")
             
             # Quick Statistics Section
             with st.expander("📊 Quick Statistics", expanded=False):
