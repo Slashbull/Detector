@@ -3460,6 +3460,37 @@ class SessionStateManager:
         if 'filter_state' in st.session_state:
             st.session_state.filter_state['quick_filter'] = None
             st.session_state.filter_state['quick_filter_applied'] = False
+
+    # =====================================
+    # HELPER FUNCTIONS FOR SUMMARY TAB
+    # =====================================
+    def calculate_wave_health(df):
+        """
+        Calculate market wave health score (0-100)
+        Higher score = more bullish market
+        """
+        if df.empty or 'wave_state' not in df.columns:
+            return 50  # Default neutral
+        
+        total_stocks = len(df)
+        if total_stocks == 0:
+            return 50
+        
+        # Count wave states
+        cresting_count = len(df[df['wave_state'].str.contains('CRESTING', na=False)])
+        building_count = len(df[df['wave_state'].str.contains('BUILDING', na=False)])
+        forming_count = len(df[df['wave_state'].str.contains('FORMING', na=False)])
+        breaking_count = len(df[df['wave_state'].str.contains('BREAKING', na=False)])
+        
+        # Calculate weighted health score
+        wave_health = (
+            (cresting_count * 100) +
+            (building_count * 75) +
+            (forming_count * 50) +
+            (breaking_count * 25)
+        ) / total_stocks
+        
+        return wave_health
         
 # ============================================
 # MAIN APPLICATION
